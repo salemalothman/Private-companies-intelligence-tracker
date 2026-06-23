@@ -1,0 +1,254 @@
+/**
+ * Database types for the Private Portfolio Intelligence Tracker.
+ * Hand-maintained to match supabase/migrations. Can be regenerated with
+ * `supabase gen types typescript`.
+ *
+ * Each table's Row/Insert are standalone interfaces (no self-referential
+ * Database[...] lookups) so TypeScript can resolve the schema cleanly.
+ */
+
+export type Confidence = "low" | "medium" | "high";
+export type CompanyStatus = "active" | "exited";
+export type Sentiment = "positive" | "neutral" | "negative";
+
+type Empty = { [_ in never]: never };
+
+// --- profiles ---
+export type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  created_at: string;
+}
+type ProfileInsert = {
+  id: string;
+  full_name?: string | null;
+  created_at?: string;
+}
+
+// --- companies ---
+export type CompanyRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  website: string | null;
+  logo_url: string | null;
+  sector: string | null;
+  country: string | null;
+  founded_year: number | null;
+  founders: string[] | null;
+  description: string | null;
+  status: CompanyStatus;
+  risk_score: number | null;
+  created_at: string;
+  updated_at: string;
+}
+type CompanyInsert = {
+  id?: string;
+  user_id?: string;
+  name: string;
+  website?: string | null;
+  logo_url?: string | null;
+  sector?: string | null;
+  country?: string | null;
+  founded_year?: number | null;
+  founders?: string[] | null;
+  description?: string | null;
+  status?: CompanyStatus;
+  risk_score?: number | null;
+}
+
+// --- investments ---
+export type InvestmentRow = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  investment_date: string;
+  amount: number;
+  share_price: number | null;
+  shares: number | null;
+  ownership_pct: number | null;
+  investor_name: string | null;
+  round: string | null;
+  terms: string | null;
+  notes: string | null;
+  created_at: string;
+}
+type InvestmentInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  investment_date: string;
+  amount?: number;
+  share_price?: number | null;
+  shares?: number | null;
+  ownership_pct?: number | null;
+  investor_name?: string | null;
+  round?: string | null;
+  terms?: string | null;
+  notes?: string | null;
+}
+
+// --- valuations ---
+export type ValuationRow = {
+  id: string;
+  company_id: string;
+  date: string;
+  round: string | null;
+  pre_money: number | null;
+  post_money: number | null;
+  share_price: number | null;
+  source: string | null;
+  confidence: Confidence;
+  created_at: string;
+}
+type ValuationInsert = {
+  id?: string;
+  company_id: string;
+  date: string;
+  round?: string | null;
+  pre_money?: number | null;
+  post_money?: number | null;
+  share_price?: number | null;
+  source?: string | null;
+  confidence?: Confidence;
+}
+
+// --- funding_rounds ---
+export type FundingRoundRow = {
+  id: string;
+  company_id: string;
+  round: string;
+  date: string | null;
+  amount_raised: number | null;
+  valuation: number | null;
+  investors: string[] | null;
+  lead_investor: string | null;
+  share_price: number | null;
+  source: string | null;
+  created_at: string;
+}
+type FundingRoundInsert = {
+  id?: string;
+  company_id: string;
+  round: string;
+  date?: string | null;
+  amount_raised?: number | null;
+  valuation?: number | null;
+  investors?: string[] | null;
+  lead_investor?: string | null;
+  share_price?: number | null;
+  source?: string | null;
+}
+
+// --- news ---
+export type NewsRow = {
+  id: string;
+  company_id: string;
+  title: string;
+  source: string | null;
+  url: string | null;
+  date: string | null;
+  sentiment: Sentiment | null;
+  summary: string | null;
+  created_at: string;
+}
+type NewsInsert = {
+  id?: string;
+  company_id: string;
+  title: string;
+  source?: string | null;
+  url?: string | null;
+  date?: string | null;
+  sentiment?: Sentiment | null;
+  summary?: string | null;
+}
+
+// --- documents ---
+export type DocumentRowDb = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  file_path: string;
+  type: string | null;
+  extracted_data: Record<string, unknown> | null;
+  status: string;
+  created_at: string;
+};
+type DocumentInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  file_path: string;
+  type?: string | null;
+  extracted_data?: Record<string, unknown> | null;
+  status?: string;
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: ProfileRow;
+        Insert: ProfileInsert;
+        Update: Partial<ProfileInsert>;
+        Relationships: [];
+      };
+      companies: {
+        Row: CompanyRow;
+        Insert: CompanyInsert;
+        Update: Partial<CompanyInsert>;
+        Relationships: [];
+      };
+      investments: {
+        Row: InvestmentRow;
+        Insert: InvestmentInsert;
+        Update: Partial<InvestmentInsert>;
+        Relationships: [];
+      };
+      valuations: {
+        Row: ValuationRow;
+        Insert: ValuationInsert;
+        Update: Partial<ValuationInsert>;
+        Relationships: [];
+      };
+      funding_rounds: {
+        Row: FundingRoundRow;
+        Insert: FundingRoundInsert;
+        Update: Partial<FundingRoundInsert>;
+        Relationships: [];
+      };
+      news: {
+        Row: NewsRow;
+        Insert: NewsInsert;
+        Update: Partial<NewsInsert>;
+        Relationships: [];
+      };
+      documents: {
+        Row: DocumentRowDb;
+        Insert: DocumentInsert;
+        Update: Partial<DocumentInsert>;
+        Relationships: [];
+      };
+    };
+    Views: Empty;
+    Functions: Empty;
+    Enums: Empty;
+    CompositeTypes: Empty;
+  };
+}
+
+// Convenience row aliases
+export type Company = CompanyRow;
+export type Investment = InvestmentRow;
+export type Valuation = ValuationRow;
+export type FundingRound = FundingRoundRow;
+export type NewsItem = NewsRow;
+export type DocumentRow = DocumentRowDb;
+
+/** A company joined with its related records — the shape the UI consumes. */
+export interface CompanyWithRelations extends CompanyRow {
+  investments: InvestmentRow[];
+  valuations: ValuationRow[];
+  funding_rounds: FundingRoundRow[];
+  news: NewsRow[];
+}
