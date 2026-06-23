@@ -2,64 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design system — premium minimal, data-dense flat dashboard.
+ * Near-monochrome ink on white, hairline borders, restrained accent,
+ * muted semantic green/red. Generated with ui-ux-pro-max guidance.
+ */
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%;
+    --foreground: 224 24% 8%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 224 24% 8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --chart-1: 221 83% 53%;
-    --chart-2: 142 71% 45%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --radius: 0.5rem;
+    --popover-foreground: 224 24% 8%;
+
+    /* Ink primary — premium near-black action color */
+    --primary: 224 24% 10%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 224 24% 12%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 224 24% 12%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 56% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Restrained brand accent — used sparingly for focus + emphasis */
+    --brand: 221 83% 53%;
+
+    --border: 220 16% 92%;
+    --input: 220 16% 90%;
+    --ring: 224 24% 12%;
+
+    /* Muted, distinct data palette */
+    --chart-1: 221 70% 52%;
+    --chart-2: 152 50% 40%;
+    --chart-3: 35 85% 52%;
+    --chart-4: 262 52% 58%;
+    --chart-5: 199 75% 44%;
+
+    --radius: 0.625rem;
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
-    --card: 222 44% 10%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222 44% 10%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217 33% 15%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 96%;
-    --destructive: 0 63% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 64% 47%;
-    --success-foreground: 222 47% 11%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 217 91% 60%;
-    --chart-1: 217 91% 60%;
-    --chart-2: 142 64% 47%;
-    --chart-3: 38 92% 55%;
-    --chart-4: 280 65% 65%;
-    --chart-5: 340 75% 60%;
+    --background: 224 28% 6%;
+    --foreground: 210 20% 96%;
+    --card: 224 24% 8%;
+    --card-foreground: 210 20% 96%;
+    --popover: 224 24% 8%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 210 20% 96%;
+    --primary-foreground: 224 28% 8%;
+    --secondary: 220 16% 14%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 16% 13%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 220 16% 15%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 64% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 52% 46%;
+    --success-foreground: 224 28% 8%;
+    --brand: 217 91% 62%;
+    --border: 220 16% 16%;
+    --input: 220 16% 18%;
+    --ring: 210 20% 80%;
+    --chart-1: 217 80% 62%;
+    --chart-2: 152 50% 48%;
+    --chart-3: 35 85% 58%;
+    --chart-4: 262 58% 66%;
+    --chart-5: 199 75% 52%;
   }
 }
 
@@ -68,12 +85,28 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Refined heading rhythm */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
   }
 }
 
-/* Numeric / financial figures look better tabular-aligned */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+@layer utilities {
+  /* Tabular figures for all financial data — prevents column jitter */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  /* Tiny uppercase section/column labels */
+  .label-eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-wider text-muted-foreground;
+  }
 }

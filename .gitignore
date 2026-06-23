@@ -32,3 +32,6 @@ yarn-error.log*
 
 # testing
 /coverage
+
+# locally-installed agent skills (third-party tooling)
+/.agents

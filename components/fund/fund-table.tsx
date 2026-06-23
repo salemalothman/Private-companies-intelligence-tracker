@@ -139,8 +139,8 @@ export function FundTable({
           ))}
 
           {/* TOTAL / FUND */}
-          <TableRow className="border-t-2 border-primary/40 bg-secondary/60 font-semibold hover:bg-secondary/60">
-            <TableCell className="sticky left-0 bg-secondary/60">
+          <TableRow className="border-t border-border bg-muted/50 font-semibold hover:bg-muted/50">
+            <TableCell className="sticky left-0 bg-muted/50">
               TOTAL / FUND
             </TableCell>
             <TableCell />

@@ -43,9 +43,9 @@ export function Sidebar({ email }: { email: string | null }) {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 active
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-secondary font-medium text-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
