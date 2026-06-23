@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { SyncButton } from "@/components/company/sync-button";
+import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import {
   AddFundingRoundDialog,
@@ -154,6 +155,7 @@ export default async function CompanyDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AddDocumentDialog companyId={company.id} />
           <SyncButton companyId={company.id} />
           <EditOverviewDialog
             company={company}

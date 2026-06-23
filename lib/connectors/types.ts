@@ -31,6 +31,7 @@ export interface ConnectorNewsItem {
   url?: string;
   date?: string;
   summary?: string;
+  sentiment?: "positive" | "neutral" | "negative";
 }
 
 export interface DataConnector {

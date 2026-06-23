@@ -29,6 +29,12 @@ This repo currently implements the **core portfolio loop** (phases P0–P3):
   source); real Crunchbase/SEC/news/Twitter connectors slot into the registry behind the
   same interface. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full P4–P7 design
   (ingestion, PDF/LLM pipeline, AI agents, cron + email).
+- **Document intelligence (P5 foundation)** — an **Add document** action on each company
+  accepts a PDF (drag-and-drop) or a news/document URL, runs an extraction pipeline
+  (`lib/documents/`), and routes the extracted valuations, funding rounds, and news into
+  the asset's tabs. Keyless today via a heuristic extractor (`lib/documents/heuristic.ts`);
+  set `ANTHROPIC_API_KEY` to switch to the LLM extractor behind the same contract. PDFs
+  are parsed with `pdf-parse`; every run is logged to the `documents` table.
 - **Metrics** — pure, unit-tested portfolio + fund math (`lib/metrics.ts`)
 - **Connector seam** — `lib/connectors` interface + stub, ready for live data in P4
 

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Company } from "@/lib/types";
 import { getConnectors } from "@/lib/connectors/registry";
 import { mapConnectorResults, type ConnectorBatchResult } from "@/lib/ingestion/map";
+import { applyMappedIngest } from "@/lib/ingestion/apply";
 
 export interface IngestSummary {
   source: string;
@@ -49,71 +50,7 @@ export async function ingestCompany(
   const mapped = mapConnectorResults(batch);
   const source = connectors.map((c) => c.id).join(",");
 
-  // Dedupe against what already exists for this company.
-  const [{ data: existingRounds }, { data: existingVals }, { data: existingNews }] =
-    await Promise.all([
-      supabase.from("funding_rounds").select("round").eq("company_id", company.id),
-      supabase.from("valuations").select("date, round").eq("company_id", company.id),
-      supabase.from("news").select("title").eq("company_id", company.id),
-    ]);
-
-  const haveRound = new Set((existingRounds ?? []).map((r) => r.round.toLowerCase()));
-  const haveVal = new Set(
-    (existingVals ?? []).map((v) => `${v.date}|${(v.round ?? "").toLowerCase()}`),
-  );
-  const haveNews = new Set((existingNews ?? []).map((n) => n.title.toLowerCase()));
-
-  const newRounds = mapped.fundingRounds.filter(
-    (r) => !haveRound.has(r.round.toLowerCase()),
-  );
-  const newVals = mapped.valuations.filter(
-    (v) => !haveVal.has(`${v.date}|${(v.round ?? "").toLowerCase()}`),
-  );
-  const newNews = mapped.news.filter((n) => !haveNews.has(n.title.toLowerCase()));
-
-  if (newRounds.length) {
-    const { error } = await supabase.from("funding_rounds").insert(
-      newRounds.map((r) => ({
-        company_id: company.id,
-        round: r.round,
-        date: r.date ?? null,
-        amount_raised: r.amountRaised ?? null,
-        valuation: r.valuation ?? null,
-        investors: r.investors ?? null,
-        lead_investor: r.leadInvestor ?? null,
-        source: r.source,
-      })),
-    );
-    if (error) status = "partial";
-  }
-
-  if (newVals.length) {
-    const { error } = await supabase.from("valuations").insert(
-      newVals.map((v) => ({
-        company_id: company.id,
-        date: v.date,
-        round: v.round,
-        post_money: v.post_money,
-        source: v.source,
-        confidence: "low" as const,
-      })),
-    );
-    if (error) status = "partial";
-  }
-
-  if (newNews.length) {
-    const { error } = await supabase.from("news").insert(
-      newNews.map((n) => ({
-        company_id: company.id,
-        title: n.title,
-        source: n.source,
-        url: n.url ?? null,
-        date: n.date ?? null,
-        summary: n.summary ?? null,
-      })),
-    );
-    if (error) status = "partial";
-  }
+  const applied = await applyMappedIngest(supabase, company.id, mapped);
 
   // Backfill only empty profile fields — never overwrite user input.
   const patch: {
@@ -137,7 +74,8 @@ export async function ingestCompany(
     await supabase.from("companies").update(patch).eq("id", company.id);
   }
 
-  const itemsFound = newRounds.length + newVals.length + newNews.length;
+  const itemsFound =
+    applied.roundsAdded + applied.valuationsAdded + applied.newsAdded;
   const detail = errors.length ? errors.join("; ") : undefined;
 
   await supabase.from("ingestion_runs").insert({
@@ -150,9 +88,9 @@ export async function ingestCompany(
 
   return {
     source,
-    roundsAdded: newRounds.length,
-    valuationsAdded: newVals.length,
-    newsAdded: newNews.length,
+    roundsAdded: applied.roundsAdded,
+    valuationsAdded: applied.valuationsAdded,
+    newsAdded: applied.newsAdded,
     itemsFound,
     status,
     detail,
