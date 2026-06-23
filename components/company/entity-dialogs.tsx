@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import {
   addFundingRound,
   addInvestment,
+  addNews,
   addValuation,
 } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,49 @@ export function AddValuationDialog({ companyId }: { companyId: string }) {
       </div>
       <Field label="Source">
         <Input name="source" placeholder="Pitch deck, news, cap table…" />
+      </Field>
+    </FormDialog>
+  );
+}
+
+export function AddNewsDialog({ companyId }: { companyId: string }) {
+  return (
+    <FormDialog
+      trigger={<AddButton label="Add news" />}
+      title="Add news / update"
+      description="Record a news item, announcement, or update."
+      action={addNews.bind(null, companyId)}
+      submitLabel="Add news"
+    >
+      <Field label="Headline *">
+        <Input name="title" required placeholder="Company raises Series C" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Date">
+          <Input name="date" type="date" />
+        </Field>
+        <Field label="Sentiment">
+          <select
+            name="sentiment"
+            defaultValue="neutral"
+            className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
+          >
+            <option value="positive">Positive</option>
+            <option value="neutral">Neutral</option>
+            <option value="negative">Negative</option>
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Source">
+          <Input name="source" placeholder="TechCrunch, Reuters…" />
+        </Field>
+        <Field label="URL">
+          <Input name="url" placeholder="https://…" />
+        </Field>
+      </div>
+      <Field label="Summary">
+        <Textarea name="summary" placeholder="What happened…" />
       </Field>
     </FormDialog>
   );

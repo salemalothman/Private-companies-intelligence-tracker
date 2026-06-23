@@ -191,6 +191,38 @@ export async function addFundingRound(
   return {};
 }
 
+export async function addNews(
+  companyId: string,
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const title = str(formData.get("title"));
+  if (!title) return { error: "Headline is required." };
+
+  const { error } = await supabase.from("news").insert({
+    company_id: companyId,
+    title,
+    source: str(formData.get("source")),
+    url: str(formData.get("url")),
+    date: str(formData.get("date")),
+    sentiment:
+      (str(formData.get("sentiment")) as
+        | "positive"
+        | "neutral"
+        | "negative"
+        | null) ?? null,
+    summary: str(formData.get("summary")),
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath(`/companies/${companyId}`);
+  revalidatePath("/dashboard");
+  return {};
+}
+
 export async function deleteCompany(companyId: string): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) return { error: "Not authenticated." };

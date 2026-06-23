@@ -33,8 +33,10 @@ import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import {
   AddFundingRoundDialog,
   AddInvestmentDialog,
+  AddNewsDialog,
   AddValuationDialog,
 } from "@/components/company/entity-dialogs";
+import type { Sentiment } from "@/lib/types";
 
 function Stat({
   label,
@@ -84,6 +86,11 @@ export default async function CompanyDetailPage({
       new Date(b.investment_date).getTime() -
       new Date(a.investment_date).getTime(),
   );
+  const sortedNews = [...company.news].sort((a, b) => {
+    const ta = a.date ? new Date(a.date).getTime() : 0;
+    const tb = b.date ? new Date(b.date).getTime() : 0;
+    return tb - ta;
+  });
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -174,6 +181,7 @@ export default async function CompanyDetailPage({
           <TabsTrigger value="investment">Investment</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
+          <TabsTrigger value="news">News</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -379,9 +387,70 @@ export default async function CompanyDetailPage({
             )}
           </div>
         </TabsContent>
+
+        {/* News */}
+        <TabsContent value="news">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">News &amp; updates</h3>
+              <AddNewsDialog companyId={company.id} />
+            </div>
+            {sortedNews.length === 0 ? (
+              <EmptyRow text="No news yet. Add an update — or connect a live news source in a later phase." />
+            ) : (
+              <div className="space-y-3">
+                {sortedNews.map((n) => (
+                  <Card key={n.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={sentimentVariant(n.sentiment)}>
+                              {n.sentiment ?? "neutral"}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {n.source ?? "—"} · {formatDate(n.date)}
+                            </span>
+                          </div>
+                          <h4 className="mt-1.5 font-medium leading-snug">
+                            {n.url ? (
+                              <a
+                                href={n.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:text-primary"
+                              >
+                                {n.title}
+                              </a>
+                            ) : (
+                              n.title
+                            )}
+                          </h4>
+                          {n.summary && (
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {n.summary}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+function sentimentVariant(
+  s: Sentiment | null,
+): "success" | "destructive" | "muted" {
+  if (s === "positive") return "success";
+  if (s === "negative") return "destructive";
+  return "muted";
 }
 
 function EmptyRow({ text }: { text: string }) {

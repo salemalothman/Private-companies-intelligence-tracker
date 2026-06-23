@@ -75,6 +75,36 @@ interface SeedCompany {
     lead_investor: string;
     source: string;
   }[];
+  news?: {
+    title: string;
+    source: string;
+    date: string;
+    sentiment: "positive" | "neutral" | "negative";
+    summary: string;
+  }[];
+}
+
+function defaultNews(c: SeedCompany) {
+  const latest = c.rounds[c.rounds.length - 1];
+  const items = [
+    {
+      title: `${c.name} raises ${latest.round} at $${(
+        latest.valuation / 1e9
+      ).toFixed(0)}B valuation`,
+      source: latest.source,
+      date: latest.date,
+      sentiment: "positive" as const,
+      summary: `${c.name} closed its ${latest.round} led by ${latest.lead_investor}.`,
+    },
+    {
+      title: `${c.name} expands ${c.sector} product line`,
+      source: "Company Blog",
+      date: "2025-04-15",
+      sentiment: "neutral" as const,
+      summary: `${c.name} announced new offerings as it scales.`,
+    },
+  ];
+  return c.news ?? items;
 }
 
 const COMPANIES: SeedCompany[] = [
@@ -269,6 +299,10 @@ async function main() {
 
     await admin.from("funding_rounds").insert(
       c.rounds.map((r) => ({ company_id: company.id, ...r })),
+    );
+
+    await admin.from("news").insert(
+      defaultNews(c).map((n) => ({ company_id: company.id, ...n })),
     );
 
     console.log(`   ✓ seeded ${c.name}`);
