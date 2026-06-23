@@ -38,6 +38,7 @@ import {
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { SyncButton } from "@/components/company/sync-button";
 import { AddDocumentDialog } from "@/components/company/add-document-dialog";
+import { DeleteCompanyButton } from "@/components/company/delete-company-button";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import {
   AddFundingRoundDialog,
@@ -160,6 +161,10 @@ export default async function CompanyDetailPage({
           <EditOverviewDialog
             company={company}
             defaults={{ carry_pct: fees.carry_pct, mgmt_fee_pct: fees.mgmt_fee_pct }}
+          />
+          <DeleteCompanyButton
+            companyId={company.id}
+            companyName={company.name}
           />
         </div>
       </div>

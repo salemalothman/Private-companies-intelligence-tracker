@@ -17,7 +17,11 @@ This repo currently implements the **core portfolio loop** (phases P0–P3):
   latest valuation changes, charts (valuation growth, sector allocation, top performers,
   risk matrix), and the full portfolio company table
 - **Company detail** — tabbed: overview, investment history, valuation timeline chart,
-  funding-round tracker, news, all with manual entry dialogs
+  funding-round tracker, news, all with manual entry dialogs; plus **Delete** (with
+  confirm) to remove a company and all its data
+- **Auto-enrichment** — typing a company name in the Add Company modal debounce-fetches
+  and auto-fills sector, country, website, founded year, founders, and description
+  (`lib/enrichment/`); keyless via the connector, real facts when `ANTHROPIC_API_KEY` is set
 - **Fund Analysis** — deal-by-deal analytics table (entry date, holding yrs, entry
   valuation, implied/latest price, shares, current/total value, gain/loss, MOIC, gross
   IRR, % of cost, initial ownership), a TOTAL/FUND row, and editable fee assumptions

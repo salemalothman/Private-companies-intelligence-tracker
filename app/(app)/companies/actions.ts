@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
+import {
+  enrichCompanyProfile,
+  type EnrichedProfile,
+} from "@/lib/enrichment/enrich";
 
 const INGEST_FIELDS =
   "id, name, website, sector, country, founded_year, description, founders";
@@ -38,6 +42,21 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return { supabase, user };
+}
+
+/** Auto-enrich the Add Company form from just the company name. */
+export async function enrichCompany(
+  name: string,
+): Promise<EnrichedProfile & { error?: string }> {
+  const { user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+  const q = name.trim();
+  if (q.length < 2) return {};
+  try {
+    return await enrichCompanyProfile(q);
+  } catch {
+    return {};
+  }
 }
 
 export async function createCompany(
