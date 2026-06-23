@@ -49,7 +49,11 @@ export function FeeAssumptions({
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardContent className="p-5">
-          <h3 className="text-sm font-medium">Fee assumptions</h3>
+          <h3 className="text-sm font-medium">Default fee assumptions</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Applied to any deal without a custom override. Set per-deal fees on a
+            company&apos;s page.
+          </p>
           <form action={action} className="mt-3 space-y-3">
             <div className="flex items-center justify-between gap-4">
               <label className="text-sm text-muted-foreground">
@@ -94,8 +98,11 @@ export function FeeAssumptions({
       <Card>
         <CardContent className="p-5">
           <h3 className="text-sm font-medium">Net to LPs (after fees)</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Carry and management fees are computed per deal, then aggregated.
+          </p>
           <dl className="mt-3 space-y-2 text-sm">
-            <Row label={`Carry (${carryPct}% of profit)`}>
+            <Row label="Carry (deal-by-deal)">
               {formatCurrency(fund.carry, { compact: false })}
             </Row>
             <Row label="Management fees (accrued)">

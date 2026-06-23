@@ -7,16 +7,23 @@ import {
   ExternalLink,
   Globe,
 } from "lucide-react";
-import { getCompany } from "@/lib/queries";
+import { getCompany, getFundSettings } from "@/lib/queries";
 import {
   companyChangePct,
   companyInvested,
   currentOwnershipPct,
   currentValue,
+  dealFees,
   riskScore,
   valuationAmount,
 } from "@/lib/metrics";
-import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  formatMultiple,
+  formatPercent,
+} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,7 +71,7 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const company = await getCompany(id);
+  const [company, fees] = await Promise.all([getCompany(id), getFundSettings()]);
   if (!company) notFound();
 
   const invested = companyInvested(company);
@@ -73,6 +80,8 @@ export default async function CompanyDetailPage({
   const ownership = currentOwnershipPct(company);
   const risk = riskScore(company);
   const changeUp = (change ?? 0) >= 0;
+  const feeDefaults = { carryPct: fees.carry_pct, mgmtFeePct: fees.mgmt_fee_pct };
+  const df = dealFees(company, feeDefaults);
 
   const sortedVals = [...company.valuations].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -146,7 +155,10 @@ export default async function CompanyDetailPage({
         </div>
         <div className="flex items-center gap-2">
           <SyncButton companyId={company.id} />
-          <EditOverviewDialog company={company} />
+          <EditOverviewDialog
+            company={company}
+            defaults={{ carry_pct: fees.carry_pct, mgmt_fee_pct: fees.mgmt_fee_pct }}
+          />
         </div>
       </div>
 
@@ -175,6 +187,26 @@ export default async function CompanyDetailPage({
             value={ownership != null ? `${ownership}%` : "—"}
           />
           <Stat label="Risk score" value={risk != null ? String(risk) : "—"} />
+        </CardContent>
+      </Card>
+
+      {/* Deal-specific fee structure */}
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+          <Stat
+            label="Carry / performance"
+            value={`${df.carryPct}%${df.isCustomCarry ? " · custom" : " · default"}`}
+          />
+          <Stat
+            label="Management fee"
+            value={`${df.mgmtFeePct}%${df.isCustomMgmt ? " · custom" : " · default"}`}
+          />
+          <Stat
+            label="Net value (after fees)"
+            value={formatCurrency(df.netValue)}
+            accent="text-primary"
+          />
+          <Stat label="Net MOIC" value={formatMultiple(df.netMoic)} />
         </CardContent>
       </Card>
 

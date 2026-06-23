@@ -67,6 +67,10 @@ export function FundTable({
             <TableHead className="text-right">Gross IRR</TableHead>
             <TableHead className="text-right">% of Cost</TableHead>
             <TableHead className="text-right">Initial Own %</TableHead>
+            <TableHead className="text-right">Carry</TableHead>
+            <TableHead className="text-right">Mgmt</TableHead>
+            <TableHead className="text-right">Net Value</TableHead>
+            <TableHead className="text-right">Net MOIC</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -135,6 +139,18 @@ export function FundTable({
               <TableCell className="text-right tabular-nums">
                 {formatTinyPercent(d.initialOwnFraction)}
               </TableCell>
+              <TableCell className="text-right tabular-nums">
+                <FeeRate pct={d.fees.carryPct} custom={d.fees.isCustomCarry} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                <FeeRate pct={d.fees.mgmtFeePct} custom={d.fees.isCustomMgmt} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {full(d.fees.netValue)}
+              </TableCell>
+              <TableCell className="text-right font-medium tabular-nums">
+                {formatMultiple(d.fees.netMoic)}
+              </TableCell>
             </TableRow>
           ))}
 
@@ -181,9 +197,25 @@ export function FundTable({
             </TableCell>
             <TableCell className="text-right tabular-nums">100.0%</TableCell>
             <TableCell />
+            <TableCell />
+            <TableCell />
+            <TableCell className="text-right tabular-nums">
+              {full(fund.netValue)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatMultiple(fund.netMoic)}
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function FeeRate({ pct, custom }: { pct: number; custom: boolean }) {
+  return (
+    <span className={custom ? "font-medium text-foreground" : "text-muted-foreground"}>
+      {pct}%{custom && <span className="ml-0.5 text-primary">•</span>}
+    </span>
   );
 }

@@ -11,13 +11,12 @@ export default async function FundPage() {
   ]);
 
   const now = new Date();
+  const feeDefaults = { carryPct: fees.carry_pct, mgmtFeePct: fees.mgmt_fee_pct };
   const totalInvested = companies.reduce((s, c) => s + companyInvested(c), 0);
-  const deals = companies.map((c) => dealAnalytics(c, totalInvested, now));
-  const fund = fundAnalytics(
-    companies,
-    { carryPct: fees.carry_pct, mgmtFeePct: fees.mgmt_fee_pct },
-    now,
+  const deals = companies.map((c) =>
+    dealAnalytics(c, totalInvested, feeDefaults, now),
   );
+  const fund = fundAnalytics(companies, feeDefaults, now);
 
   return (
     <div className="space-y-6 p-6 lg:p-8">

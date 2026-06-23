@@ -82,6 +82,9 @@ interface SeedCompany {
     sentiment: "positive" | "neutral" | "negative";
     summary: string;
   }[];
+  // Deal-specific fee overrides (null/undefined = inherit the fund default).
+  carry_pct?: number;
+  mgmt_fee_pct?: number;
 }
 
 function defaultNews(c: SeedCompany) {
@@ -114,6 +117,8 @@ const COMPANIES: SeedCompany[] = [
     sector: "AI",
     country: "United States",
     founded_year: 2015,
+    carry_pct: 25,
+    mgmt_fee_pct: 8,
     founders: ["Sam Altman", "Greg Brockman", "Ilya Sutskever"],
     description:
       "Artificial intelligence research and deployment company behind ChatGPT and GPT-4.",
@@ -219,6 +224,8 @@ const COMPANIES: SeedCompany[] = [
     sector: "Fintech",
     country: "United States",
     founded_year: 2019,
+    carry_pct: 15,
+    mgmt_fee_pct: 5,
     founders: ["Eric Glyman", "Karim Atiyeh"],
     description: "Corporate cards and spend management platform.",
     investment: {
@@ -282,6 +289,8 @@ async function main() {
         founders: c.founders,
         description: c.description,
         status: "active",
+        carry_pct: c.carry_pct ?? null,
+        mgmt_fee_pct: c.mgmt_fee_pct ?? null,
       })
       .select("id")
       .single();

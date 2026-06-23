@@ -447,6 +447,60 @@ export function grossIRR(
   return clamp(Math.pow(m, 1 / years) - 1, -1, 100);
 }
 
+export interface FundFeeAssumptions {
+  carryPct: number; // performance fee / carry, e.g. 20
+  mgmtFeePct: number; // management fee, e.g. 7 (annual, % of invested)
+}
+
+export interface DealFees {
+  /** Effective rates after applying the deal override (?? fund default). */
+  carryPct: number;
+  mgmtFeePct: number;
+  isCustomCarry: boolean;
+  isCustomMgmt: boolean;
+  /** Carry charged on this deal's own profit only (deal-by-deal waterfall). */
+  carry: number;
+  /** Management fee accrued on this deal's invested capital over its holding. */
+  mgmtFee: number;
+  netValue: number;
+  netMoic: number | null;
+}
+
+/**
+ * Per-deal fee computation. Carry is charged on each deal's own gain (so losers
+ * never offset winners' carry — a deal-by-deal waterfall), and the management fee
+ * accrues on the deal's invested capital over its holding period. The effective
+ * rates come from the company's own override, falling back to the fund default.
+ */
+export function dealFees(
+  company: CompanyWithRelations,
+  defaults: FundFeeAssumptions,
+  now: Date = new Date(),
+): DealFees {
+  const invested = companyInvested(company);
+  const totalValue = dealTotalValue(company);
+  const gain = totalValue - invested;
+  const years = Math.max(holdingYears(company, now) ?? 0, 0);
+
+  const carryPct = company.carry_pct ?? defaults.carryPct;
+  const mgmtFeePct = company.mgmt_fee_pct ?? defaults.mgmtFeePct;
+
+  const carry = Math.max(0, gain) * (carryPct / 100);
+  const mgmtFee = invested * (mgmtFeePct / 100) * years;
+  const netValue = totalValue - carry - mgmtFee;
+
+  return {
+    carryPct,
+    mgmtFeePct,
+    isCustomCarry: company.carry_pct != null,
+    isCustomMgmt: company.mgmt_fee_pct != null,
+    carry,
+    mgmtFee,
+    netValue,
+    netMoic: invested > 0 ? netValue / invested : null,
+  };
+}
+
 export interface DealAnalytics {
   id: string;
   name: string;
@@ -467,11 +521,13 @@ export interface DealAnalytics {
   grossIRR: number | null;
   pctOfCost: number | null;
   initialOwnFraction: number | null;
+  fees: DealFees;
 }
 
 export function dealAnalytics(
   company: CompanyWithRelations,
   fundInvested: number,
+  defaults: FundFeeAssumptions,
   now: Date = new Date(),
 ): DealAnalytics {
   const invested = companyInvested(company);
@@ -498,12 +554,8 @@ export function dealAnalytics(
     grossIRR: grossIRR(company, now),
     pctOfCost: fundInvested > 0 ? invested / fundInvested : null,
     initialOwnFraction: initialOwnershipFraction(company),
+    fees: dealFees(company, defaults, now),
   };
-}
-
-export interface FundFeeAssumptions {
-  carryPct: number; // performance fee / carry, e.g. 20
-  mgmtFeePct: number; // management fee, e.g. 7 (annual, % of invested)
 }
 
 export interface FundAnalytics {
@@ -523,9 +575,15 @@ export interface FundAnalytics {
   netMoic: number | null;
 }
 
+/**
+ * Aggregate fund metrics. `defaults` are the fund-wide fee assumptions, applied
+ * to any deal that doesn't carry its own override. Carry and management fees are
+ * computed PER DEAL (see {@link dealFees}) and summed — not a flat percentage on
+ * the total — so asset-level fee structures produce accurate net-to-LP figures.
+ */
 export function fundAnalytics(
   companies: CompanyWithRelations[],
-  fees: FundFeeAssumptions,
+  defaults: FundFeeAssumptions,
   now: Date = new Date(),
 ): FundAnalytics {
   const totalInvested = companies.reduce((s, c) => s + companyInvested(c), 0);
@@ -538,14 +596,17 @@ export function fundAnalytics(
   const gainLoss = totalValue - totalInvested;
   const fundMoic = totalInvested > 0 ? totalValue / totalInvested : null;
 
-  // Invested-weighted holding period.
+  // Invested-weighted holding period + deal-by-deal fee aggregation.
   let weightedNum = 0;
+  let carry = 0;
   let mgmtFees = 0;
   for (const c of companies) {
     const invested = companyInvested(c);
     const yrs = holdingYears(c, now) ?? 0;
     weightedNum += invested * yrs;
-    mgmtFees += invested * (fees.mgmtFeePct / 100) * Math.max(yrs, 0);
+    const f = dealFees(c, defaults, now);
+    carry += f.carry;
+    mgmtFees += f.mgmtFee;
   }
   const weightedHoldingYears =
     totalInvested > 0 ? weightedNum / totalInvested : 0;
@@ -556,7 +617,6 @@ export function fundAnalytics(
       ? clamp(Math.pow(fundMoic, 1 / effYears) - 1, -1, 100)
       : null;
 
-  const carry = Math.max(0, gainLoss) * (fees.carryPct / 100);
   const netValue = totalValue - carry - mgmtFees;
   const netGainLoss = netValue - totalInvested;
 

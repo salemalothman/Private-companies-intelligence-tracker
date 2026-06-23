@@ -127,6 +127,9 @@ export async function updateCompanyOverview(
       description: str(formData.get("description")),
       status: (str(formData.get("status")) as "active" | "exited") ?? "active",
       realized_proceeds: num(formData.get("realized_proceeds")) ?? 0,
+      // null = inherit the fund default fee
+      carry_pct: num(formData.get("carry_pct")),
+      mgmt_fee_pct: num(formData.get("mgmt_fee_pct")),
     })
     .eq("id", companyId);
 

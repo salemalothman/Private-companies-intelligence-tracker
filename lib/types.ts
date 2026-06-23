@@ -40,6 +40,8 @@ export type CompanyRow = {
   status: CompanyStatus;
   risk_score: number | null;
   realized_proceeds: number;
+  carry_pct: number | null;
+  mgmt_fee_pct: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +59,8 @@ type CompanyInsert = {
   status?: CompanyStatus;
   risk_score?: number | null;
   realized_proceeds?: number;
+  carry_pct?: number | null;
+  mgmt_fee_pct?: number | null;
 }
 
 // --- fund_settings ---

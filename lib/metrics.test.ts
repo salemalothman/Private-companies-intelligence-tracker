@@ -13,6 +13,7 @@ import {
   currentValue,
   currentValueOrCost,
   dealAnalytics,
+  dealFees,
   entryValuation,
   fundAnalytics,
   grossIRR,
@@ -97,6 +98,8 @@ function company(p: Partial<CompanyWithRelations>): CompanyWithRelations {
     status: "active",
     risk_score: null,
     realized_proceeds: 0,
+    carry_pct: null,
+    mgmt_fee_pct: null,
     created_at: "2023-01-01",
     updated_at: "2023-01-01",
     investments: [],
@@ -326,7 +329,7 @@ describe("investment analytics", () => {
       investments: [inv({ investment_date: "2025-06-23", amount: 100_000 })],
       valuations: [val({ date: "2025-06-23", post_money: 100_000_000 })],
     });
-    const d = dealAnalytics(c, 100_000, now);
+    const d = dealAnalytics(c, 100_000, { carryPct: 20, mgmtFeePct: 7 }, now);
     expect(d.currentValue).toBe(100_000);
     expect(d.totalValue).toBe(150_000); // 100k current + 50k realized
     expect(d.moic).toBeCloseTo(1.5);
@@ -366,6 +369,71 @@ describe("investment analytics", () => {
     });
     expect(holdingYears(c, now)!).toBeLessThan(0);
     expect(grossIRR(c, now)).toBeNull();
+  });
+});
+
+describe("deal-specific fees", () => {
+  const now = new Date("2026-06-23");
+  const defaults = { carryPct: 20, mgmtFeePct: 7 };
+
+  function deal(overrides: Partial<CompanyWithRelations>) {
+    return company({
+      investments: [inv({ investment_date: "2024-06-23", amount: 100_000 })],
+      valuations: [
+        val({ date: "2024-06-23", post_money: 100_000_000 }),
+        val({ date: "2026-06-23", post_money: 300_000_000 }),
+      ],
+      ...overrides,
+    });
+  }
+
+  it("uses the fund default when a deal has no override", () => {
+    const f = dealFees(deal({}), defaults, now);
+    expect(f.carryPct).toBe(20);
+    expect(f.mgmtFeePct).toBe(7);
+    expect(f.isCustomCarry).toBe(false);
+    // value = 300k, gain = 200k -> carry 20% = 40k
+    expect(f.carry).toBeCloseTo(40_000);
+  });
+
+  it("applies a deal-level carry override instead of the default", () => {
+    const f = dealFees(deal({ carry_pct: 30 }), defaults, now);
+    expect(f.carryPct).toBe(30);
+    expect(f.isCustomCarry).toBe(true);
+    expect(f.carry).toBeCloseTo(60_000); // 30% of 200k
+    // mgmt still uses default
+    expect(f.mgmtFeePct).toBe(7);
+  });
+
+  it("computes net value and net MOIC per deal", () => {
+    const f = dealFees(deal({ carry_pct: 0, mgmt_fee_pct: 0 }), defaults, now);
+    expect(f.carry).toBe(0);
+    expect(f.mgmtFee).toBe(0);
+    expect(f.netValue).toBe(300_000);
+    expect(f.netMoic).toBeCloseTo(3.0);
+  });
+
+  it("aggregates carry deal-by-deal (losers don't offset winners' carry)", () => {
+    const winner = deal({ id: "w" }); // +200k gain
+    const loser = company({
+      id: "l",
+      investments: [inv({ investment_date: "2024-06-23", amount: 100_000 })],
+      valuations: [
+        val({ date: "2024-06-23", post_money: 100_000_000 }),
+        val({ date: "2026-06-23", post_money: 40_000_000 }), // down -> -60k
+      ],
+    });
+    const f = fundAnalytics([winner, loser], defaults, now);
+    // Deal-by-deal: carry = 20% of winner's 200k = 40k (loser contributes 0).
+    // A flat whole-fund waterfall on net gain (200k-60k=140k) would be only 28k.
+    expect(f.carry).toBeCloseTo(40_000);
+  });
+
+  it("mixes per-deal overrides in the fund aggregate", () => {
+    const a = deal({ id: "a", carry_pct: 10 }); // 10% of 200k = 20k
+    const b = deal({ id: "b", carry_pct: 30 }); // 30% of 200k = 60k
+    const f = fundAnalytics([a, b], defaults, now);
+    expect(f.carry).toBeCloseTo(80_000);
   });
 });
 

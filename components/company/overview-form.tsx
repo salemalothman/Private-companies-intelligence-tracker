@@ -8,7 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, FormDialog } from "@/components/company/form-dialog";
 import type { Company } from "@/lib/types";
 
-export function EditOverviewDialog({ company }: { company: Company }) {
+export function EditOverviewDialog({
+  company,
+  defaults,
+}: {
+  company: Company;
+  defaults: { carry_pct: number; mgmt_fee_pct: number };
+}) {
   return (
     <FormDialog
       trigger={
@@ -71,6 +77,34 @@ export function EditOverviewDialog({ company }: { company: Company }) {
             defaultValue={company.realized_proceeds ?? 0}
           />
         </Field>
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <p className="label-eyebrow mb-2">Deal-specific fees</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Leave blank to inherit the fund default. Overrides apply only to this
+          asset.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Carry / performance %">
+            <Input
+              name="carry_pct"
+              type="number"
+              step="any"
+              defaultValue={company.carry_pct ?? ""}
+              placeholder={`Default ${defaults.carry_pct}%`}
+            />
+          </Field>
+          <Field label="Management fee %">
+            <Input
+              name="mgmt_fee_pct"
+              type="number"
+              step="any"
+              defaultValue={company.mgmt_fee_pct ?? ""}
+              placeholder={`Default ${defaults.mgmt_fee_pct}%`}
+            />
+          </Field>
+        </div>
       </div>
       <Field label="Description">
         <Textarea name="description" defaultValue={company.description ?? ""} />
