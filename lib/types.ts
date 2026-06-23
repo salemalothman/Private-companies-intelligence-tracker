@@ -39,6 +39,7 @@ export type CompanyRow = {
   description: string | null;
   status: CompanyStatus;
   risk_score: number | null;
+  realized_proceeds: number;
   created_at: string;
   updated_at: string;
 }
@@ -55,7 +56,22 @@ type CompanyInsert = {
   description?: string | null;
   status?: CompanyStatus;
   risk_score?: number | null;
+  realized_proceeds?: number;
 }
+
+// --- fund_settings ---
+export type FundSettingsRow = {
+  user_id: string;
+  carry_pct: number;
+  mgmt_fee_pct: number;
+  created_at: string;
+  updated_at: string;
+};
+type FundSettingsInsert = {
+  user_id: string;
+  carry_pct?: number;
+  mgmt_fee_pct?: number;
+};
 
 // --- investments ---
 export type InvestmentRow = {
@@ -229,6 +245,12 @@ export interface Database {
         Update: Partial<DocumentInsert>;
         Relationships: [];
       };
+      fund_settings: {
+        Row: FundSettingsRow;
+        Insert: FundSettingsInsert;
+        Update: Partial<FundSettingsInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -244,6 +266,7 @@ export type Valuation = ValuationRow;
 export type FundingRound = FundingRoundRow;
 export type NewsItem = NewsRow;
 export type DocumentRow = DocumentRowDb;
+export type FundSettings = FundSettingsRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

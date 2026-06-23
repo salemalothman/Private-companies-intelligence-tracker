@@ -91,6 +91,7 @@ export async function updateCompanyOverview(
       founders: list(formData.get("founders")),
       description: str(formData.get("description")),
       status: (str(formData.get("status")) as "active" | "exited") ?? "active",
+      realized_proceeds: num(formData.get("realized_proceeds")) ?? 0,
     })
     .eq("id", companyId);
 

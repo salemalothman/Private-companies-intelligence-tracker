@@ -12,12 +12,21 @@ import {
   currentOwnershipPct,
   currentValue,
   currentValueOrCost,
+  dealAnalytics,
+  entryValuation,
+  fundAnalytics,
+  grossIRR,
+  holdingYears,
+  impliedEntryPrice,
+  initialOwnershipFraction,
   latestValuation,
+  moic,
   portfolioSummary,
   portfolioValueSeries,
   previousValuation,
   riskScore,
   sectorAllocation,
+  sharesHeld,
   topPerformers,
 } from "@/lib/metrics";
 
@@ -87,6 +96,7 @@ function company(p: Partial<CompanyWithRelations>): CompanyWithRelations {
     description: null,
     status: "active",
     risk_score: null,
+    realized_proceeds: 0,
     created_at: "2023-01-01",
     updated_at: "2023-01-01",
     investments: [],
@@ -275,6 +285,87 @@ describe("risk score heuristic", () => {
 
   it("returns null with no signal", () => {
     expect(riskScore(company({}))).toBeNull();
+  });
+});
+
+describe("investment analytics", () => {
+  const now = new Date("2026-06-23");
+
+  it("derives entry valuation, implied price, shares, and initial ownership", () => {
+    const c = company({
+      investments: [
+        inv({ investment_date: "2026-06-22", amount: 360_000, shares: 1286 }),
+      ],
+      valuations: [val({ date: "2026-06-22", post_money: 10_120_000_000 })],
+    });
+    expect(entryValuation(c)).toBe(10_120_000_000);
+    expect(sharesHeld(c)).toBe(1286);
+    expect(impliedEntryPrice(c)!).toBeCloseTo(279.94, 1);
+    // 360k / 10.12B = 0.00003557 -> ~0.0036%
+    expect(initialOwnershipFraction(c)! * 100).toBeCloseTo(0.0036, 4);
+    expect(holdingYears(c, now)!).toBeCloseTo(1 / 365.25, 4);
+  });
+
+  it("computes MOIC and annualized gross IRR on a markup", () => {
+    const c = company({
+      investments: [inv({ investment_date: "2024-06-23", amount: 100_000 })],
+      valuations: [
+        val({ date: "2024-06-23", post_money: 100_000_000 }),
+        val({ date: "2026-06-23", post_money: 300_000_000 }),
+      ],
+    });
+    // value = 100k * (300M/100M) = 300k -> MOIC 3x
+    expect(moic(c)).toBeCloseTo(3.0);
+    // IRR over ~2y: 3^(1/2)-1 = 0.732
+    expect(grossIRR(c, now)!).toBeCloseTo(0.732, 2);
+  });
+
+  it("adds realized proceeds into total value and MOIC", () => {
+    const c = company({
+      realized_proceeds: 50_000,
+      investments: [inv({ investment_date: "2025-06-23", amount: 100_000 })],
+      valuations: [val({ date: "2025-06-23", post_money: 100_000_000 })],
+    });
+    const d = dealAnalytics(c, 100_000, now);
+    expect(d.currentValue).toBe(100_000);
+    expect(d.totalValue).toBe(150_000); // 100k current + 50k realized
+    expect(d.moic).toBeCloseTo(1.5);
+    expect(d.pctOfCost).toBeCloseTo(1.0);
+  });
+
+  it("aggregates the fund with carry and management fees", () => {
+    const win = company({
+      id: "win",
+      investments: [inv({ investment_date: "2024-06-23", amount: 100_000 })],
+      valuations: [
+        val({ date: "2024-06-23", post_money: 100_000_000 }),
+        val({ date: "2026-06-23", post_money: 300_000_000 }),
+      ],
+    });
+    const flat = company({
+      id: "flat",
+      investments: [inv({ investment_date: "2024-06-23", amount: 100_000 })],
+      valuations: [val({ date: "2024-06-23", post_money: 100_000_000 })],
+    });
+    const f = fundAnalytics([win, flat], { carryPct: 20, mgmtFeePct: 7 }, now);
+    expect(f.totalInvested).toBe(200_000);
+    expect(f.totalValue).toBe(400_000); // 300k + 100k
+    expect(f.gainLoss).toBe(200_000);
+    expect(f.moic).toBeCloseTo(2.0);
+    // carry = 20% of 200k gain = 40k
+    expect(f.carry).toBeCloseTo(40_000);
+    // mgmt = 7% * invested * ~2y for both = 0.07*200k*2 = 28k
+    expect(f.mgmtFees).toBeCloseTo(28_000, -2);
+    expect(f.netValue).toBeCloseTo(400_000 - 40_000 - f.mgmtFees);
+  });
+
+  it("returns null IRR for future-dated (negative holding) entries", () => {
+    const c = company({
+      investments: [inv({ investment_date: "2026-07-20", amount: 360_000 })],
+      valuations: [val({ date: "2026-07-20", post_money: 2_100_000_000 })],
+    });
+    expect(holdingYears(c, now)!).toBeLessThan(0);
+    expect(grossIRR(c, now)).toBeNull();
   });
 });
 

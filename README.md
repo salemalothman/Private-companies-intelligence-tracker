@@ -17,8 +17,12 @@ This repo currently implements the **core portfolio loop** (phases P0–P3):
   latest valuation changes, charts (valuation growth, sector allocation, top performers,
   risk matrix), and the full portfolio company table
 - **Company detail** — tabbed: overview, investment history, valuation timeline chart,
-  funding-round tracker, all with manual entry dialogs
-- **Metrics** — pure, unit-tested portfolio math (`lib/metrics.ts`)
+  funding-round tracker, news, all with manual entry dialogs
+- **Fund Analysis** — deal-by-deal analytics table (entry date, holding yrs, entry
+  valuation, implied/latest price, shares, current/total value, gain/loss, MOIC, gross
+  IRR, % of cost, initial ownership), a TOTAL/FUND row, and editable fee assumptions
+  (carry % + management fee %) with a net-of-fees "Net to LPs" summary
+- **Metrics** — pure, unit-tested portfolio + fund math (`lib/metrics.ts`)
 - **Connector seam** — `lib/connectors` interface + stub, ready for live data in P4
 
 ### Roadmap (later phases — each gets its own spec → plan → build)

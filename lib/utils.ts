@@ -31,6 +31,31 @@ export function formatPercent(
   return `${sign}${pct.toFixed(1)}%`;
 }
 
+/** Multiple on invested capital, e.g. 1.73 -> "1.73x". */
+export function formatMultiple(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `${value.toFixed(2)}x`;
+}
+
+/** Tiny percentages (ownership), 4 decimals: 0.000888 -> "0.0888%". */
+export function formatTinyPercent(
+  fraction: number | null | undefined,
+): string {
+  if (fraction === null || fraction === undefined || Number.isNaN(fraction))
+    return "—";
+  return `${(fraction * 100).toFixed(4)}%`;
+}
+
+/** Signed dollars in millions with accounting parens: -400000 -> "($0.4M)". */
+export function formatMillionsSigned(
+  value: number | null | undefined,
+): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const m = value / 1_000_000;
+  const s = `$${Math.abs(m).toFixed(1)}M`;
+  return value < 0 ? `(${s})` : s;
+}
+
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;

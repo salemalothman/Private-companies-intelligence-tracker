@@ -324,6 +324,259 @@ export interface CompanyTableRow {
   status: Company["status"];
 }
 
+// ---------------------------------------------------------------------------
+// Investment analytics (fund-grade per-deal + fund metrics)
+// ---------------------------------------------------------------------------
+
+const MS_PER_YEAR = 365.25 * MS_PER_DAY;
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+/** Earliest investment date — the entry date into the deal. */
+export function entryDate(company: CompanyWithRelations): string | null {
+  const dates = company.investments
+    .map((i) => i.investment_date)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return dates[0] ?? null;
+}
+
+/** Years held since entry (can be negative for future-dated entries). */
+export function holdingYears(
+  company: CompanyWithRelations,
+  now: Date = new Date(),
+): number | null {
+  const entry = entryDate(company);
+  if (!entry) return null;
+  return (now.getTime() - new Date(entry).getTime()) / MS_PER_YEAR;
+}
+
+/** Valuation at entry: latest valuation on/before the entry date, else earliest. */
+export function entryValuation(
+  company: CompanyWithRelations,
+): number | null {
+  const vals = company.valuations.filter(
+    (v) => v.date && valuationAmount(v) != null,
+  );
+  if (vals.length === 0) return null;
+  const entry = entryDate(company);
+  if (entry) {
+    const before = vals
+      .filter((v) => new Date(v.date).getTime() <= new Date(entry).getTime())
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (before.length) return valuationAmount(before[0]);
+  }
+  const earliest = [...vals].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  )[0];
+  return valuationAmount(earliest);
+}
+
+/** Total shares held across all investments (null if never recorded). */
+export function sharesHeld(company: CompanyWithRelations): number | null {
+  const withShares = company.investments.filter((i) => i.shares != null);
+  if (withShares.length === 0) return null;
+  return withShares.reduce((s, i) => s + (i.shares ?? 0), 0);
+}
+
+/** Blended entry price per share = invested / shares. */
+export function impliedEntryPrice(
+  company: CompanyWithRelations,
+): number | null {
+  const shares = sharesHeld(company);
+  const invested = companyInvested(company);
+  return shares && shares > 0 ? invested / shares : null;
+}
+
+/** Initial ownership as a fraction of the company = invested / entry valuation. */
+export function initialOwnershipFraction(
+  company: CompanyWithRelations,
+): number | null {
+  const ev = entryValuation(company);
+  const invested = companyInvested(company);
+  return ev && ev > 0 ? invested / ev : null;
+}
+
+/** Latest implied price per share = entry price × (latest val / entry val). */
+export function latestSharePrice(
+  company: CompanyWithRelations,
+): number | null {
+  const implied = impliedEntryPrice(company);
+  const ev = entryValuation(company);
+  const lv = valuationAmount(latestValuation(company.valuations));
+  if (implied != null && ev && ev > 0 && lv != null) {
+    return implied * (lv / ev);
+  }
+  return latestValuation(company.valuations)?.share_price ?? implied;
+}
+
+/** Estimated current value of the position. */
+export function dealCurrentValue(company: CompanyWithRelations): number {
+  const ev = entryValuation(company);
+  const lv = valuationAmount(latestValuation(company.valuations));
+  const invested = companyInvested(company);
+  if (ev && ev > 0 && lv != null) return invested * (lv / ev);
+  return currentValueOrCost(company);
+}
+
+export function realizedProceeds(company: CompanyWithRelations): number {
+  return company.realized_proceeds ?? 0;
+}
+
+/** Current value + realized proceeds. */
+export function dealTotalValue(company: CompanyWithRelations): number {
+  return dealCurrentValue(company) + realizedProceeds(company);
+}
+
+/** Multiple on invested capital = total value / invested. */
+export function moic(company: CompanyWithRelations): number | null {
+  const invested = companyInvested(company);
+  return invested > 0 ? dealTotalValue(company) / invested : null;
+}
+
+/** Annualized gross IRR from MOIC and holding period, clamped to [-100%, +10000%]. */
+export function grossIRR(
+  company: CompanyWithRelations,
+  now: Date = new Date(),
+): number | null {
+  const m = moic(company);
+  const years = holdingYears(company, now);
+  if (m == null || m <= 0 || years == null || years <= 0) return null;
+  return clamp(Math.pow(m, 1 / years) - 1, -1, 100);
+}
+
+export interface DealAnalytics {
+  id: string;
+  name: string;
+  sector: string | null;
+  status: Company["status"];
+  entryDate: string | null;
+  holdingYears: number | null;
+  entryValuation: number | null;
+  invested: number;
+  impliedPrice: number | null;
+  sharesHeld: number | null;
+  latestPrice: number | null;
+  currentValue: number;
+  realizedProceeds: number;
+  totalValue: number;
+  gainLoss: number;
+  moic: number | null;
+  grossIRR: number | null;
+  pctOfCost: number | null;
+  initialOwnFraction: number | null;
+}
+
+export function dealAnalytics(
+  company: CompanyWithRelations,
+  fundInvested: number,
+  now: Date = new Date(),
+): DealAnalytics {
+  const invested = companyInvested(company);
+  const currentValue = dealCurrentValue(company);
+  const realized = realizedProceeds(company);
+  const totalValue = currentValue + realized;
+  return {
+    id: company.id,
+    name: company.name,
+    sector: company.sector,
+    status: company.status,
+    entryDate: entryDate(company),
+    holdingYears: holdingYears(company, now),
+    entryValuation: entryValuation(company),
+    invested,
+    impliedPrice: impliedEntryPrice(company),
+    sharesHeld: sharesHeld(company),
+    latestPrice: latestSharePrice(company),
+    currentValue,
+    realizedProceeds: realized,
+    totalValue,
+    gainLoss: totalValue - invested,
+    moic: moic(company),
+    grossIRR: grossIRR(company, now),
+    pctOfCost: fundInvested > 0 ? invested / fundInvested : null,
+    initialOwnFraction: initialOwnershipFraction(company),
+  };
+}
+
+export interface FundFeeAssumptions {
+  carryPct: number; // performance fee / carry, e.g. 20
+  mgmtFeePct: number; // management fee, e.g. 7 (annual, % of invested)
+}
+
+export interface FundAnalytics {
+  totalInvested: number;
+  totalCurrentValue: number;
+  totalRealized: number;
+  totalValue: number;
+  gainLoss: number;
+  moic: number | null;
+  weightedHoldingYears: number;
+  grossIRR: number | null;
+  // net of fees
+  carry: number;
+  mgmtFees: number;
+  netValue: number;
+  netGainLoss: number;
+  netMoic: number | null;
+}
+
+export function fundAnalytics(
+  companies: CompanyWithRelations[],
+  fees: FundFeeAssumptions,
+  now: Date = new Date(),
+): FundAnalytics {
+  const totalInvested = companies.reduce((s, c) => s + companyInvested(c), 0);
+  const totalCurrentValue = companies.reduce(
+    (s, c) => s + dealCurrentValue(c),
+    0,
+  );
+  const totalRealized = companies.reduce((s, c) => s + realizedProceeds(c), 0);
+  const totalValue = totalCurrentValue + totalRealized;
+  const gainLoss = totalValue - totalInvested;
+  const fundMoic = totalInvested > 0 ? totalValue / totalInvested : null;
+
+  // Invested-weighted holding period.
+  let weightedNum = 0;
+  let mgmtFees = 0;
+  for (const c of companies) {
+    const invested = companyInvested(c);
+    const yrs = holdingYears(c, now) ?? 0;
+    weightedNum += invested * yrs;
+    mgmtFees += invested * (fees.mgmtFeePct / 100) * Math.max(yrs, 0);
+  }
+  const weightedHoldingYears =
+    totalInvested > 0 ? weightedNum / totalInvested : 0;
+
+  const effYears = Math.max(weightedHoldingYears, 0.01);
+  const fundIRR =
+    fundMoic != null && fundMoic > 0
+      ? clamp(Math.pow(fundMoic, 1 / effYears) - 1, -1, 100)
+      : null;
+
+  const carry = Math.max(0, gainLoss) * (fees.carryPct / 100);
+  const netValue = totalValue - carry - mgmtFees;
+  const netGainLoss = netValue - totalInvested;
+
+  return {
+    totalInvested,
+    totalCurrentValue,
+    totalRealized,
+    totalValue,
+    gainLoss,
+    moic: fundMoic,
+    weightedHoldingYears,
+    grossIRR: fundIRR,
+    carry,
+    mgmtFees,
+    netValue,
+    netGainLoss,
+    netMoic: totalInvested > 0 ? netValue / totalInvested : null,
+  };
+}
+
 export function companyTableRow(
   company: CompanyWithRelations,
 ): CompanyTableRow {

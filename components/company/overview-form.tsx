@@ -52,16 +52,26 @@ export function EditOverviewDialog({ company }: { company: Company }) {
           defaultValue={(company.founders ?? []).join(", ")}
         />
       </Field>
-      <Field label="Status">
-        <select
-          name="status"
-          defaultValue={company.status}
-          className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
-        >
-          <option value="active">Active</option>
-          <option value="exited">Exited</option>
-        </select>
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Status">
+          <select
+            name="status"
+            defaultValue={company.status}
+            className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
+          >
+            <option value="active">Active</option>
+            <option value="exited">Exited</option>
+          </select>
+        </Field>
+        <Field label="Realized proceeds ($)">
+          <Input
+            name="realized_proceeds"
+            type="number"
+            step="any"
+            defaultValue={company.realized_proceeds ?? 0}
+          />
+        </Field>
+      </div>
       <Field label="Description">
         <Textarea name="description" defaultValue={company.description ?? ""} />
       </Field>

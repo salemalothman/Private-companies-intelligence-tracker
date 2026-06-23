@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, LayoutDashboard, LineChart, LogOut } from "lucide-react";
+import {
+  Building2,
+  LayoutDashboard,
+  LineChart,
+  LogOut,
+  PieChart,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
@@ -10,6 +16,7 @@ import { Button } from "@/components/ui/button";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/companies", label: "Companies", icon: Building2 },
+  { href: "/fund", label: "Fund Analysis", icon: PieChart },
 ];
 
 export function Sidebar({ email }: { email: string | null }) {
