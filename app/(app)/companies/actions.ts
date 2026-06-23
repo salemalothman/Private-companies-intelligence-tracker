@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { ingestCompany } from "@/lib/ingestion/orchestrator";
+
+const INGEST_FIELDS =
+  "id, name, website, sector, country, founded_year, description, founders";
 
 export interface ActionResult {
   error?: string;
@@ -59,13 +63,44 @@ export async function createCompany(
       description: str(formData.get("description")),
       status: (str(formData.get("status")) as "active" | "exited") ?? "active",
     })
-    .select("id")
+    .select(INGEST_FIELDS)
     .single();
 
   if (error) return { error: error.message };
+
+  // Trigger the automated ingestion pipeline immediately on add.
+  // Best-effort: a connector failure must never block company creation.
+  try {
+    await ingestCompany(supabase, data);
+  } catch (e) {
+    console.error("ingestion on create:", (e as Error).message);
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/companies");
   return { id: data.id };
+}
+
+export async function syncCompany(companyId: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data, error } = await supabase
+    .from("companies")
+    .select(INGEST_FIELDS)
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error || !data) return { error: error?.message ?? "Company not found." };
+
+  try {
+    await ingestCompany(supabase, data);
+    revalidatePath(`/companies/${companyId}`);
+    revalidatePath("/dashboard");
+    revalidatePath("/fund");
+    return {};
+  } catch (e) {
+    return { error: `Sync failed: ${(e as Error).message}` };
+  }
 }
 
 export async function updateCompanyOverview(

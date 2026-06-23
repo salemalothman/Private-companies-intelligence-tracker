@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditOverviewDialog } from "@/components/company/overview-form";
+import { SyncButton } from "@/components/company/sync-button";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import {
   AddFundingRoundDialog,
@@ -143,7 +144,10 @@ export default async function CompanyDetailPage({
             </div>
           </div>
         </div>
-        <EditOverviewDialog company={company} />
+        <div className="flex items-center gap-2">
+          <SyncButton companyId={company.id} />
+          <EditOverviewDialog company={company} />
+        </div>
       </div>
 
       {/* Key stats */}

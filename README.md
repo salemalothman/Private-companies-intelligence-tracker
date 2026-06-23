@@ -22,6 +22,13 @@ This repo currently implements the **core portfolio loop** (phases P0–P3):
   valuation, implied/latest price, shares, current/total value, gain/loss, MOIC, gross
   IRR, % of cost, initial ownership), a TOTAL/FUND row, and editable fee assumptions
   (carry % + management fee %) with a net-of-fees "Net to LPs" summary
+- **Automated ingestion (P4 foundation)** — adding a company triggers a data-ingestion
+  pipeline (`lib/ingestion/orchestrator.ts`) that fans out to every enabled
+  `DataConnector`, dedupes, and auto-populates funding rounds, valuations, news, and
+  profile fields. A **Sync data** button re-runs it idempotently. Keyless today (stub
+  source); real Crunchbase/SEC/news/Twitter connectors slot into the registry behind the
+  same interface. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full P4–P7 design
+  (ingestion, PDF/LLM pipeline, AI agents, cron + email).
 - **Metrics** — pure, unit-tested portfolio + fund math (`lib/metrics.ts`)
 - **Connector seam** — `lib/connectors` interface + stub, ready for live data in P4
 
