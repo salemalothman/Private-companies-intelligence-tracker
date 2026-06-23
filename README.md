@@ -51,6 +51,16 @@ This repo currently implements the **core portfolio loop** (phases P0–P3):
 | P6 | AI agents: Valuation / News-sentiment / Risk (replaces heuristic risk score) | LLM |
 | P7 | Scheduled automation: daily fetch, weekly intelligence report | cron |
 
+## Responsive / iOS
+
+Mobile-first and tuned for iPhone: on small screens the sidebar is replaced by a
+sticky top bar + an iOS-style bottom tab bar (safe-area aware via
+`env(safe-area-inset-*)` and `viewport-fit=cover`). KPI cards reflow to a 2-up grid,
+charts stack, and wide financial tables become horizontally swipeable with momentum
+scrolling. Inputs use 16px on mobile to prevent focus-zoom, tap targets and buttons
+grow for touch, and `min-h-dvh` is used throughout — while desktop keeps the dense
+sidebar layout.
+
 ## Tech stack
 
 - Next.js 15 (App Router, TypeScript, Server Actions) · React 19

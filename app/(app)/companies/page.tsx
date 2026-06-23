@@ -9,7 +9,7 @@ export default async function CompaniesPage() {
   const rows = companies.map(companyTableRow);
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Companies"
         subtitle={`${companies.length} private ${

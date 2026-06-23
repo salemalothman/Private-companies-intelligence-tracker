@@ -63,7 +63,7 @@ export function EditOverviewDialog({
           <select
             name="status"
             defaultValue={company.status}
-            className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
+            className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 text-base sm:h-9 sm:text-sm"
           >
             <option value="active">Active</option>
             <option value="exited">Exited</option>

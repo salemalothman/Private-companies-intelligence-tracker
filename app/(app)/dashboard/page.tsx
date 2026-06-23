@@ -39,7 +39,7 @@ export default async function DashboardPage() {
     .slice(0, 5);
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Portfolio Dashboard"
         subtitle="What is your private portfolio worth today — and what changed?"

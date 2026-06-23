@@ -84,11 +84,18 @@
   * {
     @apply border-border;
   }
+  html {
+    /* Prevent iOS from inflating text in landscape; avoid pull-to-refresh jank */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Remove the grey tap flash on iOS */
+    -webkit-tap-highlight-color: transparent;
   }
   /* Refined heading rhythm */
   h1,
@@ -96,6 +103,35 @@
   h3,
   h4 {
     @apply tracking-tight;
+  }
+  /* Snappier taps — drop the 300ms delay on interactive elements */
+  button,
+  a,
+  [role="button"],
+  label,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+  /* Momentum scrolling for horizontally-swipeable tables on iOS */
+  .overflow-auto,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+  /* Safe-area insets for fixed top/bottom chrome on notched iPhones */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Reserve space for the fixed mobile tab bar (height + home indicator) */
+  .pb-mobilenav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }
 }
 

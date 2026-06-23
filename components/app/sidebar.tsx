@@ -23,7 +23,7 @@ export function Sidebar({ email }: { email: string | null }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card">
+    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-screen">
       <div className="flex items-center gap-2 px-5 py-5">
         <LineChart className="h-5 w-5 text-primary" />
         <span className="text-sm font-semibold leading-tight">

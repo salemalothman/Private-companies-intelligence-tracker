@@ -105,7 +105,7 @@ export default async function CompanyDetailPage({
   });
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -155,7 +155,7 @@ export default async function CompanyDetailPage({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <AddDocumentDialog companyId={company.id} />
           <SyncButton companyId={company.id} />
           <EditOverviewDialog

@@ -133,7 +133,7 @@ export function AddValuationDialog({ companyId }: { companyId: string }) {
           <select
             name="confidence"
             defaultValue="medium"
-            className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
+            className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 text-base sm:h-9 sm:text-sm"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -168,7 +168,7 @@ export function AddNewsDialog({ companyId }: { companyId: string }) {
           <select
             name="sentiment"
             defaultValue="neutral"
-            className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 text-sm"
+            className="flex h-10 w-full rounded-md border border-border bg-transparent px-3 text-base sm:h-9 sm:text-sm"
           >
             <option value="positive">Positive</option>
             <option value="neutral">Neutral</option>

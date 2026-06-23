@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-dvh bg-background">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2 font-semibold">
             <LineChart className="h-5 w-5 text-primary" />
             <span>Private Portfolio Intelligence</span>
@@ -24,12 +24,12 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-6 py-24">
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
         <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           A private-market terminal for investors
         </p>
-        <h1 className="max-w-3xl text-balance text-5xl font-bold tracking-tight">
+        <h1 className="max-w-3xl text-balance text-4xl font-bold tracking-tight sm:text-5xl">
           Know what your private portfolio is worth today — and why it changed.
         </h1>
         <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
@@ -37,14 +37,14 @@ export default function HomePage() {
           valuation changes and funding rounds, and estimate portfolio
           performance for companies with no public market data.
         </p>
-        <div className="mt-8 flex items-center gap-4">
-          <Link href="/signup">
-            <Button size="lg" className="gap-2">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <Link href="/signup" className="w-full sm:w-auto">
+            <Button size="lg" className="w-full gap-2 sm:w-auto">
               Start tracking <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-          <Link href="/login">
-            <Button size="lg" variant="outline">
+          <Link href="/login" className="w-full sm:w-auto">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto">
               Sign in
             </Button>
           </Link>

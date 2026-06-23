@@ -19,7 +19,7 @@ export default async function FundPage() {
   const fund = fundAnalytics(companies, feeDefaults, now);
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Fund Analysis"
         subtitle="Deal-by-deal performance — MOIC, IRR, holding period, and ownership."
