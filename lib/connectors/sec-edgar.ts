@@ -158,4 +158,19 @@ export class SecEdgarConnector implements DataConnector {
     // SEC EDGAR is a filings source, not a news source.
     return [];
   }
+
+  /**
+   * Validation signal for competitor intelligence: does this entity have a
+   * matching Regulation D (Form D) filing on record with the SEC? Used to
+   * cross-reference Grok-discovered private-market data against the official
+   * regulatory record. Best-effort — returns false on any error.
+   */
+  async hasFilings(query: string): Promise<boolean> {
+    try {
+      const hits = await searchFormD(query);
+      return hits.length > 0;
+    } catch {
+      return false;
+    }
+  }
 }

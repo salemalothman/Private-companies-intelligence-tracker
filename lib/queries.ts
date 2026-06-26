@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { CompanyWithRelations } from "@/lib/types";
+import type { CompanyWithRelations, CompetitorRow } from "@/lib/types";
 
 const COMPANY_WITH_RELATIONS =
   "*, investments(*), valuations(*), funding_rounds(*), news(*)";
@@ -38,4 +38,22 @@ export async function getCompany(
     return null;
   }
   return (data as unknown as CompanyWithRelations) ?? null;
+}
+
+/** A company's discovered competitors, highest valuation first (nulls last). */
+export async function getCompetitors(
+  companyId: string,
+): Promise<CompetitorRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("competitors")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("valuation", { ascending: false, nullsFirst: false });
+
+  if (error) {
+    console.error("getCompetitors:", error.message);
+    return [];
+  }
+  return data ?? [];
 }

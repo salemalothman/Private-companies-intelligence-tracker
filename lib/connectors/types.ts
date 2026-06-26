@@ -34,10 +34,28 @@ export interface ConnectorNewsItem {
   sentiment?: "positive" | "neutral" | "negative";
 }
 
+export interface ConnectorCompetitor {
+  /** Competitor company name. */
+  name: string;
+  /** Latest known post-money valuation in USD, if found. */
+  valuation?: number;
+  /** As-of date (YYYY-MM-DD) for the valuation, if known. */
+  valuationDate?: string;
+  /** Short provenance note, e.g. "Series C per @AaronGDillon". */
+  basis?: string;
+  source: string;
+}
+
 export interface DataConnector {
   /** Stable identifier, e.g. "crunchbase", "sec-edgar", "news", "twitter". */
   readonly id: string;
   fetchCompanyProfile(query: string): Promise<ConnectorCompanyProfile | null>;
   fetchFundingRounds(query: string): Promise<ConnectorFundingRound[]>;
   fetchNews(query: string): Promise<ConnectorNewsItem[]>;
+  /**
+   * Optional: identify the company's primary competitors and their latest
+   * valuations. Only connectors that can surface competitive intelligence
+   * (e.g. Grok X-search) implement this.
+   */
+  fetchCompetitors?(query: string): Promise<ConnectorCompetitor[]>;
 }

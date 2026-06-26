@@ -6,8 +6,9 @@ import {
   ArrowUpRight,
   ExternalLink,
   Globe,
+  ShieldCheck,
 } from "lucide-react";
-import { getCompany } from "@/lib/queries";
+import { getCompany, getCompetitors } from "@/lib/queries";
 import {
   companyChangePct,
   companyInvested,
@@ -16,9 +17,11 @@ import {
   dealFees,
   DEFAULT_FUND_FEES,
   investmentEntryPoint,
+  latestValuation,
   riskScore,
   valuationAmount,
 } from "@/lib/metrics";
+import { buildCompetitorRanking } from "@/lib/competitors/rank";
 import {
   cn,
   formatCurrency,
@@ -42,6 +45,7 @@ import { SyncButton } from "@/components/company/sync-button";
 import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { DeleteCompanyButton } from "@/components/company/delete-company-button";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
+import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
 import {
   AddFundingRoundDialog,
   AddInvestmentDialog,
@@ -77,6 +81,7 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const company = await getCompany(id);
   if (!company) notFound();
+  const competitors = await getCompetitors(id);
 
   const invested = companyInvested(company);
   const value = currentValue(company);
@@ -104,6 +109,16 @@ export default async function CompanyDetailPage({
     const tb = b.date ? new Date(b.date).getTime() : 0;
     return tb - ta;
   });
+
+  const latestVal = latestValuation(company.valuations);
+  const competitorRanking = buildCompetitorRanking(
+    {
+      name: company.name,
+      valuation: valuationAmount(latestVal),
+      valuationDate: latestVal?.date ?? null,
+    },
+    competitors,
+  );
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
@@ -228,6 +243,7 @@ export default async function CompanyDetailPage({
           <TabsTrigger value="investment">Investment</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
+          <TabsTrigger value="competitors">Competitors</TabsTrigger>
           <TabsTrigger value="news">News</TabsTrigger>
         </TabsList>
 
@@ -428,6 +444,87 @@ export default async function CompanyDetailPage({
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {r.source ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Competitors */}
+        <TabsContent value="competitors">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-medium">Competitive landscape</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {company.name} ranked against its primary competitors by latest
+                  valuation. Sourced via Grok X-search (prioritizing trusted
+                  private-market trackers) and cross-checked against SEC filings.
+                </p>
+              </div>
+              <RefreshCompetitorsButton
+                companyId={company.id}
+                hasData={competitors.length > 0}
+              />
+            </div>
+            {competitors.length === 0 ? (
+              <EmptyRow text="No competitors discovered yet. Run “Find competitors” to scan X and SEC filings." />
+            ) : (
+              <div className="rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10 text-right">#</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead className="text-right">Latest valuation</TableHead>
+                      <TableHead>As of</TableHead>
+                      <TableHead>Basis</TableHead>
+                      <TableHead className="text-right">Verified</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {competitorRanking.map((e, i) => (
+                      <TableRow
+                        key={`${e.name}-${i}`}
+                        className={cn(e.isTarget && "bg-muted/50")}
+                      >
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {i + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-2">
+                            {e.name}
+                            {e.isTarget && (
+                              <Badge variant="secondary">This company</Badge>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {e.valuation != null ? formatCurrency(e.valuation) : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(e.valuationDate)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {e.basis ?? (e.source ? e.source : "—")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {e.isTarget ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : e.secVerified ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-success"
+                              title="A matching SEC Form D filing was found"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" /> SEC
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

@@ -211,6 +211,32 @@ type DocumentInsert = {
   status?: string;
 }
 
+// --- competitors ---
+export type CompetitorRow = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  name: string;
+  valuation: number | null;
+  valuation_date: string | null;
+  source: string | null;
+  basis: string | null;
+  sec_verified: boolean;
+  created_at: string;
+  updated_at: string;
+};
+type CompetitorInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  name: string;
+  valuation?: number | null;
+  valuation_date?: string | null;
+  source?: string | null;
+  basis?: string | null;
+  sec_verified?: boolean;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -262,6 +288,12 @@ export interface Database {
         Update: Partial<IngestionRunInsert>;
         Relationships: [];
       };
+      competitors: {
+        Row: CompetitorRow;
+        Insert: CompetitorInsert;
+        Update: Partial<CompetitorInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -278,6 +310,7 @@ export type FundingRound = FundingRoundRow;
 export type NewsItem = NewsRow;
 export type DocumentRow = DocumentRowDb;
 export type IngestionRun = IngestionRunRow;
+export type Competitor = CompetitorRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

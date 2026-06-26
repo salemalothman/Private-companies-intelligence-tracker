@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
+import { discoverCompetitors } from "@/lib/competitors/discover";
 import {
   enrichCompanyProfile,
   type EnrichedProfile,
@@ -120,6 +121,55 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
   } catch (e) {
     return { error: `Sync failed: ${(e as Error).message}` };
   }
+}
+
+/**
+ * Discover the company's primary competitors and their latest valuations via
+ * the Grok connector (cross-referenced against SEC filings), then replace the
+ * stored competitor set. Best-effort; surfaces a message on failure.
+ */
+export async function refreshCompetitors(
+  companyId: string,
+): Promise<ActionResult & { count?: number }> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: company, error } = await supabase
+    .from("companies")
+    .select("id, name")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error || !company) return { error: error?.message ?? "Company not found." };
+
+  let discovered;
+  try {
+    discovered = await discoverCompetitors(company.name);
+  } catch (e) {
+    return { error: `Competitor lookup failed: ${(e as Error).message}` };
+  }
+
+  if (discovered.length === 0) {
+    return { error: "No competitors found. Check that the Grok connector is configured." };
+  }
+
+  // Replace the prior set so a refresh reflects the latest data.
+  await supabase.from("competitors").delete().eq("company_id", companyId);
+  const { error: insErr } = await supabase.from("competitors").insert(
+    discovered.map((c) => ({
+      company_id: companyId,
+      user_id: user.id,
+      name: c.name,
+      valuation: c.valuation ?? null,
+      valuation_date: c.valuationDate ?? null,
+      source: c.source,
+      basis: c.basis ?? null,
+      sec_verified: c.secVerified,
+    })),
+  );
+  if (insErr) return { error: insErr.message };
+
+  revalidatePath(`/companies/${companyId}`);
+  return { count: discovered.length };
 }
 
 export async function updateCompanyOverview(

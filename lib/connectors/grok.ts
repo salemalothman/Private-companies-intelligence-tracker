@@ -4,12 +4,26 @@ import { generateText } from "ai";
 import { z } from "zod";
 import type {
   ConnectorCompanyProfile,
+  ConnectorCompetitor,
   ConnectorFundingRound,
   ConnectorNewsItem,
   DataConnector,
 } from "@/lib/connectors/types";
 
 const SOURCE = "grok:x";
+
+/**
+ * Trusted private-market valuation sources the X search is told to prioritize.
+ * Aaron Dillon (@AaronGDillon) posts secondary-market / private valuation data;
+ * the campaign archive is a venture-tracking newsletter's back-catalogue.
+ */
+const PRIORITY_SOURCES =
+  `Prioritize and cross-check data from these trusted private-market sources ` +
+  `above all others: (1) the post history of https://x.com/AaronGDillon ` +
+  `(handle @AaronGDillon) — search "from:AaronGDillon" for valuation posts; ` +
+  `(2) the venture-tracking newsletter archive at ` +
+  `https://us8.campaign-archive.com/home/?u=c1009bfb683b6db1d8b71e4e8&id=3efc966b29. ` +
+  `Only fall back to other sources when neither covers the company.`;
 
 /** Drop nulls so optional interface fields stay `undefined`, not `null`. */
 const clean = <T>(v: T | null | undefined): T | undefined =>
@@ -124,6 +138,21 @@ const newsSchema = z.object({
 const NEWS_SHAPE =
   '{"news":[{"title":string,"url":string|null,"date":"YYYY-MM-DD"|null,"summary":string|null,"sentiment":"positive"|"neutral"|"negative"|null}]}';
 
+const competitorsSchema = z.object({
+  competitors: z
+    .array(
+      z.object({
+        name: z.string().nullish(),
+        valuation: z.number().nullish(),
+        valuationDate: z.string().nullish(),
+        basis: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+});
+const COMPETITORS_SHAPE =
+  '{"competitors":[{"name":string,"valuation":number|null,"valuationDate":"YYYY-MM-DD"|null,"basis":string|null}]}';
+
 /**
  * Grok-powered connector. Uses xAI's `grok-4.3` responses model with the native
  * X search tool to fetch and structure company data in a single step. Replaces
@@ -212,6 +241,36 @@ export class GrokConnector implements DataConnector {
         }));
     } catch (e) {
       console.error("GrokConnector.fetchNews:", (e as Error).message);
+      return [];
+    }
+  }
+
+  async fetchCompetitors(query: string): Promise<ConnectorCompetitor[]> {
+    try {
+      const r = await grokSearch(
+        competitorsSchema,
+        `Identify the primary direct competitors of the private company ` +
+          `"${query}" and, for EACH, its most recent known post-money ` +
+          `valuation in USD. ${PRIORITY_SOURCES} For every competitor include ` +
+          `the valuation "valuationDate" as YYYY-MM-DD (use the 1st of the ` +
+          `month/year if only that is known) and a one-line "basis" naming the ` +
+          `round and which source the figure came from (e.g. "Series C, ` +
+          `$2.1B, per @AaronGDillon Apr 2024"). Return the 6 most relevant ` +
+          `competitors. Omit any whose competitive relationship you cannot ` +
+          `verify. Return an empty array if none are found.`,
+        COMPETITORS_SHAPE,
+      );
+      return (r?.competitors ?? [])
+        .filter((x) => clean(x.name))
+        .map((x) => ({
+          name: (x.name as string).trim(),
+          valuation: clean(x.valuation),
+          valuationDate: clean(x.valuationDate),
+          basis: clean(x.basis),
+          source: SOURCE,
+        }));
+    } catch (e) {
+      console.error("GrokConnector.fetchCompetitors:", (e as Error).message);
       return [];
     }
   }
