@@ -38,15 +38,19 @@ export async function updateSession(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
+  // Unauthenticated traffic to any protected route funnels to the root login.
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     url.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(url);
   }
 
-  // Signed-in users shouldn't sit on the auth pages.
-  if (user && (pathname === "/login" || pathname === "/signup")) {
+  // Signed-in users shouldn't sit on the auth screens (root / login / signup).
+  if (
+    user &&
+    (pathname === "/" || pathname === "/login" || pathname === "/signup")
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
