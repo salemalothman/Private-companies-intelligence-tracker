@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { extractEntities } from "@/lib/documents/extract";
+import { cleanPdfText, hasReadableText } from "@/lib/documents/clean";
 import { fetchUrlContent, urlSource } from "@/lib/documents/fetch-url";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
 
@@ -119,18 +120,26 @@ async function ingestPdfBuffer(
 ): Promise<DocResult> {
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buf });
-  let text = "";
+  let raw = "";
   try {
+    // Use pdf-parse's line-aware extraction, then join the per-page text
+    // ourselves to avoid its "-- N of M --" page-separator markers.
     const r = await parser.getText();
-    text = r?.text ?? "";
+    raw = r?.pages?.length
+      ? r.pages.map((p) => p.text).join("\n\n")
+      : (r?.text ?? "");
   } finally {
     await parser.destroy?.();
   }
 
-  if (text.trim().length < 40)
+  // Strip page markers, control chars, decorative runs, and re-join hyphenated
+  // line breaks into readable prose before extraction.
+  const text = cleanPdfText(raw);
+
+  if (!hasReadableText(text))
     return {
       error:
-        "No extractable text (the PDF may be scanned — OCR is required, see ARCHITECTURE.md).",
+        "This PDF has little or no extractable text — it looks image-based (e.g. a slide deck), so OCR is required. See ARCHITECTURE.md.",
     };
 
   const title = filename.replace(/\.pdf$/i, "");

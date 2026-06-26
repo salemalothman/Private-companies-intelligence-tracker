@@ -68,6 +68,21 @@ function titleCaseRound(s: string): string {
     .replace(/\bseed\b/i, "Seed");
 }
 
+/**
+ * Pick a readable summary: the first prose-like sentence/line (enough real
+ * words), falling back to the start of the text. Avoids leading the news feed
+ * with leftover fragments from a noisy slide deck.
+ */
+function readableSummary(clean: string, max = 240): string {
+  const segments = clean.split(/(?<=[.!?])\s+|\n+/);
+  const prose = segments.find((s) => {
+    const trimmed = s.trim();
+    const words = trimmed.split(/\s+/).filter((w) => /[A-Za-z]{2,}/.test(w));
+    return words.length >= 6 && trimmed.length >= 30;
+  });
+  return (prose ?? clean).trim().slice(0, max);
+}
+
 function detectSentiment(text: string): "positive" | "neutral" | "negative" {
   const t = text.toLowerCase();
   const neg =
@@ -191,7 +206,7 @@ export function heuristicExtract(
       source: opts.source,
       url: opts.url,
       date: date ?? undefined,
-      summary: clean.slice(0, 240),
+      summary: readableSummary(clean),
       sentiment: detectSentiment(`${opts.title} ${clean.slice(0, 400)}`),
     },
   ];
