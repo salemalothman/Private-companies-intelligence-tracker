@@ -41,6 +41,7 @@ type FormState = {
   founded_year: string;
   founders: string;
   description: string;
+  logo_url: string;
   entry_valuation: string;
   investment_amount: string;
   ownership_pct: string;
@@ -54,10 +55,22 @@ const EMPTY: FormState = {
   founded_year: "",
   founders: "",
   description: "",
+  logo_url: "",
   entry_valuation: "",
   investment_amount: "",
   ownership_pct: "",
 };
+
+/** Bare domain from a website URL, for building a fallback favicon URL. */
+function domainFromUrl(website: string): string | null {
+  if (!website) return null;
+  try {
+    const u = new URL(website.startsWith("http") ? website : `https://${website}`);
+    return u.hostname.replace(/^www\./, "") || null;
+  } catch {
+    return null;
+  }
+}
 
 /** Live currency preview using the app's global formatter, or null if empty/NaN. */
 function currencyPreview(v: string): string | null {
@@ -105,6 +118,7 @@ export function AddCompanyDialog() {
         apply("founded_year", res.foundedYear);
         apply("founders", res.founders?.join(", "));
         apply("description", res.description);
+        apply("logo_url", res.logoUrl);
         return next;
       });
     }, 700);
@@ -168,18 +182,54 @@ export function AddCompanyDialog() {
             <label className="text-sm font-medium text-muted-foreground">
               Company name *
             </label>
-            <div className="relative">
-              <Input
-                value={f.name}
-                onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
-                placeholder="OpenAI"
-                autoFocus
-              />
-              {enriching && (
-                <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" /> enriching…
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              {/* Circular brand-logo preview, resolved during enrichment. */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                {f.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={f.logo_url}
+                    alt={`${f.name || "Company"} logo`}
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                      // Read the failed src now — the event is recycled before
+                      // the setF updater runs. Fall back Clearbit -> Google
+                      // favicon -> initial.
+                      const failedSrc = e.currentTarget.src;
+                      const domain = domainFromUrl(f.website);
+                      const favicon = domain
+                        ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
+                        : "";
+                      setF((p) => ({
+                        ...p,
+                        logo_url:
+                          favicon && !failedSrc.includes("google.com")
+                            ? favicon
+                            : "",
+                      }));
+                    }}
+                  />
+                ) : enriching ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <span className="text-base font-semibold text-muted-foreground">
+                    {f.name.trim() ? f.name.trim()[0].toUpperCase() : "?"}
+                  </span>
+                )}
+              </div>
+              <div className="relative flex-1">
+                <Input
+                  value={f.name}
+                  onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="OpenAI"
+                  autoFocus
+                />
+                {enriching && (
+                  <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> enriching…
+                  </span>
+                )}
+              </div>
             </div>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Sparkles className="h-3 w-3 text-primary" />

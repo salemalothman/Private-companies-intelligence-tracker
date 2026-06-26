@@ -8,6 +8,29 @@ export interface EnrichedProfile {
   foundedYear?: number;
   founders?: string[];
   description?: string;
+  logoUrl?: string;
+}
+
+/** Bare registrable domain from a website URL ("https://www.openai.com/x" -> "openai.com"). */
+function domainOf(website?: string): string | null {
+  if (!website) return null;
+  try {
+    const u = new URL(website.startsWith("http") ? website : `https://${website}`);
+    return u.hostname.replace(/^www\./, "") || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * High-fidelity brand logo from the company's domain via Clearbit's keyless
+ * Logo API. The URL is constructed (not fetched) here — the browser <img>
+ * loads it directly and falls back to an initial on error, which both verifies
+ * the asset client-side and avoids a server round-trip on every keystroke.
+ */
+function resolveLogo(website?: string): string | undefined {
+  const domain = domainOf(website);
+  return domain ? `https://logo.clearbit.com/${domain}` : undefined;
 }
 
 /** LLM enrichment (gated on ANTHROPIC_API_KEY) — returns real, known facts. */
@@ -53,6 +76,13 @@ Use null for anything you are unsure of. "sector" is a short category (e.g. "AI"
 export async function enrichCompanyProfile(
   name: string,
 ): Promise<EnrichedProfile> {
+  const base = await resolveBase(name);
+  // Derive the brand logo from the resolved domain (verified client-side).
+  return { ...base, logoUrl: resolveLogo(base.website) };
+}
+
+/** The factual profile (without logo) from the LLM or keyless connectors. */
+async function resolveBase(name: string): Promise<EnrichedProfile> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       return await llmEnrich(name);

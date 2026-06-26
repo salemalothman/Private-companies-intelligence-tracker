@@ -78,6 +78,7 @@ export async function createCompany(
       user_id: user.id,
       name,
       website: str(formData.get("website")),
+      logo_url: str(formData.get("logo_url")),
       sector: str(formData.get("sector")),
       country: str(formData.get("country")),
       founded_year: num(formData.get("founded_year")),
