@@ -4,6 +4,7 @@ import type {
   ConnectorNewsItem,
   ConnectorSocialSignal,
 } from "@/lib/connectors/types";
+import { dedupeConnectorRounds } from "@/lib/ingestion/dedupe";
 
 export interface ConnectorBatchResult {
   source: string;
@@ -38,33 +39,17 @@ const firstDefined = <T>(...vals: (T | null | undefined)[]): T | undefined =>
 export function mapConnectorResults(
   batch: ConnectorBatchResult[],
 ): MappedIngest {
-  const roundsByKey = new Map<string, ConnectorFundingRound>();
-  const valByKey = new Map<string, MappedIngest["valuations"][number]>();
+  const allRounds: ConnectorFundingRound[] = [];
   const newsByKey = new Map<string, ConnectorNewsItem>();
 
   for (const r of batch) {
-    for (const round of r.rounds) {
-      const key = round.round.trim().toLowerCase();
-      if (!roundsByKey.has(key)) roundsByKey.set(key, round);
-      if (round.date && round.valuation != null) {
-        const vkey = `${round.date}|${key}`;
-        if (!valByKey.has(vkey)) {
-          valByKey.set(vkey, {
-            date: round.date,
-            post_money: round.valuation,
-            round: round.round,
-            source: round.source,
-          });
-        }
-      }
-    }
+    for (const round of r.rounds) allRounds.push(round);
     for (const n of r.news) {
       const key = n.title.trim().toLowerCase();
       if (!newsByKey.has(key)) newsByKey.set(key, n);
     }
     // Social-audit signals feed the same tables: every event becomes a news
-    // item; events with a valuation/raise also become a funding round (which in
-    // turn synthesizes a valuation timeline point).
+    // item; events with a valuation/raise also become a funding round.
     for (const s of r.signals ?? []) {
       const nkey = s.title.trim().toLowerCase();
       if (!newsByKey.has(nkey)) {
@@ -78,29 +63,32 @@ export function mapConnectorResults(
         });
       }
       if (s.valuation != null || s.amountRaised != null || s.round) {
-        const round = s.round ?? (s.kind === "valuation" ? "Valuation update" : "Undisclosed");
-        // Key by round + date so distinct social events don't collapse together.
-        const key = `${round.trim().toLowerCase()}|${s.date ?? ""}`;
-        if (!roundsByKey.has(key)) {
-          roundsByKey.set(key, {
-            round,
-            date: s.date,
-            amountRaised: s.amountRaised,
-            valuation: s.valuation,
-            source: s.source,
-          });
-        }
-        if (s.date && s.valuation != null) {
-          const vkey = `${s.date}|${round.trim().toLowerCase()}`;
-          if (!valByKey.has(vkey)) {
-            valByKey.set(vkey, {
-              date: s.date,
-              post_money: s.valuation,
-              round,
-              source: s.source,
-            });
-          }
-        }
+        allRounds.push({
+          round: s.round ?? (s.kind === "valuation" ? "Valuation update" : "Undisclosed"),
+          date: s.date,
+          amountRaised: s.amountRaised,
+          valuation: s.valuation,
+          source: s.source,
+        });
+      }
+    }
+  }
+
+  // Collapse records that describe the same event (same valuation, ±3 days),
+  // keeping the most explicit round name. Valuation points are synthesized from
+  // the de-duplicated rounds so the timeline shows one point per event.
+  const fundingRounds = dedupeConnectorRounds(allRounds);
+  const valByKey = new Map<string, MappedIngest["valuations"][number]>();
+  for (const round of fundingRounds) {
+    if (round.date && round.valuation != null) {
+      const vkey = `${round.date}|${round.round.trim().toLowerCase()}`;
+      if (!valByKey.has(vkey)) {
+        valByKey.set(vkey, {
+          date: round.date,
+          post_money: round.valuation,
+          round: round.round,
+          source: round.source,
+        });
       }
     }
   }
@@ -118,7 +106,7 @@ export function mapConnectorResults(
   };
 
   return {
-    fundingRounds: [...roundsByKey.values()],
+    fundingRounds,
     valuations: [...valByKey.values()],
     news: [...newsByKey.values()],
     profilePatch,

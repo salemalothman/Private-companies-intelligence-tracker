@@ -49,6 +49,7 @@ import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
 import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
 import { isContractWin } from "@/lib/news/classify";
+import { dedupeFundingRows, dedupeValuationRows } from "@/lib/ingestion/dedupe";
 import {
   AddFundingRoundDialog,
   AddInvestmentDialog,
@@ -94,10 +95,13 @@ export default async function CompanyDetailPage({
   const changeUp = (change ?? 0) >= 0;
   const df = dealFees(company);
 
-  const sortedVals = [...company.valuations].sort(
+  // Collapse duplicate rows that describe the same financing event (same
+  // post-money within a few days under different round names) before rendering.
+  const valuations = dedupeValuationRows(company.valuations);
+  const sortedVals = [...valuations].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
-  const sortedRounds = [...company.funding_rounds].sort((a, b) => {
+  const sortedRounds = [...dedupeFundingRows(company.funding_rounds)].sort((a, b) => {
     const ta = a.date ? new Date(a.date).getTime() : 0;
     const tb = b.date ? new Date(b.date).getTime() : 0;
     return tb - ta;
@@ -367,7 +371,7 @@ export default async function CompanyDetailPage({
             <Card>
               <CardContent className="p-5">
                 <ValuationTimeline
-                  valuations={company.valuations}
+                  valuations={valuations}
                   investment={investmentEntryPoint(company)}
                 />
               </CardContent>

@@ -1,0 +1,58 @@
+import { describe, expect, it } from "vitest";
+import { dedupeConnectorRounds } from "@/lib/ingestion/dedupe";
+import type { ConnectorFundingRound } from "@/lib/connectors/types";
+
+const r = (p: Partial<ConnectorFundingRound>): ConnectorFundingRound => ({
+  round: p.round ?? "Undisclosed",
+  date: p.date,
+  amountRaised: p.amountRaised,
+  valuation: p.valuation,
+  investors: p.investors,
+  leadInvestor: p.leadInvestor,
+  source: p.source ?? "x",
+});
+
+describe("dedupeConnectorRounds", () => {
+  it("collapses same-valuation rounds within 3 days, keeping the explicit name", () => {
+    // The screenshot scenario: one $9B event split across names/dates.
+    const out = dedupeConnectorRounds([
+      r({ round: "Series D", date: "2026-03-14", valuation: 9e9, source: "grok:x" }),
+      r({ round: "Undisclosed", date: "2026-03-11", valuation: 9e9, source: "agdillon" }),
+      r({ round: "Series D", date: "2026-03-11", valuation: 9e9, investors: ["a16z"], source: "exa" }),
+      r({ round: "Funding (Exa)", date: "2026-03-11", valuation: 9e9, source: "exa" }),
+      r({ round: "Series C", date: "2025-09-10", valuation: 3e9, source: "agdillon" }),
+    ]);
+
+    expect(out).toHaveLength(2);
+    const nine = out.find((x) => x.valuation === 9e9)!;
+    expect(nine.round).toBe("Series D"); // explicit name wins
+    expect(nine.investors).toEqual(["a16z"]); // metadata merged in
+    expect(nine.source).toContain("exa"); // sources combined
+    expect(nine.source).toContain("grok:x");
+    expect(out.find((x) => x.valuation === 3e9)!.round).toBe("Series C");
+  });
+
+  it("does not merge different valuations on the same date", () => {
+    const out = dedupeConnectorRounds([
+      r({ round: "Series A", date: "2024-01-01", valuation: 100e6 }),
+      r({ round: "Series B", date: "2024-01-01", valuation: 300e6 }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it("does not merge the same valuation outside the date window", () => {
+    const out = dedupeConnectorRounds([
+      r({ round: "Series D", date: "2026-03-01", valuation: 9e9 }),
+      r({ round: "Undisclosed", date: "2026-03-10", valuation: 9e9 }), // 9 days apart
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it("passes through rows lacking a date or valuation", () => {
+    const out = dedupeConnectorRounds([
+      r({ round: "Undisclosed", date: undefined, valuation: 9e9 }),
+      r({ round: "Series D", date: "2026-03-11", valuation: undefined }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+});
