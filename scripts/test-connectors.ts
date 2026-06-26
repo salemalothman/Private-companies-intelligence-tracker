@@ -7,6 +7,8 @@
  * runs the real `x_search` tool + Zod-structured extraction and prints the parsed
  * output. Requires XAI_API_KEY and SEC_USER_AGENT in .env.local.
  */
+export {}; // make this file a module (isolated scope)
+
 try {
   process.loadEnvFile(".env.local");
 } catch {

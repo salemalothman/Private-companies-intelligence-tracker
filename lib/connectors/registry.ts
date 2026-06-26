@@ -13,7 +13,7 @@ import { SecEdgarConnector } from "@/lib/connectors/sec-edgar";
  *   if (process.env.NEWS_API_KEY)       connectors.push(new NewsConnector(...))
  */
 export function getConnectors(): DataConnector[] {
-  const connectors: DataConnector[] = [stubConnector];
+  const connectors: DataConnector[] = [];
 
   // Grok-powered X/Twitter connector (replaces the planned raw Twitter API).
   if (process.env.XAI_API_KEY) {
@@ -23,6 +23,12 @@ export function getConnectors(): DataConnector[] {
   // SEC EDGAR — Form D private fundraising filings. Keyless; needs a UA header.
   if (process.env.SEC_USER_AGENT) {
     connectors.push(new SecEdgarConnector());
+  }
+
+  // Keyless stub is the fallback only when no live source is configured, so a
+  // configured deployment ingests real data instead of placeholder data.
+  if (connectors.length === 0) {
+    connectors.push(stubConnector);
   }
 
   return connectors;

@@ -1,6 +1,6 @@
 import "server-only";
 import { xai } from "@ai-sdk/xai";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import type {
   ConnectorCompanyProfile,
@@ -16,71 +16,113 @@ const clean = <T>(v: T | null | undefined): T | undefined =>
   v === null || v === undefined ? undefined : v;
 
 /**
- * One-shot Grok search + structured extraction. The `xai.responses` model runs
- * xAI's native X search server-side, then returns data shaped to `schema`.
+ * Pull the first balanced JSON object/array out of a model response, ignoring
+ * any trailing prose or citation markdown (e.g. `[[1]](url)`) the model appends.
+ */
+function extractJson(s: string): string | null {
+  const oi = s.indexOf("{");
+  const bi = s.indexOf("[");
+  const start = oi < 0 ? bi : bi < 0 ? oi : Math.min(oi, bi);
+  if (start < 0) return null;
+  const open = s[start];
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === open) depth++;
+    else if (ch === close && --depth === 0) return s.slice(start, i + 1);
+  }
+  return null;
+}
+
+/**
+ * One-shot Grok search + structured extraction. `xai.responses('grok-4.3')`
+ * runs xAI's native X search server-side via the `x_search` tool, then the
+ * model returns JSON which we validate against `schema`.
  *
- * `generateObject`'s public option type doesn't expose `tools` (xSearch is a
- * server-side agentic tool), so we attach it at runtime and re-assert the base
- * option type — this keeps `schema` inference for the result while still passing
- * the tool through to the model.
+ * NOTE: this uses `generateText` (not `generateObject`) on purpose — server-side
+ * agentic tools like `x_search` only execute through the text/tool API;
+ * `generateObject` silently ignores `tools` and answers from training data.
  */
 async function grokSearch<S extends z.ZodTypeAny>(
   schema: S,
-  prompt: string,
-): Promise<z.infer<S>> {
-  const options = {
+  instruction: string,
+  shape: string,
+): Promise<z.infer<S> | null> {
+  const { text } = await generateText({
     model: xai.responses("grok-4.3"),
-    schema,
-    prompt,
-  };
-  const { object } = await generateObject({
-    ...options,
     tools: { x_search: xai.tools.xSearch() },
-  } as typeof options);
-  return object as z.infer<S>;
+    prompt:
+      `${instruction}\n\nAfter searching X, respond with ONLY minified JSON ` +
+      `matching exactly this shape — no prose, no markdown fences, and no ` +
+      `citations or footnotes before, after, or inside the JSON:\n${shape}`,
+  });
+  const json = extractJson(text ?? "");
+  if (!json) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  const result = schema.safeParse(parsed);
+  return result.success ? result.data : null;
 }
 
 const profileSchema = z.object({
-  found: z
-    .boolean()
-    .describe("True only if a real, identifiable company was found on X."),
-  name: z.string().nullable(),
-  website: z.string().nullable(),
-  sector: z.string().nullable().describe('Short category, e.g. "AI", "Fintech".'),
-  country: z.string().nullable().describe("HQ country."),
-  foundedYear: z.number().nullable(),
-  description: z.string().nullable().describe("One sentence, max ~180 chars."),
-  founders: z.array(z.string()).nullable(),
+  found: z.boolean().nullish(),
+  name: z.string().nullish(),
+  website: z.string().nullish(),
+  sector: z.string().nullish(),
+  country: z.string().nullish(),
+  foundedYear: z.number().nullish(),
+  description: z.string().nullish(),
+  founders: z.array(z.string()).nullish(),
 });
+const PROFILE_SHAPE =
+  '{"found":boolean,"name":string|null,"website":string|null,"sector":string|null,"country":string|null,"foundedYear":number|null,"description":string|null,"founders":string[]|null}';
 
 const roundsSchema = z.object({
   rounds: z
     .array(
       z.object({
-        round: z.string().describe('e.g. "Seed", "Series A".'),
-        date: z.string().nullable().describe("ISO YYYY-MM-DD if known."),
-        amountRaised: z.number().nullable().describe("Absolute USD, e.g. 1.2B -> 1200000000."),
-        valuation: z.number().nullable().describe("Post-money, absolute USD."),
-        investors: z.array(z.string()).nullable(),
-        leadInvestor: z.string().nullable(),
+        round: z.string().nullish(),
+        date: z.string().nullish(),
+        amountRaised: z.number().nullish(),
+        valuation: z.number().nullish(),
+        investors: z.array(z.string()).nullish(),
+        leadInvestor: z.string().nullish(),
       }),
     )
-    .describe("Empty array if no funding rounds are found."),
+    .nullish(),
 });
+const ROUNDS_SHAPE =
+  '{"rounds":[{"round":string,"date":"YYYY-MM-DD"|null,"amountRaised":number|null,"valuation":number|null,"investors":string[]|null,"leadInvestor":string|null}]}';
 
 const newsSchema = z.object({
   news: z
     .array(
       z.object({
-        title: z.string(),
-        url: z.string().nullable().describe("Link to the post / article."),
-        date: z.string().nullable().describe("ISO YYYY-MM-DD if known."),
-        summary: z.string().nullable(),
-        sentiment: z.enum(["positive", "neutral", "negative"]).nullable(),
+        title: z.string().nullish(),
+        url: z.string().nullish(),
+        date: z.string().nullish(),
+        summary: z.string().nullish(),
+        sentiment: z.enum(["positive", "neutral", "negative"]).nullish(),
       }),
     )
-    .describe("Empty array if nothing relevant is found."),
+    .nullish(),
 });
+const NEWS_SHAPE =
+  '{"news":[{"title":string,"url":string|null,"date":"YYYY-MM-DD"|null,"summary":string|null,"sentiment":"positive"|"neutral"|"negative"|null}]}';
 
 /**
  * Grok-powered connector. Uses xAI's `grok-4.3` responses model with the native
@@ -101,8 +143,9 @@ export class GrokConnector implements DataConnector {
           `extract its profile (sector, HQ country, website, founded year, founders, ` +
           `a one-sentence description). If you cannot confidently identify a real ` +
           `company, set "found" to false and leave the other fields null.`,
+        PROFILE_SHAPE,
       );
-      if (!r.found || !r.name) return null;
+      if (!r || r.found === false || !r.name) return null;
       return {
         name: r.name,
         website: clean(r.website),
@@ -123,12 +166,15 @@ export class GrokConnector implements DataConnector {
       const r = await grokSearch(
         roundsSchema,
         `Search X (Twitter) for "${query} funding" and "${query} raises". Extract ` +
-          `every distinct funding round you can verify (round name, date, amount ` +
-          `raised, post-money valuation, lead investor, other investors). Return an ` +
-          `empty array if none are found.`,
+          `every distinct funding round you can verify (round name, amount raised ` +
+          `in USD, post-money valuation in USD, lead investor, other investors). ` +
+          `For EACH round you MUST include the announcement "date" as YYYY-MM-DD ` +
+          `(if only the month or year is known, use the 1st of that month/year). ` +
+          `Return an empty array if none are found.`,
+        ROUNDS_SHAPE,
       );
-      return (r.rounds ?? []).map((x) => ({
-        round: x.round,
+      return (r?.rounds ?? []).map((x) => ({
+        round: clean(x.round) ?? "Undisclosed",
         date: clean(x.date),
         amountRaised: clean(x.amountRaised),
         valuation: clean(x.valuation),
@@ -147,18 +193,23 @@ export class GrokConnector implements DataConnector {
       const r = await grokSearch(
         newsSchema,
         `Search X (Twitter) for "${query} news" and recent posts about "${query}". ` +
-          `Extract the most relevant recent items (headline, link, date, a short ` +
-          `summary, and overall sentiment). Return an empty array if nothing ` +
-          `relevant is found.`,
+          `Return at most the 3 most relevant, most recent items (headline, link, ` +
+          `date, a short summary, and overall sentiment). Return an empty array if ` +
+          `nothing relevant is found.`,
+        NEWS_SHAPE,
       );
-      return (r.news ?? []).map((x) => ({
-        title: x.title,
-        source: SOURCE,
-        url: clean(x.url),
-        date: clean(x.date),
-        summary: clean(x.summary),
-        sentiment: clean(x.sentiment),
-      }));
+      // Hard cap at 3 news items per run regardless of what the model returns.
+      return (r?.news ?? [])
+        .filter((x) => clean(x.title))
+        .slice(0, 3)
+        .map((x) => ({
+          title: x.title as string,
+          source: SOURCE,
+          url: clean(x.url),
+          date: clean(x.date),
+          summary: clean(x.summary),
+          sentiment: clean(x.sentiment),
+        }));
     } catch (e) {
       console.error("GrokConnector.fetchNews:", (e as Error).message);
       return [];
