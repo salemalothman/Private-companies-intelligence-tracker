@@ -233,10 +233,13 @@ export class GrokConnector implements DataConnector {
     try {
       const r = await grokSearch(
         newsSchema,
-        `Search X (Twitter) for "${query} news" and recent posts about "${query}". ` +
-          `Return at most the 3 most relevant, most recent items (headline, link, ` +
-          `date, a short summary, and overall sentiment). Return an empty array if ` +
-          `nothing relevant is found.`,
+        `Search X (Twitter) for "${query} news" and recent posts about "${query}", ` +
+          `including any new business deals, partnerships, customer wins, or ` +
+          `material contracts the company has secured or announced. Return at ` +
+          `most the 3 most relevant, most recent items (headline, link, date, a ` +
+          `short summary, and overall sentiment); prefer a material deal/contract ` +
+          `announcement when one exists. Return an empty array if nothing relevant ` +
+          `is found.`,
         NEWS_SHAPE,
       );
       // Hard cap at 3 news items per run regardless of what the model returns.

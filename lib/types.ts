@@ -177,6 +177,7 @@ export type NewsRow = {
   date: string | null;
   sentiment: Sentiment | null;
   summary: string | null;
+  category: string | null;
   created_at: string;
 }
 type NewsInsert = {
@@ -188,6 +189,7 @@ type NewsInsert = {
   date?: string | null;
   sentiment?: Sentiment | null;
   summary?: string | null;
+  category?: string | null;
 }
 
 // --- documents ---

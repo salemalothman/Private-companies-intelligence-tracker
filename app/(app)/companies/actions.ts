@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { discoverCompetitors } from "@/lib/competitors/discover";
+import { classifyNews } from "@/lib/news/classify";
 import {
   enrichCompanyProfile,
   type EnrichedProfile,
@@ -333,6 +334,7 @@ export async function addNews(
   const title = str(formData.get("title"));
   if (!title) return { error: "Headline is required." };
 
+  const summary = str(formData.get("summary"));
   const { error } = await supabase.from("news").insert({
     company_id: companyId,
     title,
@@ -345,7 +347,8 @@ export async function addNews(
         | "neutral"
         | "negative"
         | null) ?? null,
-    summary: str(formData.get("summary")),
+    summary,
+    category: classifyNews(title, summary),
   });
 
   if (error) return { error: error.message };

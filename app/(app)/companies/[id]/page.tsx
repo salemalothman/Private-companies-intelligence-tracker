@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   ExternalLink,
   Globe,
+  Handshake,
   ShieldCheck,
 } from "lucide-react";
 import { getCompany, getCompetitors } from "@/lib/queries";
@@ -46,6 +47,8 @@ import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { DeleteCompanyButton } from "@/components/company/delete-company-button";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
+import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
+import { isContractWin } from "@/lib/news/classify";
 import {
   AddFundingRoundDialog,
   AddInvestmentDialog,
@@ -105,6 +108,10 @@ export default async function CompanyDetailPage({
       new Date(a.investment_date).getTime(),
   );
   const sortedNews = [...company.news].sort((a, b) => {
+    // Surface material contract wins first, then most-recent within each group.
+    const da = isContractWin(a.category) ? 1 : 0;
+    const db = isContractWin(b.category) ? 1 : 0;
+    if (da !== db) return db - da;
     const ta = a.date ? new Date(a.date).getTime() : 0;
     const tb = b.date ? new Date(b.date).getTime() : 0;
     return tb - ta;
@@ -287,6 +294,7 @@ export default async function CompanyDetailPage({
                   {company.description ?? "No description yet."}
                 </p>
               </div>
+              <BusinessModelAnalysis company={company} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -575,12 +583,29 @@ export default async function CompanyDetailPage({
               <EmptyRow text="No news yet. Add an update — or connect a live news source in a later phase." />
             ) : (
               <div className="space-y-3">
-                {sortedNews.map((n) => (
-                  <Card key={n.id}>
+                {sortedNews.map((n) => {
+                  const deal = isContractWin(n.category);
+                  return (
+                  <Card
+                    key={n.id}
+                    className={cn(
+                      deal &&
+                        "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/15",
+                    )}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
+                            {deal && (
+                              <Badge
+                                variant="default"
+                                className="gap-1"
+                                title="Material business deal / contract win"
+                              >
+                                <Handshake className="h-3 w-3" /> Contract win
+                              </Badge>
+                            )}
                             <Badge variant={sentimentVariant(n.sentiment)}>
                               {n.sentiment ?? "neutral"}
                             </Badge>
@@ -611,7 +636,8 @@ export default async function CompanyDetailPage({
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

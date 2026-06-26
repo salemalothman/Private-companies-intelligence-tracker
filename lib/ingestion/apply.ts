@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import type { MappedIngest } from "@/lib/ingestion/map";
+import { classifyNews } from "@/lib/news/classify";
 
 type DB = SupabaseClient<Database>;
 
@@ -79,6 +80,9 @@ export async function applyMappedIngest(
         date: n.date ?? null,
         summary: n.summary ?? null,
         sentiment: n.sentiment ?? null,
+        // Auto-tag material business deals / contract wins so the feed can
+        // surface them as highlighted items.
+        category: classifyNews(n.title, n.summary),
       })),
     );
   }
