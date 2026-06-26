@@ -106,6 +106,10 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
                   </strong>
                   , News:{" "}
                   <strong className="text-foreground">+{result.newsAdded}</strong>
+                  , Competitors:{" "}
+                  <strong className="text-foreground">
+                    +{result.competitorsAdded ?? 0}
+                  </strong>
                   .
                 </p>
               </div>

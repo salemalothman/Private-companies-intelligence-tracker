@@ -53,5 +53,27 @@ describe("heuristicExtract", () => {
     expect(none.fundingRounds).toHaveLength(0);
     expect(none.valuations).toHaveLength(0);
     expect(none.news).toHaveLength(1);
+    expect(none.competitors).toHaveLength(0);
+  });
+
+  it("extracts competitor names from a competitive-landscape mention", () => {
+    const c = heuristicExtract(
+      "Competitive landscape: Anduril, Shield AI and Palantir are the main rivals.",
+      { title: "Deck", source: "pdf:deck" },
+    );
+    expect(c.competitors.map((x) => x.name)).toEqual([
+      "Anduril",
+      "Shield AI",
+      "Palantir",
+    ]);
+  });
+
+  it("captures an inline valuation stated next to a competitor", () => {
+    const c = heuristicExtract(
+      "Our competitors include Cursor ($29B) and Replit.",
+      { title: "Deck", source: "pdf:deck" },
+    );
+    const cursor = c.competitors.find((x) => x.name === "Cursor")!;
+    expect(cursor.valuation).toBe(29_000_000_000);
   });
 });

@@ -9,6 +9,15 @@ export interface ApplyResult {
   roundsAdded: number;
   valuationsAdded: number;
   newsAdded: number;
+  competitorsAdded: number;
+}
+
+/** Competitor entities extracted from a document, routed to the Competitors tab. */
+export interface ExtractedCompetitorInput {
+  name: string;
+  valuation?: number;
+  revenue?: number;
+  note?: string;
 }
 
 /**
@@ -20,19 +29,24 @@ export interface ApplyResult {
 export async function applyMappedIngest(
   supabase: DB,
   companyId: string,
-  mapped: Pick<MappedIngest, "fundingRounds" | "valuations" | "news">,
+  mapped: Pick<MappedIngest, "fundingRounds" | "valuations" | "news"> & {
+    competitors?: ExtractedCompetitorInput[];
+  },
 ): Promise<ApplyResult> {
-  const [{ data: rounds }, { data: vals }, { data: news }] = await Promise.all([
-    supabase.from("funding_rounds").select("round").eq("company_id", companyId),
-    supabase.from("valuations").select("date, round").eq("company_id", companyId),
-    supabase.from("news").select("title").eq("company_id", companyId),
-  ]);
+  const [{ data: rounds }, { data: vals }, { data: news }, { data: comps }] =
+    await Promise.all([
+      supabase.from("funding_rounds").select("round").eq("company_id", companyId),
+      supabase.from("valuations").select("date, round").eq("company_id", companyId),
+      supabase.from("news").select("title").eq("company_id", companyId),
+      supabase.from("competitors").select("name").eq("company_id", companyId),
+    ]);
 
   const haveRound = new Set((rounds ?? []).map((r) => r.round.toLowerCase()));
   const haveVal = new Set(
     (vals ?? []).map((v) => `${v.date}|${(v.round ?? "").toLowerCase()}`),
   );
   const haveNews = new Set((news ?? []).map((n) => n.title.toLowerCase()));
+  const haveComp = new Set((comps ?? []).map((c) => c.name.toLowerCase()));
 
   const newRounds = mapped.fundingRounds.filter(
     (r) => !haveRound.has(r.round.toLowerCase()),
@@ -41,6 +55,16 @@ export async function applyMappedIngest(
     (v) => !haveVal.has(`${v.date}|${(v.round ?? "").toLowerCase()}`),
   );
   const newNews = mapped.news.filter((n) => !haveNews.has(n.title.toLowerCase()));
+
+  // Competitors extracted from the document — dedupe against existing rows and
+  // within the batch (the table is unique on company_id + name).
+  const seenComp = new Set<string>();
+  const newComps = (mapped.competitors ?? []).filter((c) => {
+    const k = c.name.trim().toLowerCase();
+    if (!k || haveComp.has(k) || seenComp.has(k)) return false;
+    seenComp.add(k);
+    return true;
+  });
 
   if (newRounds.length) {
     await supabase.from("funding_rounds").insert(
@@ -87,9 +111,25 @@ export async function applyMappedIngest(
     );
   }
 
+  if (newComps.length) {
+    await supabase.from("competitors").insert(
+      newComps.map((c) => ({
+        company_id: companyId,
+        name: c.name.trim(),
+        valuation: c.valuation ?? null,
+        revenue: c.revenue ?? null,
+        source: "document",
+        basis: c.note ?? null,
+        sec_verified: false,
+        is_self: false,
+      })),
+    );
+  }
+
   return {
     roundsAdded: newRounds.length,
     valuationsAdded: newVals.length,
     newsAdded: newNews.length,
+    competitorsAdded: newComps.length,
   };
 }

@@ -16,6 +16,7 @@ export interface DocResult {
   roundsAdded?: number;
   valuationsAdded?: number;
   newsAdded?: number;
+  competitorsAdded?: number;
 }
 
 async function authed() {

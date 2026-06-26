@@ -3,6 +3,16 @@ import type {
   ConnectorNewsItem,
 } from "@/lib/connectors/types";
 
+export interface ExtractedCompetitor {
+  name: string;
+  /** Post-money valuation in USD, if the document states one. */
+  valuation?: number;
+  /** Revenue / ARR in USD, if stated. */
+  revenue?: number;
+  /** Short provenance note (e.g. the phrase it was extracted from). */
+  note?: string;
+}
+
 export interface ExtractedEntities {
   fundingRounds: ConnectorFundingRound[];
   valuations: {
@@ -12,6 +22,7 @@ export interface ExtractedEntities {
     source: string;
   }[];
   news: ConnectorNewsItem[];
+  competitors: ExtractedCompetitor[];
 }
 
 export interface ExtractOptions {
@@ -68,11 +79,52 @@ function detectSentiment(text: string): "positive" | "neutral" | "negative" {
   return "neutral";
 }
 
+const STOP_NAME =
+  /^(the|our|other|others|various|many|several|key|main|major|some|all|including|such|etc|inc|corp|llc|ltd)$/i;
+
+/**
+ * Heuristically pull competitor names out of a "competitors / competitive
+ * landscape" mention. Captures the listed companies (and any inline valuation
+ * stated right after a name). Names only — the LLM engine extracts richer data.
+ */
+function extractCompetitors(clean: string): ExtractedCompetitor[] {
+  const m =
+    clean.match(/competitors?(?:\s+include|\s+are)?\s*:?\s+([^.;\n]{3,220})/i) ||
+    clean.match(/competitive landscape\s*:?\s+([^.;\n]{3,220})/i) ||
+    clean.match(/(?:competes?|competing)\s+(?:with|against)\s+([^.;\n]{3,220})/i);
+  if (!m) return [];
+
+  const seen = new Set<string>();
+  const out: ExtractedCompetitor[] = [];
+  for (const part of m[1].split(/,|;|\band\b|&|\//i)) {
+    // A name optionally followed by an inline "($X valuation)".
+    const seg = part
+      .replace(/\b(such as|including|like|e\.g\.?|namely|etc\.?)\b/gi, "")
+      .trim();
+    // A run of capitalized tokens ("Shield AI"), stopping at any lowercase word.
+    const nameMatch = seg.match(/^([A-Z][A-Za-z0-9&.'\-]*(?:\s+[A-Z][A-Za-z0-9&.'\-]*)*)/);
+    if (!nameMatch) continue;
+    const name = nameMatch[1].trim().replace(/\s+(?:inc|corp|llc|ltd)\.?$/i, "");
+    const key = name.toLowerCase();
+    if (name.length < 2 || STOP_NAME.test(name) || seen.has(key)) continue;
+    seen.add(key);
+    const valM = seg.match(/\$\s?([\d.,]+)\s*(billion|million|bn|mn|m|b)\b/i);
+    out.push({
+      name,
+      valuation: valM ? parseAmount(valM[1], valM[2]) ?? undefined : undefined,
+      note: seg.slice(0, 80),
+    });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
 /**
  * Keyless heuristic extraction of financial entities from document/article text.
- * Pulls a funding round, valuation point, and a news item with sentiment. This is
- * the fallback engine; the LLM extractor (gated on a key) produces far higher
- * accuracy via the same {@link ExtractedEntities} contract.
+ * Pulls a funding round, valuation point, a news item with sentiment, and any
+ * competitor mentions. This is the fallback engine; the LLM extractor (gated on
+ * a key) produces far higher accuracy via the same {@link ExtractedEntities}
+ * contract.
  */
 export function heuristicExtract(
   text: string,
@@ -144,5 +196,5 @@ export function heuristicExtract(
     },
   ];
 
-  return { fundingRounds, valuations, news };
+  return { fundingRounds, valuations, news, competitors: extractCompetitors(clean) };
 }
