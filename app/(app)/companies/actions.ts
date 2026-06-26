@@ -144,7 +144,8 @@ export async function refreshCompetitors(
 
   let discovered;
   try {
-    discovered = await discoverCompetitors(company.name);
+    // Pass the client so discovery queries the weekly market cache first.
+    discovered = await discoverCompetitors(company.name, supabase);
   } catch (e) {
     return { error: `Competitor lookup failed: ${(e as Error).message}` };
   }

@@ -245,6 +245,55 @@ type CompetitorInsert = {
   is_self?: boolean;
 };
 
+// --- market valuation cache (global reference data) ---
+export type MarketValuationRow = {
+  id: string;
+  name: string;
+  name_key: string;
+  valuation: number | null;
+  valuation_date: string | null;
+  revenue: number | null;
+  revenue_basis: string | null;
+  source: string;
+  source_url: string | null;
+  as_of: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type MarketValuationInsert = {
+  id?: string;
+  name: string;
+  name_key: string;
+  valuation?: number | null;
+  valuation_date?: string | null;
+  revenue?: number | null;
+  revenue_basis?: string | null;
+  source?: string;
+  source_url?: string | null;
+  as_of?: string | null;
+  note?: string | null;
+  updated_at?: string;
+};
+
+export type MarketSyncRunRow = {
+  id: string;
+  source: string;
+  cached: number;
+  updated: number;
+  status: string;
+  detail: string | null;
+  created_at: string;
+};
+type MarketSyncRunInsert = {
+  id?: string;
+  source?: string;
+  cached?: number;
+  updated?: number;
+  status?: string;
+  detail?: string | null;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -302,6 +351,18 @@ export interface Database {
         Update: Partial<CompetitorInsert>;
         Relationships: [];
       };
+      market_valuations: {
+        Row: MarketValuationRow;
+        Insert: MarketValuationInsert;
+        Update: Partial<MarketValuationInsert>;
+        Relationships: [];
+      };
+      market_sync_runs: {
+        Row: MarketSyncRunRow;
+        Insert: MarketSyncRunInsert;
+        Update: Partial<MarketSyncRunInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -319,6 +380,8 @@ export type NewsItem = NewsRow;
 export type DocumentRow = DocumentRowDb;
 export type IngestionRun = IngestionRunRow;
 export type Competitor = CompetitorRow;
+export type MarketValuation = MarketValuationRow;
+export type MarketSyncRun = MarketSyncRunRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {
