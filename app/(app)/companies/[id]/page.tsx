@@ -486,7 +486,7 @@ export default async function CompanyDetailPage({
               />
             </div>
             {peers.length === 0 ? (
-              <EmptyRow text="No competitors discovered yet. Run “Find competitors” to scan X and SEC filings." />
+              <EmptyRow text="No competitors discovered yet. Click “Sync data” (or “Find competitors”) to scan X and SEC filings." />
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>

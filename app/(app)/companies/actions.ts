@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { discoverCompetitors } from "@/lib/competitors/discover";
+import { hasLiveConnectors } from "@/lib/connectors/registry";
 import { classifyNews } from "@/lib/news/classify";
 import {
   enrichCompanyProfile,
@@ -114,7 +115,15 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
   if (error || !data) return { error: error?.message ?? "Company not found." };
 
   try {
+    // One click runs the full refresh: profile + funding rounds + valuations +
+    // news (ingestion pipeline) AND the competitive landscape. Competitor
+    // discovery is best-effort so an empty/failed result never fails the sync.
     await ingestCompany(supabase, data);
+    try {
+      await discoverAndStoreCompetitors(supabase, data.id, data.name, user.id);
+    } catch (e) {
+      console.error("sync competitors:", (e as Error).message);
+    }
     revalidatePath(`/companies/${companyId}`);
     revalidatePath("/dashboard");
     revalidatePath("/fund");
@@ -129,38 +138,28 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
  * the Grok connector (cross-referenced against SEC filings), then replace the
  * stored competitor set. Best-effort; surfaces a message on failure.
  */
-export async function refreshCompetitors(
+/**
+ * Discover the competitive landscape for a company and replace the stored set.
+ * Returns the number of competitors found (0 when none). Throws only on a DB
+ * write error — an empty result is a valid outcome, not a failure. Shared by
+ * the standalone "Find competitors" button and the unified "Sync data" flow.
+ */
+async function discoverAndStoreCompetitors(
+  supabase: Awaited<ReturnType<typeof createClient>>,
   companyId: string,
-): Promise<ActionResult & { count?: number }> {
-  const { supabase, user } = await requireUser();
-  if (!user) return { error: "Not authenticated." };
-
-  const { data: company, error } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", companyId)
-    .maybeSingle();
-  if (error || !company) return { error: error?.message ?? "Company not found." };
-
-  let discovered;
-  try {
-    // Pass the client so discovery queries the weekly market cache first.
-    discovered = await discoverCompetitors(company.name, supabase);
-  } catch (e) {
-    return { error: `Competitor lookup failed: ${(e as Error).message}` };
-  }
-
-  const { competitors, self } = discovered;
-  if (competitors.length === 0) {
-    return { error: "No competitors found. Check that the Grok connector is configured." };
-  }
+  companyName: string,
+  userId: string,
+): Promise<number> {
+  // Pass the client so discovery queries the weekly market cache first.
+  const { competitors, self } = await discoverCompetitors(companyName, supabase);
+  if (competitors.length === 0) return 0;
 
   // Replace the prior set so a refresh reflects the latest data.
   await supabase.from("competitors").delete().eq("company_id", companyId);
 
   const rows = competitors.map((c) => ({
     company_id: companyId,
-    user_id: user.id,
+    user_id: userId,
     name: c.name,
     valuation: c.valuation ?? null,
     valuation_date: c.valuationDate ?? null,
@@ -177,8 +176,8 @@ export async function refreshCompetitors(
   if (self && (self.revenue != null || self.valuation != null)) {
     rows.push({
       company_id: companyId,
-      user_id: user.id,
-      name: company.name,
+      user_id: userId,
+      name: companyName,
       valuation: self.valuation ?? null,
       valuation_date: self.valuationDate ?? null,
       revenue: self.revenue ?? null,
@@ -190,11 +189,46 @@ export async function refreshCompetitors(
     });
   }
 
-  const { error: insErr } = await supabase.from("competitors").insert(rows);
-  if (insErr) return { error: insErr.message };
+  const { error } = await supabase.from("competitors").insert(rows);
+  if (error) throw new Error(error.message);
+  return competitors.length;
+}
+
+export async function refreshCompetitors(
+  companyId: string,
+): Promise<ActionResult & { count?: number }> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: company, error } = await supabase
+    .from("companies")
+    .select("id, name")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error || !company) return { error: error?.message ?? "Company not found." };
+
+  let count: number;
+  try {
+    count = await discoverAndStoreCompetitors(
+      supabase,
+      company.id,
+      company.name,
+      user.id,
+    );
+  } catch (e) {
+    return { error: `Competitor lookup failed: ${(e as Error).message}` };
+  }
+
+  if (count === 0) {
+    return {
+      error: hasLiveConnectors()
+        ? `No competitors identified for "${company.name}" yet. Try again, or check the company name is correct.`
+        : "Competitor discovery needs the Grok connector — set XAI_API_KEY.",
+    };
+  }
 
   revalidatePath(`/companies/${companyId}`);
-  return { count: competitors.length };
+  return { count };
 }
 
 export async function updateCompanyOverview(

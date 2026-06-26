@@ -264,15 +264,16 @@ export class GrokConnector implements DataConnector {
     try {
       const r = await grokSearch(
         competitorsSchema,
-        `Identify the primary direct competitors of the private company ` +
-          `"${query}" and, for EACH, its most recent known post-money ` +
-          `valuation in USD. ${PRIORITY_SOURCES} For every competitor include ` +
-          `the valuation "valuationDate" as YYYY-MM-DD (use the 1st of the ` +
-          `month/year if only that is known) and a one-line "basis" naming the ` +
-          `round and which source the figure came from (e.g. "Series C, ` +
-          `$2.1B, per @AaronGDillon Apr 2024"). ${REVENUE_INSTRUCTION} Return ` +
-          `the 6 most relevant competitors. Omit any whose competitive ` +
-          `relationship you cannot verify. Return an empty array if none found.`,
+        `Name the 6 best-known direct competitors of the company "${query}" — ` +
+          `use your general knowledge of its market as well as web/X search. ` +
+          `Always include a competitor even if its financials are unknown. Then, ` +
+          `for EACH competitor, find its most recent known post-money valuation ` +
+          `in USD. ${PRIORITY_SOURCES} Include the valuation "valuationDate" as ` +
+          `YYYY-MM-DD (1st of the month/year if only that is known) and a ` +
+          `one-line "basis" naming the round and source (e.g. "Series C, $2.1B, ` +
+          `per @AaronGDillon Apr 2024"). ${REVENUE_INSTRUCTION} Leave valuation ` +
+          `or revenue null when unknown, but still list the competitor. Only ` +
+          `return an empty array if "${query}" is not a real company.`,
         COMPETITORS_SHAPE,
       );
       return (r?.competitors ?? [])

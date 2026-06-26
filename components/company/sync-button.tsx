@@ -35,7 +35,7 @@ export function SyncButton({ companyId }: { companyId: string }) {
         variant="outline"
         onClick={run}
         disabled={pending}
-        title="Re-run the data ingestion pipeline"
+        title="Fetch funding rounds, valuations, news, and competitors"
       >
         {done ? (
           <Check className="h-3.5 w-3.5 text-success" />
