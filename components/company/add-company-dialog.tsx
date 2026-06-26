@@ -7,6 +7,7 @@ import { createCompany, enrichCompany } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCurrency } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,9 @@ type FormState = {
   founded_year: string;
   founders: string;
   description: string;
+  entry_valuation: string;
+  investment_amount: string;
+  ownership_pct: string;
 };
 
 const EMPTY: FormState = {
@@ -50,7 +54,18 @@ const EMPTY: FormState = {
   founded_year: "",
   founders: "",
   description: "",
+  entry_valuation: "",
+  investment_amount: "",
+  ownership_pct: "",
 };
+
+/** Live currency preview using the app's global formatter, or null if empty/NaN. */
+function currencyPreview(v: string): string | null {
+  const s = v.replace(/[,$\s]/g, "");
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? formatCurrency(n) : null;
+}
 
 export function AddCompanyDialog() {
   const router = useRouter();
@@ -228,6 +243,69 @@ export function AddCompanyDialog() {
               placeholder="What the company does…"
             />
           </Field>
+
+          {/* Investment Details — optional entry metrics, seed the timeline. */}
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+            <div>
+              <h4 className="text-sm font-medium">Investment Details</h4>
+              <p className="text-xs text-muted-foreground">
+                Optional — record your entry to seed the valuation timeline and
+                portfolio metrics.
+              </p>
+            </div>
+            <Field label="Your entry valuation ($)">
+              <Input
+                value={f.entry_valuation}
+                onChange={(e) =>
+                  setF((p) => ({ ...p, entry_valuation: e.target.value }))
+                }
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                placeholder="1000000000"
+              />
+              {currencyPreview(f.entry_valuation) && (
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  = {currencyPreview(f.entry_valuation)}
+                </p>
+              )}
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Investment amount ($)">
+                <Input
+                  value={f.investment_amount}
+                  onChange={(e) =>
+                    setF((p) => ({ ...p, investment_amount: e.target.value }))
+                  }
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="500000"
+                />
+                {currencyPreview(f.investment_amount) && (
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    = {currencyPreview(f.investment_amount)}
+                  </p>
+                )}
+              </Field>
+              <Field label="Ownership stake (%)">
+                <Input
+                  value={f.ownership_pct}
+                  onChange={(e) =>
+                    setF((p) => ({ ...p, ownership_pct: e.target.value }))
+                  }
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="2.5"
+                />
+              </Field>
+            </div>
+          </div>
 
           {error && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

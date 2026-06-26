@@ -90,6 +90,33 @@ export async function createCompany(
 
   if (error) return { error: error.message };
 
+  // Optional "Investment Details" from onboarding — record the entry so the
+  // valuation timeline and portfolio metrics populate immediately.
+  const amount = num(formData.get("investment_amount"));
+  const ownership = num(formData.get("ownership_pct"));
+  const entryVal = num(formData.get("entry_valuation"));
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (amount != null || ownership != null) {
+    await supabase.from("investments").insert({
+      company_id: data.id,
+      user_id: user.id,
+      investment_date: today,
+      amount: amount ?? 0,
+      ownership_pct: ownership,
+    });
+  }
+  if (entryVal != null) {
+    await supabase.from("valuations").insert({
+      company_id: data.id,
+      date: today,
+      round: "Entry",
+      post_money: entryVal,
+      source: "Manual entry",
+      confidence: "medium",
+    });
+  }
+
   // Trigger the automated ingestion pipeline immediately on add.
   // Best-effort: a connector failure must never block company creation.
   try {
