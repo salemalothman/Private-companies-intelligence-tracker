@@ -15,6 +15,7 @@ import {
   currentValue,
   dealFees,
   DEFAULT_FUND_FEES,
+  investmentEntryPoint,
   riskScore,
   valuationAmount,
 } from "@/lib/metrics";
@@ -336,7 +337,10 @@ export default async function CompanyDetailPage({
             </div>
             <Card>
               <CardContent className="p-5">
-                <ValuationTimeline valuations={company.valuations} />
+                <ValuationTimeline
+                  valuations={company.valuations}
+                  investment={investmentEntryPoint(company)}
+                />
               </CardContent>
             </Card>
             {sortedVals.length > 0 && (

@@ -20,6 +20,7 @@ import {
   holdingYears,
   impliedEntryPrice,
   initialOwnershipFraction,
+  investmentEntryPoint,
   latestValuation,
   moic,
   portfolioSummary,
@@ -307,6 +308,39 @@ describe("investment analytics", () => {
     // 360k / 10.12B = 0.00003557 -> ~0.0036%
     expect(initialOwnershipFraction(c)! * 100).toBeCloseTo(0.0036, 4);
     expect(holdingYears(c, now)!).toBeCloseTo(1 / 365.25, 4);
+  });
+
+  it("marks the investment entry point at the prevailing valuation", () => {
+    const c = company({
+      investments: [inv({ investment_date: "2026-06-22", amount: 360_000 })],
+      valuations: [
+        val({ date: "2023-04-25", post_money: 1_160_000_000 }),
+        val({ date: "2026-03-14", post_money: 9_000_000_000 }),
+      ],
+    });
+    // entry date = investment date; value = latest round on/before entry
+    expect(investmentEntryPoint(c)).toEqual({
+      date: "2026-06-22",
+      value: 9_000_000_000,
+    });
+  });
+
+  it("falls back to ownership-implied valuation when no rounds precede entry", () => {
+    const c = company({
+      investments: [
+        inv({ investment_date: "2025-01-01", amount: 250_000, ownership_pct: 0.5 }),
+      ],
+      valuations: [],
+    });
+    // 250k / (0.5/100) = 50M implied valuation
+    expect(investmentEntryPoint(c)).toEqual({
+      date: "2025-01-01",
+      value: 50_000_000,
+    });
+  });
+
+  it("returns null with no investment date", () => {
+    expect(investmentEntryPoint(company({ investments: [] }))).toBeNull();
   });
 
   it("computes MOIC and annualized gross IRR on a markup", () => {

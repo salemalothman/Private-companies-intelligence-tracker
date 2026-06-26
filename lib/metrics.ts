@@ -374,6 +374,26 @@ export function entryValuation(
   return valuationAmount(earliest);
 }
 
+/**
+ * The user's investment entry point for the valuation chart: the company
+ * valuation at the time they invested, dated at the entry date. Prefers the
+ * prevailing round valuation (entryValuation); falls back to the valuation
+ * implied by their ownership stake (invested / ownership). Null if unknown.
+ */
+export function investmentEntryPoint(
+  company: CompanyWithRelations,
+): { date: string; value: number } | null {
+  const date = entryDate(company);
+  if (!date) return null;
+  let value = entryValuation(company);
+  if (value == null) {
+    const own = currentOwnershipPct(company);
+    const invested = companyInvested(company);
+    if (own && own > 0 && invested > 0) value = invested / (own / 100);
+  }
+  return value != null ? { date, value } : null;
+}
+
 /** Total shares held across all investments (null if never recorded). */
 export function sharesHeld(company: CompanyWithRelations): number | null {
   const withShares = company.investments.filter((i) => i.shares != null);
