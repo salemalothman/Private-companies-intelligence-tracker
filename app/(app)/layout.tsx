@@ -23,7 +23,7 @@ export default async function AppLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileTopBar />
         {/* pb-mobilenav reserves room for the fixed bottom tab bar on mobile */}
-        <main className="pb-mobilenav flex-1 overflow-x-hidden lg:pb-0">
+        <main className="pb-mobilenav flex-1 overflow-x-hidden md:pb-0">
           {children}
         </main>
       </div>
