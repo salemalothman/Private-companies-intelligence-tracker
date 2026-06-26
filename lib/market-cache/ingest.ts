@@ -32,7 +32,8 @@ const SOURCE = "agdillon";
 export async function runMarketSync(supabase: DB): Promise<MarketSyncSummary> {
   let data: MarketDatum[];
   try {
-    const { headlines, bodies } = await fetchAgDillonSegments();
+    // Cover a deep window of recent issues (headlines span the full index).
+    const { headlines, bodies } = await fetchAgDillonSegments(12);
     // Headlines are the trusted, structured source. Body prose only enriches
     // figures for companies the headlines already name — this keeps editorial
     // sentences ("Prediction markets...", "Several firms...") out of the cache.

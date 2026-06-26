@@ -166,5 +166,12 @@ export function mergeData(data: MarketDatum[]): MarketDatum[] {
     if (cur.valuation == null && d.valuation != null) cur.valuation = d.valuation;
     if (cur.revenue == null && d.revenue != null) cur.revenue = d.revenue;
   }
+  // Sanity guard: revenue at/above valuation is a mis-tagged figure for these
+  // growth companies (multiples run ~10-100x) — drop the implausible revenue.
+  for (const d of byKey.values()) {
+    if (d.valuation != null && d.revenue != null && d.revenue >= d.valuation) {
+      d.revenue = undefined;
+    }
+  }
   return [...byKey.values()];
 }
