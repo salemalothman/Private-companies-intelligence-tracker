@@ -41,9 +41,18 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
   function run(fn: () => Promise<DocResult>) {
     setResult(null);
     start(async () => {
-      const res = await fn();
-      setResult(res);
-      if (res.ok) router.refresh();
+      try {
+        const res = await fn();
+        setResult(res);
+        if (res.ok) router.refresh();
+      } catch {
+        // Transport-level failure (e.g. upload exceeds the server body limit),
+        // which never reaches the action — surface it instead of crashing.
+        setResult({
+          error:
+            "Upload failed — the file may be too large (max 15MB) or the network dropped. Try a smaller PDF.",
+        });
+      }
     });
   }
 
@@ -172,6 +181,12 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
                 disabled={!file || pending}
                 onClick={() => {
                   if (!file) return;
+                  if (file.size > 15 * 1024 * 1024) {
+                    setResult({
+                      error: `That PDF is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is 15MB. Try a smaller file.`,
+                    });
+                    return;
+                  }
                   const fd = new FormData();
                   fd.set("file", file);
                   run(() => processDocumentPdf(companyId, fd));
