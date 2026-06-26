@@ -33,18 +33,34 @@ export async function ingestCompany(
   let status: IngestSummary["status"] = "success";
   const errors: string[] = [];
 
-  for (const c of connectors) {
-    try {
-      const [profile, rounds, news, signals] = await Promise.all([
-        c.fetchCompanyProfile(company.name),
-        c.fetchFundingRounds(company.name),
-        c.fetchNews(company.name),
-        c.fetchSocialSignals?.(company.name) ?? Promise.resolve([]),
-      ]);
-      batch.push({ source: c.id, profile, rounds, news, signals });
-    } catch (e) {
+  // Run every connector (Grok X-search, SEC EDGAR, Exa web search) concurrently
+  // so a sync takes as long as the slowest source, not the sum. Each connector
+  // is isolated: a single failure degrades the run to "partial" without
+  // blocking the others.
+  const settled = await Promise.all(
+    connectors.map(async (c) => {
+      try {
+        const [profile, rounds, news, signals] = await Promise.all([
+          c.fetchCompanyProfile(company.name),
+          c.fetchFundingRounds(company.name),
+          c.fetchNews(company.name),
+          c.fetchSocialSignals?.(company.name) ?? Promise.resolve([]),
+        ]);
+        return {
+          ok: true as const,
+          result: { source: c.id, profile, rounds, news, signals },
+        };
+      } catch (e) {
+        return { ok: false as const, id: c.id, error: (e as Error).message };
+      }
+    }),
+  );
+
+  for (const s of settled) {
+    if (s.ok) batch.push(s.result);
+    else {
       status = "partial";
-      errors.push(`${c.id}: ${(e as Error).message}`);
+      errors.push(`${s.id}: ${s.error}`);
     }
   }
 
