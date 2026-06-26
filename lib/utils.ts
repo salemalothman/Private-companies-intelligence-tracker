@@ -60,9 +60,12 @@ export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
+  // Force UTC so a date-only value renders identically on the server and the
+  // client regardless of either's timezone — prevents SSR/hydration mismatches.
   return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
