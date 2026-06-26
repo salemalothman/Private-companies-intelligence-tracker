@@ -3,6 +3,7 @@ import type { DataConnector } from "@/lib/connectors/types";
 import { stubConnector } from "@/lib/connectors/stub";
 import { GrokConnector } from "@/lib/connectors/grok";
 import { SecEdgarConnector } from "@/lib/connectors/sec-edgar";
+import { ExaConnector } from "@/lib/connectors/exa";
 
 /**
  * Returns the set of enabled data connectors. The stub is always available
@@ -23,6 +24,11 @@ export function getConnectors(): DataConnector[] {
   // SEC EDGAR — Form D private fundraising filings. Keyless; needs a UA header.
   if (process.env.SEC_USER_AGENT) {
     connectors.push(new SecEdgarConnector());
+  }
+
+  // Exa — web search for news, funding rounds, and valuations across the web.
+  if (process.env.EXA_API_KEY) {
+    connectors.push(new ExaConnector());
   }
 
   // Keyless stub is the fallback only when no live source is configured, so a

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import { fetchAgDillonSegments } from "@/lib/market-cache/sources";
+import { exaMarketSweep } from "@/lib/market-cache/exa-sweep";
 import {
   parseSegmentsRaw,
   mergeData,
@@ -21,16 +22,19 @@ export interface MarketSyncSummary {
 const SOURCE = "agdillon";
 
 /**
- * Weekly market-intelligence run. Parses the AG Dillon archive, upserts the
- * latest valuation / revenue per company into the `market_valuations` cache,
- * then propagates any figure newer than what we hold to matching companies
- * already in the database. Best-effort and idempotent.
+ * Weekly market-intelligence run. Pulls the latest valuations from the trusted
+ * sources — the AG Dillon archive and Exa web search across the top private
+ * companies — upserts them into the `market_valuations` cache, then propagates
+ * any figure newer than what we hold to matching companies in the database.
+ * Each source is best-effort; the run only fails if everything does.
  *
  * Requires a service-role client — it writes the global cache and updates rows
  * across every user, both of which bypass RLS.
  */
 export async function runMarketSync(supabase: DB): Promise<MarketSyncSummary> {
-  let data: MarketDatum[];
+  const errors: string[] = [];
+
+  let agdCached = 0;
   try {
     // Cover a deep window of recent issues (headlines span the full index).
     const { headlines, bodies } = await fetchAgDillonSegments(12);
@@ -40,19 +44,31 @@ export async function runMarketSync(supabase: DB): Promise<MarketSyncSummary> {
     const headlineData = parseSegmentsRaw(headlines);
     const known = new Set(headlineData.map((d) => d.nameKey));
     const bodyData = parseSegmentsRaw(bodies).filter((d) => known.has(d.nameKey));
-    data = mergeData([...headlineData, ...bodyData]);
+    agdCached = await upsertCache(supabase, mergeData([...headlineData, ...bodyData]));
   } catch (e) {
-    const detail = `fetch/parse failed: ${(e as Error).message}`;
-    await logRun(supabase, { cached: 0, updated: 0, status: "error", detail });
-    return { cached: 0, updated: 0, status: "error", detail };
+    errors.push(`agdillon: ${(e as Error).message}`);
   }
 
-  const cached = await upsertCache(supabase, data);
-  const updated = await syncCompanies(supabase, data);
+  let exaCached = 0;
+  try {
+    exaCached = await exaMarketSweep(supabase);
+  } catch (e) {
+    errors.push(`exa: ${(e as Error).message}`);
+  }
 
-  const summary: MarketSyncSummary = { cached, updated, status: "success" };
-  await logRun(supabase, summary);
-  return summary;
+  let updated = 0;
+  try {
+    updated = await syncCompaniesFromCache(supabase);
+  } catch (e) {
+    errors.push(`sync: ${(e as Error).message}`);
+  }
+
+  const cached = agdCached + exaCached;
+  const status: MarketSyncSummary["status"] =
+    errors.length === 0 ? "success" : cached > 0 ? "partial" : "error";
+  const detail = errors.length ? errors.join("; ") : undefined;
+  await logRun(supabase, { cached, updated, status, detail });
+  return { cached, updated, status, detail };
 }
 
 /** Upsert merged data into the cache, never overwriting a value with null. */
@@ -90,38 +106,46 @@ async function upsertCache(supabase: DB, data: MarketDatum[]): Promise<number> {
 }
 
 /**
- * For every company in the system whose name matches a cached figure, insert a
- * fresh valuation point when the cached figure is more recent than the latest
- * we hold. Idempotent: skips when a same-date AG Dillon valuation already exists.
+ * For every company in the system whose name matches a cached figure (from any
+ * source — AG Dillon or Exa), insert a fresh valuation point when the cached
+ * figure is more recent than the latest we hold. Idempotent: skips when a
+ * same-date market-cache valuation already exists.
  */
-async function syncCompanies(supabase: DB, data: MarketDatum[]): Promise<number> {
-  const byKey = new Map(data.map((d) => [d.nameKey, d]));
+async function syncCompaniesFromCache(supabase: DB): Promise<number> {
   const { data: companies } = await supabase.from("companies").select("id, name");
   if (!companies?.length) return 0;
 
+  const byKey = new Map(companies.map((c) => [nameKey(c.name), c]));
+  const { data: cache } = await supabase
+    .from("market_valuations")
+    .select("name_key, valuation, valuation_date, as_of, source")
+    .in("name_key", [...byKey.keys()]);
+
   let updated = 0;
-  for (const co of companies) {
-    const datum = byKey.get(nameKey(co.name));
-    if (!datum || datum.valuation == null) continue;
+  for (const row of cache ?? []) {
+    const co = byKey.get(row.name_key);
+    if (!co || row.valuation == null) continue;
+    const asOf = row.valuation_date ?? row.as_of;
+    if (!asOf) continue;
 
     const { data: vals } = await supabase
       .from("valuations")
-      .select("date, source, post_money")
+      .select("date, source")
       .eq("company_id", co.id)
       .order("date", { ascending: false });
 
     const latest = vals?.[0];
-    // Only act on a strictly newer figure than our most-recent record.
-    if (latest && datum.asOf <= latest.date) continue;
-    // Idempotency: don't duplicate the same AG Dillon point.
-    if ((vals ?? []).some((v) => v.date === datum.asOf && v.source === SOURCE)) continue;
+    if (latest && asOf <= latest.date) continue; // not newer
+    // Idempotency: don't duplicate the same market-cache point.
+    if ((vals ?? []).some((v) => v.date === asOf && (v.source ?? "").endsWith(row.source ?? "")))
+      continue;
 
     const { error } = await supabase.from("valuations").insert({
       company_id: co.id,
-      date: datum.asOf,
-      round: "Secondary (AG Dillon)",
-      post_money: datum.valuation,
-      source: SOURCE,
+      date: asOf,
+      round: "Secondary (market cache)",
+      post_money: row.valuation,
+      source: row.source ?? "market-cache",
       confidence: "low",
     });
     if (!error) updated += 1;
