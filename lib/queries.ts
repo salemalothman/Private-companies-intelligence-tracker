@@ -1,20 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { CompanyWithRelations, FundSettings } from "@/lib/types";
-
-export const DEFAULT_FEES = { carry_pct: 20, mgmt_fee_pct: 7 };
-
-/** The current user's fee assumptions, falling back to defaults. */
-export async function getFundSettings(): Promise<
-  Pick<FundSettings, "carry_pct" | "mgmt_fee_pct">
-> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("fund_settings")
-    .select("carry_pct, mgmt_fee_pct")
-    .maybeSingle();
-  return data ?? DEFAULT_FEES;
-}
+import type { CompanyWithRelations } from "@/lib/types";
 
 const COMPANY_WITH_RELATIONS =
   "*, investments(*), valuations(*), funding_rounds(*), news(*)";

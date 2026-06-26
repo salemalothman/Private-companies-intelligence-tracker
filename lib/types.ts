@@ -63,20 +63,6 @@ type CompanyInsert = {
   mgmt_fee_pct?: number | null;
 }
 
-// --- fund_settings ---
-export type FundSettingsRow = {
-  user_id: string;
-  carry_pct: number;
-  mgmt_fee_pct: number;
-  created_at: string;
-  updated_at: string;
-};
-type FundSettingsInsert = {
-  user_id: string;
-  carry_pct?: number;
-  mgmt_fee_pct?: number;
-};
-
 // --- ingestion_runs ---
 export type IngestionRunRow = {
   id: string;
@@ -270,12 +256,6 @@ export interface Database {
         Update: Partial<DocumentInsert>;
         Relationships: [];
       };
-      fund_settings: {
-        Row: FundSettingsRow;
-        Insert: FundSettingsInsert;
-        Update: Partial<FundSettingsInsert>;
-        Relationships: [];
-      };
       ingestion_runs: {
         Row: IngestionRunRow;
         Insert: IngestionRunInsert;
@@ -297,7 +277,6 @@ export type Valuation = ValuationRow;
 export type FundingRound = FundingRoundRow;
 export type NewsItem = NewsRow;
 export type DocumentRow = DocumentRowDb;
-export type FundSettings = FundSettingsRow;
 export type IngestionRun = IngestionRunRow;
 
 /** A company joined with its related records — the shape the UI consumes. */

@@ -452,6 +452,16 @@ export interface FundFeeAssumptions {
   mgmtFeePct: number; // management fee, e.g. 7 (annual, % of invested)
 }
 
+/**
+ * Standard market fee terms used as the fallback when a deal has no per-asset
+ * override. Fees are configured per company (lib has no global fund-wide setting);
+ * this constant is the implicit default for assets left blank.
+ */
+export const DEFAULT_FUND_FEES: FundFeeAssumptions = {
+  carryPct: 20,
+  mgmtFeePct: 7,
+};
+
 export interface DealFees {
   /** Effective rates after applying the deal override (?? fund default). */
   carryPct: number;
@@ -474,7 +484,7 @@ export interface DealFees {
  */
 export function dealFees(
   company: CompanyWithRelations,
-  defaults: FundFeeAssumptions,
+  defaults: FundFeeAssumptions = DEFAULT_FUND_FEES,
   now: Date = new Date(),
 ): DealFees {
   const invested = companyInvested(company);
@@ -527,7 +537,7 @@ export interface DealAnalytics {
 export function dealAnalytics(
   company: CompanyWithRelations,
   fundInvested: number,
-  defaults: FundFeeAssumptions,
+  defaults: FundFeeAssumptions = DEFAULT_FUND_FEES,
   now: Date = new Date(),
 ): DealAnalytics {
   const invested = companyInvested(company);
@@ -583,7 +593,7 @@ export interface FundAnalytics {
  */
 export function fundAnalytics(
   companies: CompanyWithRelations[],
-  defaults: FundFeeAssumptions,
+  defaults: FundFeeAssumptions = DEFAULT_FUND_FEES,
   now: Date = new Date(),
 ): FundAnalytics {
   const totalInvested = companies.reduce((s, c) => s + companyInvested(c), 0);

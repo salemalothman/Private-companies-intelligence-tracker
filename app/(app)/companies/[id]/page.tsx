@@ -7,13 +7,14 @@ import {
   ExternalLink,
   Globe,
 } from "lucide-react";
-import { getCompany, getFundSettings } from "@/lib/queries";
+import { getCompany } from "@/lib/queries";
 import {
   companyChangePct,
   companyInvested,
   currentOwnershipPct,
   currentValue,
   dealFees,
+  DEFAULT_FUND_FEES,
   riskScore,
   valuationAmount,
 } from "@/lib/metrics";
@@ -73,7 +74,7 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [company, fees] = await Promise.all([getCompany(id), getFundSettings()]);
+  const company = await getCompany(id);
   if (!company) notFound();
 
   const invested = companyInvested(company);
@@ -82,8 +83,7 @@ export default async function CompanyDetailPage({
   const ownership = currentOwnershipPct(company);
   const risk = riskScore(company);
   const changeUp = (change ?? 0) >= 0;
-  const feeDefaults = { carryPct: fees.carry_pct, mgmtFeePct: fees.mgmt_fee_pct };
-  const df = dealFees(company, feeDefaults);
+  const df = dealFees(company);
 
   const sortedVals = [...company.valuations].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -160,7 +160,10 @@ export default async function CompanyDetailPage({
           <SyncButton companyId={company.id} />
           <EditOverviewDialog
             company={company}
-            defaults={{ carry_pct: fees.carry_pct, mgmt_fee_pct: fees.mgmt_fee_pct }}
+            defaults={{
+              carry_pct: DEFAULT_FUND_FEES.carryPct,
+              mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
+            }}
           />
           <DeleteCompanyButton
             companyId={company.id}
