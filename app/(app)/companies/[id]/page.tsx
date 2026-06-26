@@ -110,14 +110,19 @@ export default async function CompanyDetailPage({
     return tb - ta;
   });
 
+  const selfMetric = competitors.find((c) => c.is_self) ?? null;
+  const peers = competitors.filter((c) => !c.is_self);
   const latestVal = latestValuation(company.valuations);
   const competitorRanking = buildCompetitorRanking(
     {
       name: company.name,
-      valuation: valuationAmount(latestVal),
-      valuationDate: latestVal?.date ?? null,
+      // Authoritative valuation from the valuations table; fall back to the
+      // Grok-discovered figure when the company has no recorded valuations.
+      valuation: valuationAmount(latestVal) ?? selfMetric?.valuation ?? null,
+      valuationDate: latestVal?.date ?? selfMetric?.valuation_date ?? null,
+      revenue: selfMetric?.revenue ?? null,
     },
-    competitors,
+    peers,
   );
 
   return (
@@ -462,25 +467,28 @@ export default async function CompanyDetailPage({
                 <h3 className="text-sm font-medium">Competitive landscape</h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {company.name} ranked against its primary competitors by latest
-                  valuation. Sourced via Grok X-search (prioritizing trusted
+                  valuation, with revenue/ARR and the implied valuation-to-revenue
+                  multiple. Sourced via Grok X-search (prioritizing trusted
                   private-market trackers) and cross-checked against SEC filings.
                 </p>
               </div>
               <RefreshCompetitorsButton
                 companyId={company.id}
-                hasData={competitors.length > 0}
+                hasData={peers.length > 0}
               />
             </div>
-            {competitors.length === 0 ? (
+            {peers.length === 0 ? (
               <EmptyRow text="No competitors discovered yet. Run “Find competitors” to scan X and SEC filings." />
             ) : (
-              <div className="rounded-lg border border-border">
+              <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10 text-right">#</TableHead>
                       <TableHead>Company</TableHead>
                       <TableHead className="text-right">Latest valuation</TableHead>
+                      <TableHead className="text-right">Revenue / ARR</TableHead>
+                      <TableHead className="text-right">V / R multiple</TableHead>
                       <TableHead>As of</TableHead>
                       <TableHead>Basis</TableHead>
                       <TableHead className="text-right">Verified</TableHead>
@@ -490,26 +498,47 @@ export default async function CompanyDetailPage({
                     {competitorRanking.map((e, i) => (
                       <TableRow
                         key={`${e.name}-${i}`}
-                        className={cn(e.isTarget && "bg-muted/50")}
+                        className={cn(
+                          e.isTarget &&
+                            "bg-primary/[0.07] font-bold hover:bg-primary/[0.07]",
+                        )}
                       >
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                        <TableCell
+                          className={cn(
+                            "text-right tabular-nums text-muted-foreground",
+                            e.isTarget &&
+                              "border-l-2 border-primary font-bold text-foreground",
+                          )}
+                        >
                           {i + 1}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell
+                          className={cn(e.isTarget ? "font-bold" : "font-medium")}
+                        >
                           <span className="flex items-center gap-2">
                             {e.name}
                             {e.isTarget && (
-                              <Badge variant="secondary">This company</Badge>
+                              <Badge variant="default">This company</Badge>
                             )}
                           </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {e.valuation != null ? formatCurrency(e.valuation) : "—"}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-right tabular-nums">
+                          {e.revenue != null ? formatCurrency(e.revenue) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatMultiple(e.multiple)}
+                        </TableCell>
+                        <TableCell
+                          className={cn(!e.isTarget && "text-muted-foreground")}
+                        >
                           {formatDate(e.valuationDate)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell
+                          className={cn(!e.isTarget && "text-muted-foreground")}
+                        >
                           {e.basis ?? (e.source ? e.source : "—")}
                         </TableCell>
                         <TableCell className="text-right">

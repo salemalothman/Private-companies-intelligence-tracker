@@ -138,20 +138,32 @@ const newsSchema = z.object({
 const NEWS_SHAPE =
   '{"news":[{"title":string,"url":string|null,"date":"YYYY-MM-DD"|null,"summary":string|null,"sentiment":"positive"|"neutral"|"negative"|null}]}';
 
+const metricFields = {
+  valuation: z.number().nullish(),
+  valuationDate: z.string().nullish(),
+  revenue: z.number().nullish(),
+  revenueBasis: z.string().nullish(),
+  basis: z.string().nullish(),
+};
+const METRIC_FIELDS_SHAPE =
+  '"valuation":number|null,"valuationDate":"YYYY-MM-DD"|null,"revenue":number|null,"revenueBasis":string|null,"basis":string|null';
+
 const competitorsSchema = z.object({
   competitors: z
-    .array(
-      z.object({
-        name: z.string().nullish(),
-        valuation: z.number().nullish(),
-        valuationDate: z.string().nullish(),
-        basis: z.string().nullish(),
-      }),
-    )
+    .array(z.object({ name: z.string().nullish(), ...metricFields }))
     .nullish(),
 });
-const COMPETITORS_SHAPE =
-  '{"competitors":[{"name":string,"valuation":number|null,"valuationDate":"YYYY-MM-DD"|null,"basis":string|null}]}';
+const COMPETITORS_SHAPE = `{"competitors":[{"name":string,${METRIC_FIELDS_SHAPE}}]}`;
+
+const metricSchema = z.object({ found: z.boolean().nullish(), ...metricFields });
+const METRIC_SHAPE = `{"found":boolean,${METRIC_FIELDS_SHAPE}}`;
+
+/** Shared instruction for extracting revenue/ARR alongside a valuation. */
+const REVENUE_INSTRUCTION =
+  `Also capture the latest reported revenue or annualized run-rate (ARR) in USD ` +
+  `("revenue") for the SAME period as the valuation, plus a one-line ` +
+  `"revenueBasis" naming the figure and its source (e.g. "ARR ~$100M per ` +
+  `@AaronGDillon"). Leave "revenue" null if no credible figure exists — never guess.`;
 
 /**
  * Grok-powered connector. Uses xAI's `grok-4.3` responses model with the native
@@ -255,9 +267,9 @@ export class GrokConnector implements DataConnector {
           `the valuation "valuationDate" as YYYY-MM-DD (use the 1st of the ` +
           `month/year if only that is known) and a one-line "basis" naming the ` +
           `round and which source the figure came from (e.g. "Series C, ` +
-          `$2.1B, per @AaronGDillon Apr 2024"). Return the 6 most relevant ` +
-          `competitors. Omit any whose competitive relationship you cannot ` +
-          `verify. Return an empty array if none are found.`,
+          `$2.1B, per @AaronGDillon Apr 2024"). ${REVENUE_INSTRUCTION} Return ` +
+          `the 6 most relevant competitors. Omit any whose competitive ` +
+          `relationship you cannot verify. Return an empty array if none found.`,
         COMPETITORS_SHAPE,
       );
       return (r?.competitors ?? [])
@@ -266,12 +278,47 @@ export class GrokConnector implements DataConnector {
           name: (x.name as string).trim(),
           valuation: clean(x.valuation),
           valuationDate: clean(x.valuationDate),
+          revenue: clean(x.revenue),
+          revenueBasis: clean(x.revenueBasis),
           basis: clean(x.basis),
           source: SOURCE,
         }));
     } catch (e) {
       console.error("GrokConnector.fetchCompetitors:", (e as Error).message);
       return [];
+    }
+  }
+
+  /**
+   * Latest valuation + revenue/ARR for a single company — used to populate the
+   * target company's own row (and its Valuation-to-Revenue multiple) in the
+   * competitive landscape. Returns null if nothing credible is found.
+   */
+  async fetchValuationMetric(
+    query: string,
+  ): Promise<Omit<ConnectorCompetitor, "name"> | null> {
+    try {
+      const r = await grokSearch(
+        metricSchema,
+        `Find the most recent known post-money valuation (USD) of the private ` +
+          `company "${query}", with its "valuationDate" as YYYY-MM-DD. ` +
+          `${PRIORITY_SOURCES} ${REVENUE_INSTRUCTION} If you cannot find a ` +
+          `credible valuation, set "found" to false.`,
+        METRIC_SHAPE,
+      );
+      if (!r || r.found === false) return null;
+      if (r.valuation == null && r.revenue == null) return null;
+      return {
+        valuation: clean(r.valuation),
+        valuationDate: clean(r.valuationDate),
+        revenue: clean(r.revenue),
+        revenueBasis: clean(r.revenueBasis),
+        basis: clean(r.basis),
+        source: SOURCE,
+      };
+    } catch (e) {
+      console.error("GrokConnector.fetchValuationMetric:", (e as Error).message);
+      return null;
     }
   }
 }

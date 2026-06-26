@@ -41,7 +41,11 @@ export interface ConnectorCompetitor {
   valuation?: number;
   /** As-of date (YYYY-MM-DD) for the valuation, if known. */
   valuationDate?: string;
-  /** Short provenance note, e.g. "Series C per @AaronGDillon". */
+  /** Latest reported revenue or annualized run-rate (ARR) in USD, if found. */
+  revenue?: number;
+  /** Short provenance note for the revenue figure. */
+  revenueBasis?: string;
+  /** Short provenance note for the valuation, e.g. "Series C per @AaronGDillon". */
   basis?: string;
   source: string;
 }
@@ -58,4 +62,11 @@ export interface DataConnector {
    * (e.g. Grok X-search) implement this.
    */
   fetchCompetitors?(query: string): Promise<ConnectorCompetitor[]>;
+  /**
+   * Optional: latest valuation + revenue/ARR for a single named company. Used
+   * to populate the target company's own row in the competitive landscape.
+   */
+  fetchValuationMetric?(
+    query: string,
+  ): Promise<Omit<ConnectorCompetitor, "name"> | null>;
 }

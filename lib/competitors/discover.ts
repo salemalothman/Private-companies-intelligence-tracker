@@ -8,6 +8,12 @@ export interface DiscoveredCompetitor extends ConnectorCompetitor {
   secVerified: boolean;
 }
 
+export interface CompetitorDiscovery {
+  competitors: DiscoveredCompetitor[];
+  /** The target company's own latest valuation + revenue, if found. */
+  self: Omit<ConnectorCompetitor, "name"> | null;
+}
+
 /**
  * Discover a company's primary competitors and their latest valuations.
  *
@@ -20,16 +26,21 @@ export interface DiscoveredCompetitor extends ConnectorCompetitor {
  */
 export async function discoverCompetitors(
   companyName: string,
-): Promise<DiscoveredCompetitor[]> {
+): Promise<CompetitorDiscovery> {
   const connectors = getConnectors();
   const source = connectors.find((c) => typeof c.fetchCompetitors === "function");
-  if (!source?.fetchCompetitors) return [];
+  if (!source?.fetchCompetitors) return { competitors: [], self: null };
 
   // The model occasionally returns an empty set on a transient hiccup; one
   // retry makes discovery reliable since a real company almost always has peers.
-  let found = await source.fetchCompetitors(companyName);
+  // In parallel, fetch the target's own valuation + revenue for its own row.
+  const [firstTry, self] = await Promise.all([
+    source.fetchCompetitors(companyName),
+    source.fetchValuationMetric?.(companyName) ?? Promise.resolve(null),
+  ]);
+  let found = firstTry;
   if (found.length === 0) found = await source.fetchCompetitors(companyName);
-  if (found.length === 0) return [];
+  if (found.length === 0) return { competitors: [], self };
 
   // Dedupe by case-insensitive name, drop self-references to the target.
   const target = companyName.trim().toLowerCase();
@@ -45,12 +56,12 @@ export async function discoverCompetitors(
     | SecEdgarConnector
     | undefined;
 
-  const verified = await Promise.all(
+  const competitors = await Promise.all(
     unique.map(async (c) => ({
       ...c,
       secVerified: sec ? await sec.hasFilings(c.name) : false,
     })),
   );
 
-  return verified;
+  return { competitors, self };
 }

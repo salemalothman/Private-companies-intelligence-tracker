@@ -10,9 +10,12 @@ function comp(p: Partial<CompetitorRow>): CompetitorRow {
     name: p.name ?? "Rival",
     valuation: p.valuation ?? null,
     valuation_date: p.valuation_date ?? null,
+    revenue: p.revenue ?? null,
+    revenue_basis: p.revenue_basis ?? null,
     source: p.source ?? "grok:x",
     basis: p.basis ?? null,
     sec_verified: p.sec_verified ?? false,
+    is_self: p.is_self ?? false,
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
   };
@@ -23,6 +26,7 @@ describe("buildCompetitorRanking", () => {
     name: "Replit",
     valuation: 3_000_000_000,
     valuationDate: "2025-09-10",
+    revenue: 100_000_000,
   };
 
   it("includes the target and sorts by valuation, highest first", () => {
@@ -46,6 +50,17 @@ describe("buildCompetitorRanking", () => {
       "Alpha",
       "Zeta",
     ]);
+  });
+
+  it("computes the valuation-to-revenue multiple, null when revenue missing", () => {
+    const ranked = buildCompetitorRanking(target, [
+      comp({ name: "Cursor", valuation: 9_000_000_000, revenue: 300_000_000 }),
+      comp({ name: "Cognition", valuation: 10_000_000_000, revenue: null }),
+    ]);
+    const by = (n: string) => ranked.find((r) => r.name === n)!;
+    expect(by("Replit").multiple).toBeCloseTo(30); // 3B / 100M
+    expect(by("Cursor").multiple).toBeCloseTo(30); // 9B / 300M
+    expect(by("Cognition").multiple).toBeNull(); // no revenue
   });
 
   it("carries through provenance + sec verification for competitors", () => {

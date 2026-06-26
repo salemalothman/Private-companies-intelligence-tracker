@@ -148,28 +148,51 @@ export async function refreshCompetitors(
     return { error: `Competitor lookup failed: ${(e as Error).message}` };
   }
 
-  if (discovered.length === 0) {
+  const { competitors, self } = discovered;
+  if (competitors.length === 0) {
     return { error: "No competitors found. Check that the Grok connector is configured." };
   }
 
   // Replace the prior set so a refresh reflects the latest data.
   await supabase.from("competitors").delete().eq("company_id", companyId);
-  const { error: insErr } = await supabase.from("competitors").insert(
-    discovered.map((c) => ({
+
+  const rows = competitors.map((c) => ({
+    company_id: companyId,
+    user_id: user.id,
+    name: c.name,
+    valuation: c.valuation ?? null,
+    valuation_date: c.valuationDate ?? null,
+    revenue: c.revenue ?? null,
+    revenue_basis: c.revenueBasis ?? null,
+    source: c.source,
+    basis: c.basis ?? null,
+    sec_verified: c.secVerified,
+    is_self: false,
+  }));
+
+  // The target's own revenue (its valuation stays authoritative in the
+  // valuations table) is stored as a single is_self row, merged into its row.
+  if (self && (self.revenue != null || self.valuation != null)) {
+    rows.push({
       company_id: companyId,
       user_id: user.id,
-      name: c.name,
-      valuation: c.valuation ?? null,
-      valuation_date: c.valuationDate ?? null,
-      source: c.source,
-      basis: c.basis ?? null,
-      sec_verified: c.secVerified,
-    })),
-  );
+      name: company.name,
+      valuation: self.valuation ?? null,
+      valuation_date: self.valuationDate ?? null,
+      revenue: self.revenue ?? null,
+      revenue_basis: self.revenueBasis ?? null,
+      source: self.source,
+      basis: self.basis ?? null,
+      sec_verified: false,
+      is_self: true,
+    });
+  }
+
+  const { error: insErr } = await supabase.from("competitors").insert(rows);
   if (insErr) return { error: insErr.message };
 
   revalidatePath(`/companies/${companyId}`);
-  return { count: discovered.length };
+  return { count: competitors.length };
 }
 
 export async function updateCompanyOverview(

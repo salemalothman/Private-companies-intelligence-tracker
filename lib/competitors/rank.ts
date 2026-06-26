@@ -5,6 +5,9 @@ export interface RankedEntity {
   name: string;
   valuation: number | null;
   valuationDate: string | null;
+  revenue: number | null;
+  /** Valuation-to-Revenue multiple (valuation / revenue), null if uncomputable. */
+  multiple: number | null;
   basis: string | null;
   source: string | null;
   secVerified: boolean;
@@ -16,6 +19,16 @@ export interface TargetEntity {
   name: string;
   valuation: number | null;
   valuationDate: string | null;
+  revenue: number | null;
+}
+
+/** Valuation-to-Revenue multiple, or null when either input is missing/zero. */
+export function valuationToRevenue(
+  valuation: number | null,
+  revenue: number | null,
+): number | null {
+  if (valuation == null || revenue == null || revenue <= 0) return null;
+  return valuation / revenue;
 }
 
 /**
@@ -33,6 +46,8 @@ export function buildCompetitorRanking(
       name: target.name,
       valuation: target.valuation,
       valuationDate: target.valuationDate,
+      revenue: target.revenue,
+      multiple: valuationToRevenue(target.valuation, target.revenue),
       basis: null,
       source: null,
       secVerified: false,
@@ -42,6 +57,8 @@ export function buildCompetitorRanking(
       name: c.name,
       valuation: c.valuation,
       valuationDate: c.valuation_date,
+      revenue: c.revenue,
+      multiple: valuationToRevenue(c.valuation, c.revenue),
       basis: c.basis,
       source: c.source,
       secVerified: c.sec_verified,

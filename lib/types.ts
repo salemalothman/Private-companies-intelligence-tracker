@@ -219,9 +219,12 @@ export type CompetitorRow = {
   name: string;
   valuation: number | null;
   valuation_date: string | null;
+  revenue: number | null;
+  revenue_basis: string | null;
   source: string | null;
   basis: string | null;
   sec_verified: boolean;
+  is_self: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -232,9 +235,12 @@ type CompetitorInsert = {
   name: string;
   valuation?: number | null;
   valuation_date?: string | null;
+  revenue?: number | null;
+  revenue_basis?: string | null;
   source?: string | null;
   basis?: string | null;
   sec_verified?: boolean;
+  is_self?: boolean;
 };
 
 export interface Database {
