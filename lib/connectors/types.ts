@@ -34,6 +34,31 @@ export interface ConnectorNewsItem {
   sentiment?: "positive" | "neutral" | "negative";
 }
 
+/**
+ * A validated event surfaced by auditing a company's official + founders' X
+ * accounts — a funding close, strategic investment, partnership/customer win,
+ * or updated valuation benchmark — with any numbers parsed out.
+ */
+export interface ConnectorSocialSignal {
+  kind: "funding" | "partnership" | "valuation" | "other";
+  /** Headline for the news feed. */
+  title: string;
+  /** The X handle the signal came from (e.g. "@company" or a founder). */
+  handle?: string;
+  /** Event date, YYYY-MM-DD. */
+  date?: string;
+  summary?: string;
+  url?: string;
+  sentiment?: "positive" | "neutral" | "negative";
+  /** Amount raised in USD, if the event is a funding round. */
+  amountRaised?: number;
+  /** Post-money valuation in USD, if disclosed. */
+  valuation?: number;
+  /** Round name, if applicable (e.g. "Series C"). */
+  round?: string;
+  source: string;
+}
+
 export interface ConnectorCompetitor {
   /** Competitor company name. */
   name: string;
@@ -73,4 +98,10 @@ export interface DataConnector {
   fetchValuationMetric?(
     query: string,
   ): Promise<Omit<ConnectorCompetitor, "name"> | null>;
+  /**
+   * Optional: audit the company's official + founders' X accounts for funding /
+   * partnership / valuation announcements, returning parsed events to feed the
+   * news and valuation timelines.
+   */
+  fetchSocialSignals?(query: string): Promise<ConnectorSocialSignal[]>;
 }

@@ -7,6 +7,7 @@ import type {
   ConnectorCompetitor,
   ConnectorFundingRound,
   ConnectorNewsItem,
+  ConnectorSocialSignal,
   DataConnector,
 } from "@/lib/connectors/types";
 
@@ -158,6 +159,33 @@ const COMPETITORS_SHAPE = `{"about":string,"competitors":[{"name":string,${METRI
 
 const metricSchema = z.object({ found: z.boolean().nullish(), ...metricFields });
 const METRIC_SHAPE = `{"found":boolean,${METRIC_FIELDS_SHAPE}}`;
+
+const signalsSchema = z.object({
+  officialHandle: z.string().nullish(),
+  founderHandles: z.array(z.string()).nullish(),
+  signals: z
+    .array(
+      z.object({
+        kind: z.enum(["funding", "partnership", "valuation", "other"]).nullish(),
+        title: z.string().nullish(),
+        handle: z.string().nullish(),
+        date: z.string().nullish(),
+        summary: z.string().nullish(),
+        url: z.string().nullish(),
+        sentiment: z.enum(["positive", "neutral", "negative"]).nullish(),
+        amountRaised: z.number().nullish(),
+        valuation: z.number().nullish(),
+        round: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+});
+const SIGNALS_SHAPE =
+  '{"officialHandle":string|null,"founderHandles":string[]|null,"signals":' +
+  '[{"kind":"funding"|"partnership"|"valuation"|"other","title":string,' +
+  '"handle":string|null,"date":"YYYY-MM-DD"|null,"summary":string|null,' +
+  '"url":string|null,"sentiment":"positive"|"neutral"|"negative"|null,' +
+  '"amountRaised":number|null,"valuation":number|null,"round":string|null}]}';
 
 /** Shared instruction for extracting revenue/ARR alongside a valuation. */
 const REVENUE_INSTRUCTION =
@@ -334,6 +362,48 @@ export class GrokConnector implements DataConnector {
     } catch (e) {
       console.error("GrokConnector.fetchValuationMetric:", (e as Error).message);
       return null;
+    }
+  }
+
+  async fetchSocialSignals(query: string): Promise<ConnectorSocialSignal[]> {
+    try {
+      const r = await grokSearch(
+        signalsSchema,
+        `STEP 1 — using X search, identify the official X (Twitter) account of ` +
+          `the company "${query}" and the X accounts of its founders/CEO. Put ` +
+          `them in "officialHandle" and "founderHandles".\n\n` +
+          `STEP 2 — audit those specific accounts (search "from:handle" for each) ` +
+          `and posts that mention them for ANNOUNCEMENTS of: newly closed funding ` +
+          `rounds, strategic investments, partnerships or major customer wins, or ` +
+          `updated valuation benchmarks — including congratulatory posts from ` +
+          `investors about a raise.\n\n` +
+          `STEP 3 — for each distinct, material event, extract: a short "title" ` +
+          `(headline), the "handle" it came from, the "date" as YYYY-MM-DD, a ` +
+          `one-line "summary", the post "url", "sentiment", and any numbers — ` +
+          `"amountRaised" (USD), "valuation" (USD post-money), and "round" name. ` +
+          `Set "kind" to funding | partnership | valuation | other. Return at ` +
+          `most the 5 most recent, most material events. Empty array if none.`,
+        SIGNALS_SHAPE,
+      );
+      return (r?.signals ?? [])
+        .filter((s) => clean(s.title))
+        .slice(0, 5)
+        .map((s) => ({
+          kind: clean(s.kind) ?? "other",
+          title: (s.title as string).trim(),
+          handle: clean(s.handle),
+          date: clean(s.date),
+          summary: clean(s.summary),
+          url: clean(s.url),
+          sentiment: clean(s.sentiment),
+          amountRaised: clean(s.amountRaised),
+          valuation: clean(s.valuation),
+          round: clean(s.round),
+          source: `${SOURCE}:social`,
+        }));
+    } catch (e) {
+      console.error("GrokConnector.fetchSocialSignals:", (e as Error).message);
+      return [];
     }
   }
 }

@@ -74,3 +74,60 @@ describe("mapConnectorResults", () => {
     expect(mapped.profilePatch.foundedYear).toBe(2019);
   });
 });
+
+describe("mapConnectorResults — social signals", () => {
+  const mapped = mapConnectorResults([
+    {
+      source: "grok",
+      profile: null,
+      rounds: [],
+      news: [],
+      signals: [
+        {
+          kind: "funding",
+          title: "Acme closes $50M Series B",
+          handle: "@acme",
+          date: "2024-03-01",
+          summary: "Led by a16z",
+          url: "https://x.com/acme/status/1",
+          sentiment: "positive",
+          amountRaised: 50_000_000,
+          valuation: 500_000_000,
+          round: "Series B",
+          source: "grok:x:social",
+        },
+        {
+          kind: "partnership",
+          title: "Acme partners with Microsoft",
+          date: "2024-04-10",
+          source: "grok:x:social",
+        },
+      ],
+    },
+  ]);
+
+  it("turns every signal into a news item", () => {
+    expect(mapped.news.map((n) => n.title)).toEqual([
+      "Acme closes $50M Series B",
+      "Acme partners with Microsoft",
+    ]);
+  });
+
+  it("turns a funding signal into a round and a valuation point", () => {
+    expect(mapped.fundingRounds[0]).toMatchObject({
+      round: "Series B",
+      amountRaised: 50_000_000,
+      valuation: 500_000_000,
+    });
+    expect(mapped.valuations[0]).toMatchObject({
+      date: "2024-03-01",
+      post_money: 500_000_000,
+      round: "Series B",
+    });
+  });
+
+  it("leaves a non-financial partnership signal out of rounds/valuations", () => {
+    expect(mapped.fundingRounds).toHaveLength(1);
+    expect(mapped.valuations).toHaveLength(1);
+  });
+});

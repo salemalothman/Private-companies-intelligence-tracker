@@ -35,12 +35,13 @@ export async function ingestCompany(
 
   for (const c of connectors) {
     try {
-      const [profile, rounds, news] = await Promise.all([
+      const [profile, rounds, news, signals] = await Promise.all([
         c.fetchCompanyProfile(company.name),
         c.fetchFundingRounds(company.name),
         c.fetchNews(company.name),
+        c.fetchSocialSignals?.(company.name) ?? Promise.resolve([]),
       ]);
-      batch.push({ source: c.id, profile, rounds, news });
+      batch.push({ source: c.id, profile, rounds, news, signals });
     } catch (e) {
       status = "partial";
       errors.push(`${c.id}: ${(e as Error).message}`);
