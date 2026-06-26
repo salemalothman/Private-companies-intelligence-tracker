@@ -9,6 +9,39 @@ import { nameKey } from "@/lib/market-cache/parse";
 
 const CACHE_SOURCE = "agdillon (cache)";
 
+function fmtUsd(n: number): string {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
+  return `$${n}`;
+}
+
+/**
+ * SEC verification + valuation fallback. Always returns whether the entity has
+ * a Form D on record. When no valuation was found via X / the cache, it also
+ * pulls the latest Form D and surfaces the amount raised + date as a fallback
+ * figure (Form D filings disclose the offering amount, not a valuation).
+ */
+async function secFallback(
+  sec: SecEdgarConnector | undefined,
+  name: string,
+  hasValuation: boolean,
+): Promise<{ secVerified: boolean; basis?: string }> {
+  if (!sec) return { secVerified: false };
+  // With a valuation already in hand, we only need the cheap verification call.
+  if (hasValuation) return { secVerified: await sec.hasFilings(name).catch(() => false) };
+
+  const filings = await sec.fetchFundingRounds(name).catch(() => []);
+  const secVerified = filings.length > 0;
+  const latest = filings[0];
+  if (!latest || latest.amountRaised == null) return { secVerified };
+  const when = latest.date ? ` (${latest.date})` : "";
+  return {
+    secVerified,
+    basis: `SEC Form D: ${fmtUsd(latest.amountRaised)} raised${when}`,
+  };
+}
+
 /** Overlay a cached market figure onto a connector metric (cache wins). */
 function applyCache<T extends Partial<ConnectorCompetitor>>(
   base: T,
@@ -107,11 +140,24 @@ export async function discoverCompetitors(
     | undefined;
 
   const competitors = await Promise.all(
-    unique.map(async (c) => ({
-      ...applyCache(c, compCache.get(nameKey(c.name))),
-      secVerified: sec ? await sec.hasFilings(c.name) : false,
-    })),
+    unique.map(async (c) => {
+      const enriched = applyCache(c, compCache.get(nameKey(c.name)));
+      // No valuation from X / cache → fall back to SEC filings.
+      const { secVerified, basis } = await secFallback(
+        sec,
+        c.name,
+        enriched.valuation != null,
+      );
+      return { ...enriched, basis: basis ?? enriched.basis, secVerified };
+    }),
   );
 
-  return { competitors, self };
+  // Apply the same SEC fallback to the target company's own row.
+  let enrichedSelf = self;
+  if (enrichedSelf && enrichedSelf.valuation == null) {
+    const { basis } = await secFallback(sec, companyName, false);
+    if (basis) enrichedSelf = { ...enrichedSelf, basis: enrichedSelf.basis ?? basis };
+  }
+
+  return { competitors, self: enrichedSelf };
 }
