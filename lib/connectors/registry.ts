@@ -2,14 +2,14 @@ import "server-only";
 import type { DataConnector } from "@/lib/connectors/types";
 import { stubConnector } from "@/lib/connectors/stub";
 import { GrokConnector } from "@/lib/connectors/grok";
+import { SecEdgarConnector } from "@/lib/connectors/sec-edgar";
 
 /**
  * Returns the set of enabled data connectors. The stub is always available
  * (keyless). Real connectors are gated on their credentials so the pipeline
- * degrades gracefully when keys are absent — add them here as they land in P4.
+ * degrades gracefully when they're absent — add them here as they land in P4.
  *
  *   if (process.env.CRUNCHBASE_API_KEY) connectors.push(new CrunchbaseConnector(...))
- *   if (process.env.SEC_USER_AGENT)     connectors.push(new SecEdgarConnector(...))   // SEC is keyless but requires a UA
  *   if (process.env.NEWS_API_KEY)       connectors.push(new NewsConnector(...))
  */
 export function getConnectors(): DataConnector[] {
@@ -18,6 +18,11 @@ export function getConnectors(): DataConnector[] {
   // Grok-powered X/Twitter connector (replaces the planned raw Twitter API).
   if (process.env.XAI_API_KEY) {
     connectors.push(new GrokConnector());
+  }
+
+  // SEC EDGAR — Form D private fundraising filings. Keyless; needs a UA header.
+  if (process.env.SEC_USER_AGENT) {
+    connectors.push(new SecEdgarConnector());
   }
 
   return connectors;
