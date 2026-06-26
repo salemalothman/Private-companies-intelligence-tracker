@@ -11,10 +11,12 @@ import {
   UploadCloud,
 } from "lucide-react";
 import {
-  processDocumentPdf,
+  createDocUploadUrl,
   processDocumentUrl,
+  processStoredPdf,
   type DocResult,
 } from "@/app/(app)/companies/document-actions";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,11 +48,10 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
         setResult(res);
         if (res.ok) router.refresh();
       } catch {
-        // Transport-level failure (e.g. upload exceeds the server body limit),
-        // which never reaches the action — surface it instead of crashing.
+        // Transport-level failure (network dropped) — surface it instead of
+        // crashing the page with an unhandled error overlay.
         setResult({
-          error:
-            "Upload failed — the file may be too large (max 15MB) or the network dropped. Try a smaller PDF.",
+          error: "Something went wrong — check your connection and try again.",
         });
       }
     });
@@ -181,15 +182,28 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
                 disabled={!file || pending}
                 onClick={() => {
                   if (!file) return;
-                  if (file.size > 15 * 1024 * 1024) {
+                  if (file.size > 50 * 1024 * 1024) {
                     setResult({
-                      error: `That PDF is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is 15MB. Try a smaller file.`,
+                      error: `That PDF is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is 50MB. Try a smaller file.`,
                     });
                     return;
                   }
-                  const fd = new FormData();
-                  fd.set("file", file);
-                  run(() => processDocumentPdf(companyId, fd));
+                  const theFile = file;
+                  run(async () => {
+                    // Upload straight to Storage (no Server Action body limit),
+                    // then process the stored file server-side.
+                    const ticket = await createDocUploadUrl(companyId, theFile.name);
+                    if (ticket.error || !ticket.path || !ticket.token)
+                      return { error: ticket.error ?? "Could not start upload." };
+                    const supabase = createBrowserClient();
+                    const { error: upErr } = await supabase.storage
+                      .from("documents")
+                      .uploadToSignedUrl(ticket.path, ticket.token, theFile, {
+                        contentType: "application/pdf",
+                      });
+                    if (upErr) return { error: `Upload failed: ${upErr.message}` };
+                    return processStoredPdf(companyId, ticket.path);
+                  });
                 }}
               >
                 {pending ? (

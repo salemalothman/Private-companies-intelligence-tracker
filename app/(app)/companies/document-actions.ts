@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { extractEntities } from "@/lib/documents/extract";
 import { fetchUrlContent, urlSource } from "@/lib/documents/fetch-url";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
+
+const DOC_BUCKET = "documents";
 
 export interface DocResult {
   ok?: boolean;
@@ -98,38 +101,100 @@ export async function processDocumentPdf(
 
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buf });
-    let text = "";
-    try {
-      const r = await parser.getText();
-      text = r?.text ?? "";
-    } finally {
-      await parser.destroy?.();
-    }
+    return await ingestPdfBuffer(supabase, companyId, user.id, buf, file.name, file.name);
+  } catch (e) {
+    return { error: `Processing failed: ${(e as Error).message}` };
+  }
+}
 
-    if (text.trim().length < 40)
-      return {
-        error:
-          "No extractable text (the PDF may be scanned — OCR is required, see ARCHITECTURE.md).",
-      };
+/** Parse a PDF buffer → extract entities → route to tabs + record the document. */
+async function ingestPdfBuffer(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+  userId: string,
+  buf: Uint8Array,
+  filename: string,
+  filePath: string,
+): Promise<DocResult> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: buf });
+  let text = "";
+  try {
+    const r = await parser.getText();
+    text = r?.text ?? "";
+  } finally {
+    await parser.destroy?.();
+  }
 
-    const title = file.name.replace(/\.pdf$/i, "");
-    const source = `pdf:${file.name}`;
-    const { engine, entities } = await extractEntities(text, { title, source });
-    const applied = await applyMappedIngest(supabase, companyId, entities);
+  if (text.trim().length < 40)
+    return {
+      error:
+        "No extractable text (the PDF may be scanned — OCR is required, see ARCHITECTURE.md).",
+    };
 
-    await supabase.from("documents").insert({
-      company_id: companyId,
-      user_id: user.id,
-      file_path: file.name,
-      type: "pdf",
-      extracted_data: entities as unknown as Record<string, unknown>,
-      status: "done",
-    });
+  const title = filename.replace(/\.pdf$/i, "");
+  const source = `pdf:${filename}`;
+  const { engine, entities } = await extractEntities(text, { title, source });
+  const applied = await applyMappedIngest(supabase, companyId, entities);
 
-    revalidate(companyId);
-    return { ok: true, engine, ...applied };
+  await supabase.from("documents").insert({
+    company_id: companyId,
+    user_id: userId,
+    file_path: filePath,
+    type: "pdf",
+    extracted_data: entities as unknown as Record<string, unknown>,
+    status: "done",
+  });
+
+  revalidate(companyId);
+  return { ok: true, engine, ...applied };
+}
+
+/**
+ * Issue a one-time signed URL so the browser can upload a PDF straight to
+ * Storage — bypassing the Server Action body limit (1MB local / 4.5MB on
+ * Vercel) that breaks large investor decks. Scoped to a folder the user owns.
+ */
+export async function createDocUploadUrl(
+  companyId: string,
+  filename: string,
+): Promise<{ path?: string; token?: string; error?: string }> {
+  const { supabase, user } = await authed();
+  if (!user) return { error: "Not authenticated." };
+  if (!filename.toLowerCase().endsWith(".pdf"))
+    return { error: "Only PDF files are supported." };
+  if (!(await ownsCompany(supabase, companyId)))
+    return { error: "Company not found." };
+
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100);
+  const path = `${companyId}/${Date.now()}-${safe}`;
+  const { data, error } = await createAdminClient()
+    .storage.from(DOC_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data) return { error: error?.message ?? "Could not start upload." };
+  return { path: data.path, token: data.token };
+}
+
+/** Process a PDF already uploaded to Storage: download → parse → route. */
+export async function processStoredPdf(
+  companyId: string,
+  path: string,
+): Promise<DocResult> {
+  const { supabase, user } = await authed();
+  if (!user) return { error: "Not authenticated." };
+  if (!(await ownsCompany(supabase, companyId)))
+    return { error: "Company not found." };
+  // The path must live under this company's own folder.
+  if (!path.startsWith(`${companyId}/`)) return { error: "Invalid document path." };
+
+  try {
+    const { data: blob, error } = await createAdminClient()
+      .storage.from(DOC_BUCKET)
+      .download(path);
+    if (error || !blob) return { error: `Upload not found: ${error?.message ?? ""}` };
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    const filename = (path.split("/").pop() ?? "document.pdf").replace(/^\d+-/, "");
+    return await ingestPdfBuffer(supabase, companyId, user.id, buf, filename, path);
   } catch (e) {
     return { error: `Processing failed: ${(e as Error).message}` };
   }
