@@ -83,6 +83,7 @@ export interface CompetitorDiscovery {
 export async function discoverCompetitors(
   companyName: string,
   supabase?: SupabaseClient<Database>,
+  hint?: string,
 ): Promise<CompetitorDiscovery> {
   const connectors = getConnectors();
   const source = connectors.find((c) => typeof c.fetchCompetitors === "function");
@@ -98,13 +99,13 @@ export async function discoverCompetitors(
   // retry makes discovery reliable since a real company almost always has peers.
   // In parallel, fetch the target's own metric only when the cache misses.
   const [firstTry, selfLive] = await Promise.all([
-    source.fetchCompetitors(companyName),
+    source.fetchCompetitors(companyName, hint),
     targetCache
       ? Promise.resolve(null)
       : source.fetchValuationMetric?.(companyName) ?? Promise.resolve(null),
   ]);
   let found = firstTry;
-  if (found.length === 0) found = await source.fetchCompetitors(companyName);
+  if (found.length === 0) found = await source.fetchCompetitors(companyName, hint);
 
   const self: CompetitorDiscovery["self"] = targetCache
     ? {

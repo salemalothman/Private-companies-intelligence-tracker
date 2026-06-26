@@ -120,7 +120,13 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
     // discovery is best-effort so an empty/failed result never fails the sync.
     await ingestCompany(supabase, data);
     try {
-      await discoverAndStoreCompetitors(supabase, data.id, data.name, user.id);
+      await discoverAndStoreCompetitors(
+        supabase,
+        data.id,
+        data.name,
+        user.id,
+        companyHint(data.description, data.sector),
+      );
     } catch (e) {
       console.error("sync competitors:", (e as Error).message);
     }
@@ -144,14 +150,31 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
  * write error — an empty result is a valid outcome, not a failure. Shared by
  * the standalone "Find competitors" button and the unified "Sync data" flow.
  */
+/** Build a grounding hint about what the company does (skips stub text). */
+function companyHint(
+  description?: string | null,
+  sector?: string | null,
+): string | undefined {
+  const d = (description ?? "").trim();
+  const usable =
+    d && !/stub connector|tracked via|private company tracked/i.test(d) ? d : "";
+  const parts = [
+    usable,
+    sector && sector.trim().toUpperCase() !== "AI" ? `sector: ${sector}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join("; ") : undefined;
+}
+
 async function discoverAndStoreCompetitors(
   supabase: Awaited<ReturnType<typeof createClient>>,
   companyId: string,
   companyName: string,
   userId: string,
+  hint?: string,
 ): Promise<number> {
-  // Pass the client so discovery queries the weekly market cache first.
-  const { competitors, self } = await discoverCompetitors(companyName, supabase);
+  // Pass the client so discovery queries the weekly market cache first; the
+  // hint grounds the search in what the company actually does.
+  const { competitors, self } = await discoverCompetitors(companyName, supabase, hint);
   if (competitors.length === 0) return 0;
 
   // Replace the prior set so a refresh reflects the latest data.
@@ -202,7 +225,7 @@ export async function refreshCompetitors(
 
   const { data: company, error } = await supabase
     .from("companies")
-    .select("id, name")
+    .select("id, name, description, sector")
     .eq("id", companyId)
     .maybeSingle();
   if (error || !company) return { error: error?.message ?? "Company not found." };
@@ -214,6 +237,7 @@ export async function refreshCompetitors(
       company.id,
       company.name,
       user.id,
+      companyHint(company.description, company.sector),
     );
   } catch (e) {
     return { error: `Competitor lookup failed: ${(e as Error).message}` };

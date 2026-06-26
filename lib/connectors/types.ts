@@ -61,7 +61,11 @@ export interface DataConnector {
    * valuations. Only connectors that can surface competitive intelligence
    * (e.g. Grok X-search) implement this.
    */
-  fetchCompetitors?(query: string): Promise<ConnectorCompetitor[]>;
+  fetchCompetitors?(
+    query: string,
+    /** Optional context about what the company does, to ground the search. */
+    hint?: string,
+  ): Promise<ConnectorCompetitor[]>;
   /**
    * Optional: latest valuation + revenue/ARR for a single named company. Used
    * to populate the target company's own row in the competitive landscape.

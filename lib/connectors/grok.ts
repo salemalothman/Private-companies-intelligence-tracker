@@ -149,11 +149,12 @@ const METRIC_FIELDS_SHAPE =
   '"valuation":number|null,"valuationDate":"YYYY-MM-DD"|null,"revenue":number|null,"revenueBasis":string|null,"basis":string|null';
 
 const competitorsSchema = z.object({
+  about: z.string().nullish(),
   competitors: z
     .array(z.object({ name: z.string().nullish(), ...metricFields }))
     .nullish(),
 });
-const COMPETITORS_SHAPE = `{"competitors":[{"name":string,${METRIC_FIELDS_SHAPE}}]}`;
+const COMPETITORS_SHAPE = `{"about":string,"competitors":[{"name":string,${METRIC_FIELDS_SHAPE}}]}`;
 
 const metricSchema = z.object({ found: z.boolean().nullish(), ...metricFields });
 const METRIC_SHAPE = `{"found":boolean,${METRIC_FIELDS_SHAPE}}`;
@@ -260,20 +261,30 @@ export class GrokConnector implements DataConnector {
     }
   }
 
-  async fetchCompetitors(query: string): Promise<ConnectorCompetitor[]> {
+  async fetchCompetitors(
+    query: string,
+    hint?: string,
+  ): Promise<ConnectorCompetitor[]> {
     try {
       const r = await grokSearch(
         competitorsSchema,
-        `Name the 6 best-known direct competitors of the company "${query}" — ` +
-          `use your general knowledge of its market as well as web/X search. ` +
-          `Always include a competitor even if its financials are unknown. Then, ` +
-          `for EACH competitor, find its most recent known post-money valuation ` +
-          `in USD. ${PRIORITY_SOURCES} Include the valuation "valuationDate" as ` +
+        `STEP 1 — using X and web search, determine PRECISELY what the company ` +
+          `"${query}" actually does: its specific product, the problem it solves, ` +
+          `its sector, and its customers.${hint ? ` Known context: ${hint}.` : ""} ` +
+          `Write a one-sentence summary in "about". Do not guess from the name ` +
+          `alone.\n\nSTEP 2 — name the 6 companies that most directly compete ` +
+          `with it in that SAME specific niche. Hard rules: every competitor must ` +
+          `target the same customers in the same category (e.g. defense-AI, ` +
+          `dev-tools, fintech, data-infra, legal-tech); do NOT list general ` +
+          `frontier/foundation-model labs (OpenAI, Anthropic, Mistral, Inflection, ` +
+          `Adept, etc.) UNLESS "${query}" is itself a foundation-model lab. ` +
+          `Always include a competitor even if its financials are unknown.\n\n` +
+          `STEP 3 — for EACH competitor, find its most recent post-money ` +
+          `valuation in USD. ${PRIORITY_SOURCES} Include "valuationDate" as ` +
           `YYYY-MM-DD (1st of the month/year if only that is known) and a ` +
-          `one-line "basis" naming the round and source (e.g. "Series C, $2.1B, ` +
-          `per @AaronGDillon Apr 2024"). ${REVENUE_INSTRUCTION} Leave valuation ` +
-          `or revenue null when unknown, but still list the competitor. Only ` +
-          `return an empty array if "${query}" is not a real company.`,
+          `one-line "basis" naming the round and source. ${REVENUE_INSTRUCTION} ` +
+          `Leave valuation or revenue null when unknown, but still list the ` +
+          `competitor. Only return an empty array if "${query}" is not real.`,
         COMPETITORS_SHAPE,
       );
       return (r?.competitors ?? [])
