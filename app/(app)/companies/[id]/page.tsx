@@ -233,11 +233,11 @@ export default async function CompanyDetailPage({
         <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
           <Stat
             label="Carry / performance"
-            value={`${df.carryPct}%${df.isCustomCarry ? " · custom" : " · default"}`}
+            value={`${df.carryPct}%${df.isCustomCarry ? " · custom" : ""}`}
           />
           <Stat
             label="Management fee"
-            value={`${df.mgmtFeePct}%${df.isCustomMgmt ? " · custom" : " · default"}`}
+            value={`${df.mgmtFeePct}%${df.isCustomMgmt ? " · custom" : ""}`}
           />
           <Stat
             label="Net value (after fees)"
@@ -525,9 +525,6 @@ export default async function CompanyDetailPage({
                         >
                           <span className="flex items-center gap-2">
                             {e.name}
-                            {e.isTarget && (
-                              <Badge variant="default">This company</Badge>
-                            )}
                           </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
