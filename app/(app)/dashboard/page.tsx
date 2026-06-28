@@ -1,4 +1,8 @@
-import { getCompaniesWithRelations } from "@/lib/queries";
+import {
+  getCompaniesWithRelations,
+  getRecentEvents,
+  getUnseenEventCount,
+} from "@/lib/queries";
 import {
   companyTableRow,
   latestValuationChanges,
@@ -13,9 +17,14 @@ import { AddCompanyDialog } from "@/components/company/add-company-dialog";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
 import { CompanyTable } from "@/components/dashboard/company-table";
+import { ActivityFeed } from "@/components/dashboard/activity-feed";
 
 export default async function DashboardPage() {
-  const companies = await getCompaniesWithRelations();
+  const [companies, activity, unseen] = await Promise.all([
+    getCompaniesWithRelations(),
+    getRecentEvents(),
+    getUnseenEventCount(),
+  ]);
 
   const summary = portfolioSummary(companies);
   const changes = latestValuationChanges(companies);
@@ -46,6 +55,8 @@ export default async function DashboardPage() {
       />
 
       <SummaryCards summary={summary} changes={changes} events={events} />
+
+      <ActivityFeed events={activity} unseen={unseen} />
 
       <PortfolioCharts
         valueSeries={portfolioValueSeries(companies)}

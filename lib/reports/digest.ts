@@ -49,15 +49,24 @@ function drawLogo(page: PDFPage, ox: number, oyTop: number, box: number) {
   }
 }
 
+export interface DigestActivity {
+  company: string | null;
+  title: string;
+  detail: string | null;
+}
+
 export interface DigestInput {
   companies: CompanyWithRelations[];
   generatedAt: string; // ISO date
+  /** Notable portfolio events from the last week (activity feed). */
+  activity?: DigestActivity[];
 }
 
 /** Render a one-page professional portfolio digest PDF. */
 export async function buildDigestPdf({
   companies,
   generatedAt,
+  activity = [],
 }: DigestInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
@@ -147,21 +156,19 @@ export async function buildDigestPdf({
     if (y < 140) break;
   }
 
-  // Recent news
-  const news = companies
-    .flatMap((c) => c.news.map((n) => ({ ...n, company: c.name })))
-    .filter((n) => n.date)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
-    .slice(0, 5);
-  if (news.length && y > 130) {
+  // Notable activity (last 7 days) from the portfolio events feed.
+  if (activity.length && y > 130) {
     y -= 14;
-    text("RECENT NEWS", M, y, { size: 9, bold: true, color: MUTED });
+    text("NOTABLE ACTIVITY (LAST 7 DAYS)", M, y, {
+      size: 9,
+      bold: true,
+      color: MUTED,
+    });
     y -= 18;
-    for (const n of news) {
-      const dot =
-        n.sentiment === "positive" ? GREEN : n.sentiment === "negative" ? RED : MUTED;
-      page.drawCircle({ x: M + 3, y: y + 3, size: 2.5, color: dot });
-      text(`${n.company}: ${n.title}`.slice(0, 88), M + 12, y, { size: 9 });
+    for (const a of activity) {
+      page.drawCircle({ x: M + 3, y: y + 3, size: 2.5, color: TEAL });
+      const line = `${a.company ? `${a.company}: ` : ""}${a.title}${a.detail ? ` (${a.detail})` : ""}`;
+      text(line.slice(0, 92), M + 12, y, { size: 9 });
       y -= 15;
       if (y < 70) break;
     }
@@ -203,12 +210,36 @@ export async function runWeeklyDigest(supabase: DB): Promise<DigestRunSummary> {
     byUser.set(c.user_id, list);
   }
 
+  // Notable activity from the last 7 days, grouped by user.
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data: evRows } = await supabase
+    .from("portfolio_events")
+    .select("user_id, title, detail, companies(name)")
+    .gte("created_at", weekAgo)
+    .order("created_at", { ascending: false });
+  const activityByUser = new Map<string, DigestActivity[]>();
+  for (const e of (evRows ?? []) as unknown as {
+    user_id: string;
+    title: string;
+    detail: string | null;
+    companies: { name: string } | null;
+  }[]) {
+    const list = activityByUser.get(e.user_id) ?? [];
+    if (list.length < 8)
+      list.push({ company: e.companies?.name ?? null, title: e.title, detail: e.detail });
+    activityByUser.set(e.user_id, list);
+  }
+
   const date = new Date().toISOString().slice(0, 10);
   let reports = 0;
   const errors: string[] = [];
   for (const [userId, companies] of byUser) {
     try {
-      const pdf = await buildDigestPdf({ companies, generatedAt: date });
+      const pdf = await buildDigestPdf({
+        companies,
+        generatedAt: date,
+        activity: activityByUser.get(userId) ?? [],
+      });
       const { error: upErr } = await supabase.storage
         .from(REPORT_BUCKET)
         .upload(`${userId}/${date}-digest.pdf`, pdf, {

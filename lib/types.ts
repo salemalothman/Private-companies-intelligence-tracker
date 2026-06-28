@@ -292,6 +292,37 @@ type MarketSyncRunInsert = {
   detail?: string | null;
 };
 
+// --- portfolio events (activity feed / alerts) ---
+export type PortfolioEventType =
+  | "funding_round"
+  | "valuation"
+  | "contract_win"
+  | "competitor";
+
+export type PortfolioEventRow = {
+  id: string;
+  user_id: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  source: string | null;
+  occurred_at: string | null;
+  seen: boolean;
+  created_at: string;
+};
+type PortfolioEventInsert = {
+  id?: string;
+  user_id?: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail?: string | null;
+  source?: string | null;
+  occurred_at?: string | null;
+  seen?: boolean;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -361,6 +392,12 @@ export interface Database {
         Update: Partial<MarketSyncRunInsert>;
         Relationships: [];
       };
+      portfolio_events: {
+        Row: PortfolioEventRow;
+        Insert: PortfolioEventInsert;
+        Update: Partial<PortfolioEventInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -380,6 +417,7 @@ export type IngestionRun = IngestionRunRow;
 export type Competitor = CompetitorRow;
 export type MarketValuation = MarketValuationRow;
 export type MarketSyncRun = MarketSyncRunRow;
+export type PortfolioEvent = PortfolioEventRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

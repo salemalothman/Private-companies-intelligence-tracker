@@ -1,6 +1,10 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { CompanyWithRelations, CompetitorRow } from "@/lib/types";
+import type {
+  CompanyWithRelations,
+  CompetitorRow,
+  PortfolioEventRow,
+} from "@/lib/types";
 
 const COMPANY_WITH_RELATIONS =
   "*, investments(*), valuations(*), funding_rounds(*), news(*)";
@@ -56,4 +60,40 @@ export async function getCompetitors(
     return [];
   }
   return data ?? [];
+}
+
+export interface ActivityEvent extends PortfolioEventRow {
+  /** Company name (joined) for display in the feed. */
+  company: string | null;
+}
+
+/** Most recent portfolio activity events for the current user. */
+export async function getRecentEvents(limit = 15): Promise<ActivityEvent[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("portfolio_events")
+    .select("*, companies(name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("getRecentEvents:", error.message);
+    return [];
+  }
+  const rows = (data ?? []) as unknown as (PortfolioEventRow & {
+    companies: { name: string } | null;
+  })[];
+  return rows.map(({ companies, ...rest }) => ({
+    ...rest,
+    company: companies?.name ?? null,
+  }));
+}
+
+/** Count of unseen activity events for the current user (the alert badge). */
+export async function getUnseenEventCount(): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("portfolio_events")
+    .select("id", { count: "exact", head: true })
+    .eq("seen", false);
+  return count ?? 0;
 }
