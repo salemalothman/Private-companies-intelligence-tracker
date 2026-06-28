@@ -5,18 +5,36 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Format a number as compact USD, e.g. 1_200_000 -> "$1.2M". */
+/**
+ * Format a number as compact USD, e.g. 1_200_000 -> "$1.20M".
+ *
+ * Implemented manually rather than via Intl `notation: "compact"`, whose output
+ * differs between Node's ICU and the browser's ("$9.00B" vs "$9B") and so caused
+ * SSR/client hydration mismatches in client components.
+ */
 export function formatCurrency(
   value: number | null | undefined,
   opts: { compact?: boolean } = {},
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: opts.compact === false ? "standard" : "compact",
-    maximumFractionDigits: opts.compact === false ? 0 : 2,
-  }).format(value);
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+
+  if (opts.compact === false) {
+    // Grouped integer dollars — comma grouping is ICU-stable across runtimes.
+    return `${sign}$${Math.round(abs).toLocaleString("en-US")}`;
+  }
+
+  const units: [number, string][] = [
+    [1e12, "T"],
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [base, suffix] of units) {
+    if (abs >= base) return `${sign}$${(abs / base).toFixed(2)}${suffix}`;
+  }
+  return `${sign}$${abs.toFixed(2)}`;
 }
 
 /** Format a fraction (0.15) as a signed percentage string ("+15.0%"). */
