@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { nameKey } from "@/lib/market-cache/parse";
 import type {
   AlertPrefsRow,
+  CompanyEventRow,
   CompanyWithRelations,
   CompetitorRow,
   MarketValuationRow,
@@ -125,6 +126,35 @@ export async function getRecentEvents(limit = 15): Promise<ActivityEvent[]> {
     return [];
   }
   const rows = (data ?? []) as unknown as (PortfolioEventRow & {
+    companies: { name: string } | null;
+  })[];
+  return rows.map(({ companies, ...rest }) => ({
+    ...rest,
+    company: companies?.name ?? null,
+  }));
+}
+
+export interface CalendarEvent extends CompanyEventRow {
+  /** Company name (joined) for display. */
+  company: string | null;
+}
+
+/**
+ * All web-fetched company events (corporate / valuation / secondary) for the
+ * current user. The caller partitions these into upcoming vs. historical with
+ * `partitionEvents` so the chronological logic stays in one tested place.
+ */
+export async function getCompanyEvents(): Promise<CalendarEvent[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("company_events")
+    .select("*, companies(name)")
+    .order("event_date", { ascending: false, nullsFirst: false });
+  if (error) {
+    console.error("getCompanyEvents:", error.message);
+    return [];
+  }
+  const rows = (data ?? []) as unknown as (CompanyEventRow & {
     companies: { name: string } | null;
   })[];
   return rows.map(({ companies, ...rest }) => ({

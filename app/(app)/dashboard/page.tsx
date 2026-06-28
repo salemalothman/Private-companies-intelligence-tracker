@@ -1,52 +1,44 @@
 import {
   getAlertPrefs,
   getCompaniesWithRelations,
+  getCompanyEvents,
   getRecentEvents,
   getUnseenEventCount,
 } from "@/lib/queries";
 import {
   companyTableRow,
   latestValuationChanges,
-  lastFundingRound,
   portfolioSummary,
   portfolioValueSeries,
   sectorAllocation,
   topPerformers,
 } from "@/lib/metrics";
+import { partitionEvents } from "@/lib/calendar";
 import { PageHeader } from "@/components/app/page-header";
 import { AddCompanyDialog } from "@/components/company/add-company-dialog";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
 import { CompanyTable } from "@/components/dashboard/company-table";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { EventsCalendar } from "@/components/dashboard/events-calendar";
 
 export default async function DashboardPage() {
-  const [companies, activity, unseen, alertPrefs] = await Promise.all([
+  const [companies, activity, unseen, alertPrefs, calendar] = await Promise.all([
     getCompaniesWithRelations(),
     getRecentEvents(),
     getUnseenEventCount(),
     getAlertPrefs(),
+    getCompanyEvents(),
   ]);
 
   const summary = portfolioSummary(companies);
   const changes = latestValuationChanges(companies);
   const rows = companies.map(companyTableRow);
 
-  // "Upcoming events" — surface the most recent funding rounds as activity.
-  const events = companies
-    .map((c) => {
-      const round = lastFundingRound(c);
-      return round
-        ? { id: c.id, name: c.name, label: round.round, date: round.date }
-        : null;
-    })
-    .filter((e): e is NonNullable<typeof e> => e !== null)
-    .sort((a, b) => {
-      const ta = a.date ? new Date(a.date).getTime() : 0;
-      const tb = b.date ? new Date(b.date).getTime() : 0;
-      return tb - ta;
-    })
-    .slice(0, 5);
+  // Strict chronological split: only true future-dated events are "upcoming";
+  // historical and undated records route to the timeline view.
+  const today = new Date().toISOString().slice(0, 10);
+  const { upcoming, past } = partitionEvents(calendar, today);
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
@@ -56,7 +48,9 @@ export default async function DashboardPage() {
         actions={<AddCompanyDialog />}
       />
 
-      <SummaryCards summary={summary} changes={changes} events={events} />
+      <SummaryCards summary={summary} changes={changes} />
+
+      <EventsCalendar upcoming={upcoming} past={past} />
 
       <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
 

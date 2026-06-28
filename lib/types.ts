@@ -323,6 +323,35 @@ type PortfolioEventInsert = {
   seen?: boolean;
 };
 
+// --- company_events (web-fetched calendar: corporate / valuation / secondary) ---
+export type CompanyEventType = "corporate" | "valuation" | "secondary";
+
+export type CompanyEventRow = {
+  id: string;
+  user_id: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  event_date: string | null;
+  value: number | null;
+  source: string | null;
+  url: string | null;
+  created_at: string;
+};
+type CompanyEventInsert = {
+  id?: string;
+  user_id?: string;
+  company_id: string;
+  type?: string;
+  title: string;
+  detail?: string | null;
+  event_date?: string | null;
+  value?: number | null;
+  source?: string | null;
+  url?: string | null;
+};
+
 // --- alert preferences ---
 export type AlertPrefsRow = {
   user_id: string;
@@ -425,6 +454,12 @@ export interface Database {
         Update: Partial<AlertPrefsInsert>;
         Relationships: [];
       };
+      company_events: {
+        Row: CompanyEventRow;
+        Insert: CompanyEventInsert;
+        Update: Partial<CompanyEventInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -446,6 +481,7 @@ export type MarketValuation = MarketValuationRow;
 export type MarketSyncRun = MarketSyncRunRow;
 export type PortfolioEvent = PortfolioEventRow;
 export type AlertPrefs = AlertPrefsRow;
+export type CompanyEvent = CompanyEventRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

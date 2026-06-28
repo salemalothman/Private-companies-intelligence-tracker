@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { runExaEventsSync, type ExaEventsSummary } from "@/lib/agents/exa-events";
 import type { AlertPrefsView } from "@/lib/queries";
 
 /** Mark all of the current user's activity events as seen (clears the badge). */
@@ -40,4 +41,18 @@ export async function updateAlertPrefs(prefs: AlertPrefsView): Promise<void> {
     { onConflict: "user_id" },
   );
   revalidatePath("/dashboard");
+}
+
+/** Manually run the Exa events sweep for the current user's companies. */
+export async function scanCompanyEvents(): Promise<
+  ExaEventsSummary | { error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+  const summary = await runExaEventsSync(supabase, { userId: user.id });
+  revalidatePath("/dashboard");
+  return summary;
 }
