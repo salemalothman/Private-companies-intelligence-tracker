@@ -5,7 +5,6 @@ import {
   lastFundingRound,
   portfolioSummary,
   portfolioValueSeries,
-  riskMatrix,
   sectorAllocation,
   topPerformers,
 } from "@/lib/metrics";
@@ -52,7 +51,6 @@ export default async function DashboardPage() {
         valueSeries={portfolioValueSeries(companies)}
         allocation={sectorAllocation(companies)}
         performers={topPerformers(companies)}
-        risk={riskMatrix(companies)}
       />
 
       <section className="space-y-3">

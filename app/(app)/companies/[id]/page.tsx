@@ -19,7 +19,6 @@ import {
   DEFAULT_FUND_FEES,
   investmentEntryPoint,
   latestValuation,
-  riskScore,
   valuationAmount,
 } from "@/lib/metrics";
 import { buildCompetitorRanking } from "@/lib/competitors/rank";
@@ -91,7 +90,6 @@ export default async function CompanyDetailPage({
   const value = currentValue(company);
   const change = companyChangePct(company);
   const ownership = currentOwnershipPct(company);
-  const risk = riskScore(company);
   const changeUp = (change ?? 0) >= 0;
   const df = dealFees(company);
 
@@ -228,7 +226,6 @@ export default async function CompanyDetailPage({
             label="Ownership"
             value={ownership != null ? `${ownership}%` : "—"}
           />
-          <Stat label="Risk score" value={risk != null ? String(risk) : "—"} />
         </CardContent>
       </Card>
 

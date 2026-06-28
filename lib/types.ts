@@ -38,7 +38,6 @@ export type CompanyRow = {
   founders: string[] | null;
   description: string | null;
   status: CompanyStatus;
-  risk_score: number | null;
   realized_proceeds: number;
   carry_pct: number | null;
   mgmt_fee_pct: number | null;
@@ -57,7 +56,6 @@ type CompanyInsert = {
   founders?: string[] | null;
   description?: string | null;
   status?: CompanyStatus;
-  risk_score?: number | null;
   realized_proceeds?: number;
   carry_pct?: number | null;
   mgmt_fee_pct?: number | null;

@@ -26,7 +26,6 @@ import {
   portfolioSummary,
   portfolioValueSeries,
   previousValuation,
-  riskScore,
   sectorAllocation,
   sharesHeld,
   topPerformers,
@@ -97,7 +96,6 @@ function company(p: Partial<CompanyWithRelations>): CompanyWithRelations {
     founders: null,
     description: null,
     status: "active",
-    risk_score: null,
     realized_proceeds: 0,
     carry_pct: null,
     mgmt_fee_pct: null,
@@ -259,38 +257,6 @@ describe("aggregations", () => {
   });
 });
 
-describe("risk score heuristic", () => {
-  it("uses a stored score when present", () => {
-    const c = company({ risk_score: 42 });
-    expect(riskScore(c)).toBe(42);
-  });
-
-  it("raises risk on a down round", () => {
-    const c = company({
-      valuations: [
-        val({ date: "2024-01-01", post_money: 1000 }),
-        val({ date: "2025-01-01", post_money: 600 }),
-      ],
-    });
-    const now = new Date("2025-02-01");
-    expect(riskScore(c, now)!).toBeGreaterThan(50);
-  });
-
-  it("lowers risk on a strong markup", () => {
-    const c = company({
-      valuations: [
-        val({ date: "2024-01-01", post_money: 100 }),
-        val({ date: "2025-01-01", post_money: 1000 }),
-      ],
-    });
-    const now = new Date("2025-02-01");
-    expect(riskScore(c, now)!).toBeLessThan(50);
-  });
-
-  it("returns null with no signal", () => {
-    expect(riskScore(company({}))).toBeNull();
-  });
-});
 
 describe("investment analytics", () => {
   const now = new Date("2026-06-23");

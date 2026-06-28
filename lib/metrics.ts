@@ -113,39 +113,6 @@ export function lastUpdate(company: CompanyWithRelations): string | null {
   )[0];
 }
 
-/**
- * Rule-based risk score placeholder (0–100, higher = riskier).
- * Replaced by the AI Risk Agent in phase P6. Uses the stored risk_score
- * when present, otherwise derives a heuristic from valuation trajectory and
- * staleness.
- */
-export function riskScore(
-  company: CompanyWithRelations,
-  now: Date = new Date(),
-): number | null {
-  if (company.risk_score != null) return company.risk_score;
-
-  const change = companyChangePct(company);
-  const updated = lastUpdate(company);
-  if (change == null && !updated) return null;
-
-  let score = 50;
-  if (change != null) {
-    if (change < 0) score += 30; // down round
-    else if (change > 0.5) score -= 20; // strong markup
-    else if (change > 0) score -= 5;
-  }
-  if (updated) {
-    const ageDays =
-      (now.getTime() - new Date(updated).getTime()) / MS_PER_DAY;
-    if (ageDays > 365) score += 15; // stale
-    else if (ageDays > 180) score += 5;
-  } else {
-    score += 10;
-  }
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
 // ---------------------------------------------------------------------------
 // Portfolio-level aggregates
 // ---------------------------------------------------------------------------
@@ -216,25 +183,6 @@ export function topPerformers(
     .filter((r): r is PerformerRow => r.changePct != null)
     .sort((a, b) => b.changePct - a.changePct)
     .slice(0, limit);
-}
-
-export interface RiskPoint {
-  id: string;
-  name: string;
-  risk: number;
-  value: number;
-}
-
-/** Points for the risk matrix scatter: risk score vs. position size. */
-export function riskMatrix(companies: CompanyWithRelations[]): RiskPoint[] {
-  return companies
-    .map((c) => {
-      const risk = riskScore(c);
-      return risk == null
-        ? null
-        : { id: c.id, name: c.name, risk, value: currentValueOrCost(c) };
-    })
-    .filter((p): p is RiskPoint => p !== null);
 }
 
 export interface ValuationChange {
@@ -320,7 +268,6 @@ export interface CompanyTableRow {
   changePct: number | null;
   lastFundingRound: string | null;
   lastUpdate: string | null;
-  riskScore: number | null;
   status: Company["status"];
 }
 
@@ -688,7 +635,6 @@ export function companyTableRow(
     changePct: companyChangePct(company),
     lastFundingRound: lastFundingRound(company)?.round ?? null,
     lastUpdate: lastUpdate(company),
-    riskScore: riskScore(company),
     status: company.status,
   };
 }

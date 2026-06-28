@@ -9,19 +9,15 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
-  ZAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import type {
   PerformerRow,
   PortfolioValuePoint,
-  RiskPoint,
   SectorSlice,
 } from "@/lib/metrics";
 
@@ -66,12 +62,10 @@ export function PortfolioCharts({
   valueSeries,
   allocation,
   performers,
-  risk,
 }: {
   valueSeries: PortfolioValuePoint[];
   allocation: SectorSlice[];
   performers: PerformerRow[];
-  risk: RiskPoint[];
 }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -171,43 +165,6 @@ export function PortfolioCharts({
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      <ChartCard title="Risk matrix (risk vs. position size)" empty={risk.length === 0}>
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
-            <XAxis
-              type="number"
-              dataKey="risk"
-              name="Risk"
-              domain={[0, 100]}
-              tick={axis}
-              tickLine={false}
-              axisLine={false}
-              label={{ value: "Risk score", position: "insideBottom", offset: -2, fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            />
-            <YAxis
-              type="number"
-              dataKey="value"
-              name="Value"
-              tick={axis}
-              tickFormatter={(v) => formatCurrency(Number(v))}
-              tickLine={false}
-              axisLine={false}
-              width={56}
-            />
-            <ZAxis range={[60, 60]} />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(v, n) =>
-                n === "Value"
-                  ? [formatCurrency(Number(v)), "Value"]
-                  : [String(v), "Risk"]
-              }
-            />
-            <Scatter data={risk} fill={CHART[3]} />
-          </ScatterChart>
         </ResponsiveContainer>
       </ChartCard>
     </div>
