@@ -323,6 +323,27 @@ type PortfolioEventInsert = {
   seen?: boolean;
 };
 
+// --- alert preferences ---
+export type AlertPrefsRow = {
+  user_id: string;
+  funding_round: boolean;
+  valuation: boolean;
+  contract_win: boolean;
+  competitor: boolean;
+  valuation_min_pct: number;
+  created_at: string;
+  updated_at: string;
+};
+type AlertPrefsInsert = {
+  user_id?: string;
+  funding_round?: boolean;
+  valuation?: boolean;
+  contract_win?: boolean;
+  competitor?: boolean;
+  valuation_min_pct?: number;
+  updated_at?: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -398,6 +419,12 @@ export interface Database {
         Update: Partial<PortfolioEventInsert>;
         Relationships: [];
       };
+      alert_prefs: {
+        Row: AlertPrefsRow;
+        Insert: AlertPrefsInsert;
+        Update: Partial<AlertPrefsInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -418,6 +445,7 @@ export type Competitor = CompetitorRow;
 export type MarketValuation = MarketValuationRow;
 export type MarketSyncRun = MarketSyncRunRow;
 export type PortfolioEvent = PortfolioEventRow;
+export type AlertPrefs = AlertPrefsRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

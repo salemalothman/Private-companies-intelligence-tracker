@@ -1,4 +1,5 @@
 import {
+  getAlertPrefs,
   getCompaniesWithRelations,
   getRecentEvents,
   getUnseenEventCount,
@@ -20,10 +21,11 @@ import { CompanyTable } from "@/components/dashboard/company-table";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 
 export default async function DashboardPage() {
-  const [companies, activity, unseen] = await Promise.all([
+  const [companies, activity, unseen, alertPrefs] = await Promise.all([
     getCompaniesWithRelations(),
     getRecentEvents(),
     getUnseenEventCount(),
+    getAlertPrefs(),
   ]);
 
   const summary = portfolioSummary(companies);
@@ -56,7 +58,7 @@ export default async function DashboardPage() {
 
       <SummaryCards summary={summary} changes={changes} events={events} />
 
-      <ActivityFeed events={activity} unseen={unseen} />
+      <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
 
       <PortfolioCharts
         valueSeries={portfolioValueSeries(companies)}

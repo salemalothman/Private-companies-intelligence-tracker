@@ -8,6 +8,15 @@ export interface BuiltEvent {
   detail?: string;
   source?: string;
   occurredAt?: string;
+  /** Absolute valuation-move fraction (e.g. 2.0 = +200%), for thresholding. */
+  magnitude?: number;
+}
+
+export interface AlertPreferences {
+  /** Which event types to record; undefined = all. */
+  types?: PortfolioEventType[];
+  /** Minimum |valuation change %| worth recording (0 = record all). */
+  valuationMinPct?: number;
 }
 
 export interface IngestEventInput {
@@ -35,6 +44,8 @@ export interface IngestEventInput {
   competitors: { name: string; valuation?: number | null; source?: string | null }[];
   /** Most recent post-money before this batch, to compute valuation deltas. */
   previousPostMoney?: number | null;
+  /** Per-user preferences — mutes types and sub-threshold valuation moves. */
+  prefs?: AlertPreferences;
 }
 
 /**
@@ -73,6 +84,7 @@ export function buildIngestEvents(input: IngestEventInput): BuiltEvent[] {
           : undefined,
       source: v.source,
       occurredAt: v.date,
+      magnitude: delta != null ? Math.abs(delta) : undefined,
     });
   }
 
@@ -97,5 +109,20 @@ export function buildIngestEvents(input: IngestEventInput): BuiltEvent[] {
     });
   }
 
-  return events;
+  return applyPrefs(events, input.prefs);
+}
+
+/** Drop muted event types and sub-threshold valuation moves. */
+function applyPrefs(events: BuiltEvent[], prefs?: AlertPreferences): BuiltEvent[] {
+  if (!prefs) return events;
+  const min = prefs.valuationMinPct ?? 0;
+  return events.filter((e) => {
+    if (prefs.types && !prefs.types.includes(e.type)) return false;
+    // Threshold applies only to valuation moves that have a measurable delta;
+    // a first/initial valuation (no prior, magnitude undefined) is always kept.
+    if (e.type === "valuation" && e.magnitude != null && e.magnitude * 100 < min) {
+      return false;
+    }
+    return true;
+  });
 }

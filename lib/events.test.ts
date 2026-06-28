@@ -52,4 +52,33 @@ describe("buildIngestEvents", () => {
   it("returns nothing for an empty ingest", () => {
     expect(buildIngestEvents(empty)).toEqual([]);
   });
+
+  it("mutes event types not enabled in prefs", () => {
+    const events = buildIngestEvents({
+      ...empty,
+      rounds: [{ round: "Series A", source: "x" }],
+      competitors: [{ name: "Rival", source: "x" }],
+      prefs: { types: ["funding_round"] },
+    });
+    expect(events.map((e) => e.type)).toEqual(["funding_round"]);
+  });
+
+  it("drops valuation moves below the threshold but keeps larger ones", () => {
+    const input = {
+      ...empty,
+      valuations: [{ date: "2026-03-01", post_money: 1.05e9, round: null, source: "x" }],
+      previousPostMoney: 1e9, // +5% move
+    };
+    expect(buildIngestEvents({ ...input, prefs: { valuationMinPct: 10 } })).toHaveLength(0);
+    expect(buildIngestEvents({ ...input, prefs: { valuationMinPct: 4 } })).toHaveLength(1);
+  });
+
+  it("keeps an initial valuation (no prior) regardless of threshold", () => {
+    const events = buildIngestEvents({
+      ...empty,
+      valuations: [{ date: "2026-03-01", post_money: 1e9, round: "Seed", source: "x" }],
+      prefs: { valuationMinPct: 50 },
+    });
+    expect(events).toHaveLength(1);
+  });
 });

@@ -1,10 +1,40 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  AlertPrefsRow,
   CompanyWithRelations,
   CompetitorRow,
   PortfolioEventRow,
 } from "@/lib/types";
+
+export type AlertPrefsView = Pick<
+  AlertPrefsRow,
+  | "funding_round"
+  | "valuation"
+  | "contract_win"
+  | "competitor"
+  | "valuation_min_pct"
+>;
+
+export const DEFAULT_ALERT_PREFS: AlertPrefsView = {
+  funding_round: true,
+  valuation: true,
+  contract_win: true,
+  competitor: true,
+  valuation_min_pct: 0,
+};
+
+/** The current user's alert preferences, or sensible defaults. */
+export async function getAlertPrefs(): Promise<AlertPrefsView> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("alert_prefs")
+    .select(
+      "funding_round, valuation, contract_win, competitor, valuation_min_pct",
+    )
+    .maybeSingle();
+  return data ?? DEFAULT_ALERT_PREFS;
+}
 
 const COMPANY_WITH_RELATIONS =
   "*, investments(*), valuations(*), funding_rounds(*), news(*)";

@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatDate } from "@/lib/utils";
 import { markEventsSeen } from "@/app/(app)/dashboard/actions";
-import type { ActivityEvent } from "@/lib/queries";
+import { AlertPrefsDialog } from "@/components/dashboard/alert-prefs-dialog";
+import type { ActivityEvent, AlertPrefsView } from "@/lib/queries";
 
 const ICON: Record<string, LucideIcon> = {
   funding_round: Banknote,
@@ -27,9 +28,11 @@ const ICON: Record<string, LucideIcon> = {
 export function ActivityFeed({
   events,
   unseen,
+  prefs,
 }: {
   events: ActivityEvent[];
   unseen: number;
+  prefs: AlertPrefsView;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -41,16 +44,19 @@ export function ActivityFeed({
           <CardTitle className="text-sm font-medium">Portfolio activity</CardTitle>
           {unseen > 0 && <Badge variant="default">{unseen} new</Badge>}
         </div>
-        {unseen > 0 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={pending}
-            onClick={() => start(() => markEventsSeen().then(() => router.refresh()))}
-          >
-            <Check className="h-3.5 w-3.5" /> Mark all read
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          {unseen > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => start(() => markEventsSeen().then(() => router.refresh()))}
+            >
+              <Check className="h-3.5 w-3.5" /> Mark all read
+            </Button>
+          )}
+          <AlertPrefsDialog prefs={prefs} />
+        </div>
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (

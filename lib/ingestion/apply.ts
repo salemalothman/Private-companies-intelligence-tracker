@@ -152,6 +152,26 @@ export async function applyMappedIngest(
   // both prior events and the table's unique index, so daily re-runs are safe).
   const userId = company?.user_id;
   if (userId) {
+    // Respect the user's alert preferences (muted types + valuation threshold).
+    const { data: prefsRow } = await supabase
+      .from("alert_prefs")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const prefs = prefsRow
+      ? {
+          types: (
+            [
+              "funding_round",
+              "valuation",
+              "contract_win",
+              "competitor",
+            ] as const
+          ).filter((t) => prefsRow[t]),
+          valuationMinPct: prefsRow.valuation_min_pct,
+        }
+      : undefined;
+
     const seen = new Set(
       (priorEvents ?? []).map(
         (e) => `${e.type}|${e.title}|${e.occurred_at ?? ""}`,
@@ -163,6 +183,7 @@ export async function applyMappedIngest(
       news: newNews,
       competitors: newComps,
       previousPostMoney,
+      prefs,
     }).filter((e) => !seen.has(`${e.type}|${e.title}|${e.occurredAt ?? ""}`));
 
     if (events.length) {
