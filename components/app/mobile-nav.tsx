@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, LayoutDashboard, LineChart, LogOut, PieChart } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
+import { Logo } from "@/components/app/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -18,8 +19,8 @@ export function MobileTopBar() {
     <header className="pt-safe sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur md:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <LineChart className="h-5 w-5 text-primary" />
-          <span className="text-sm font-semibold">Private Portfolio</span>
+          <Logo className="h-6 w-6 shrink-0" />
+          <span className="text-sm font-semibold">Automation Investment</span>
         </Link>
         <form action={signOut}>
           <button

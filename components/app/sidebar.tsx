@@ -2,16 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Building2,
-  LayoutDashboard,
-  LineChart,
-  LogOut,
-  PieChart,
-} from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/app/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,11 +20,11 @@ export function Sidebar({ email }: { email: string | null }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:sticky md:top-0 md:flex md:h-screen">
       <div className="flex items-center gap-2 px-5 py-5">
-        <LineChart className="h-5 w-5 text-primary" />
+        <Logo className="h-7 w-7 shrink-0" />
         <span className="text-sm font-semibold leading-tight">
-          Private Portfolio
+          Automation Investment
           <span className="block text-xs font-normal text-muted-foreground">
-            Intelligence Tracker
+            Intelligence Platform
           </span>
         </span>
       </div>

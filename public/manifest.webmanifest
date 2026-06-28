@@ -1,0 +1,12 @@
+{
+  "name": "Automation Investment Intelligence Platform",
+  "short_name": "AIIP",
+  "description": "Track private companies, valuations, funding rounds, competitors, and portfolio performance.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#5C9EAD",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

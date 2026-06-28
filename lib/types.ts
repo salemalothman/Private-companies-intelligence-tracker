@@ -1,5 +1,5 @@
 /**
- * Database types for the Private Portfolio Intelligence Tracker.
+ * Database types for the Automation Investment Intelligence Platform.
  * Hand-maintained to match supabase/migrations. Can be regenerated with
  * `supabase gen types typescript`.
  *
