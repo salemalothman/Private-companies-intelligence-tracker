@@ -1,9 +1,11 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { nameKey } from "@/lib/market-cache/parse";
 import type {
   AlertPrefsRow,
   CompanyWithRelations,
   CompetitorRow,
+  MarketValuationRow,
   PortfolioEventRow,
 } from "@/lib/types";
 
@@ -90,6 +92,19 @@ export async function getCompetitors(
     return [];
   }
   return data ?? [];
+}
+
+/** The market-cache valuation for a company name, if any (provenance source). */
+export async function getMarketValuation(
+  name: string,
+): Promise<MarketValuationRow | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("market_valuations")
+    .select("*")
+    .eq("name_key", nameKey(name))
+    .maybeSingle();
+  return data ?? null;
 }
 
 export interface ActivityEvent extends PortfolioEventRow {

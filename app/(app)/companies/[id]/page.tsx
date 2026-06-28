@@ -9,7 +9,9 @@ import {
   Handshake,
   ShieldCheck,
 } from "lucide-react";
-import { getCompany, getCompetitors } from "@/lib/queries";
+import { getCompany, getCompetitors, getMarketValuation } from "@/lib/queries";
+import { buildCanonicalRecord } from "@/lib/canonical";
+import { Provenance } from "@/components/company/provenance";
 import {
   companyChangePct,
   companyInvested,
@@ -84,7 +86,10 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const company = await getCompany(id);
   if (!company) notFound();
-  const competitors = await getCompetitors(id);
+  const [competitors, marketRow] = await Promise.all([
+    getCompetitors(id),
+    getMarketValuation(company.name),
+  ]);
 
   const invested = companyInvested(company);
   const value = currentValue(company);
@@ -121,6 +126,17 @@ export default async function CompanyDetailPage({
 
   const selfMetric = competitors.find((c) => c.is_self) ?? null;
   const peers = competitors.filter((c) => !c.is_self);
+  const canonical = buildCanonicalRecord(company, {
+    market: marketRow,
+    self: selfMetric
+      ? {
+          source: selfMetric.source,
+          valuation: selfMetric.valuation,
+          revenue: selfMetric.revenue,
+          valuation_date: selfMetric.valuation_date,
+        }
+      : null,
+  });
   const latestVal = latestValuation(company.valuations);
   const competitorRanking = buildCompetitorRanking(
     {
@@ -253,6 +269,7 @@ export default async function CompanyDetailPage({
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="provenance">Provenance</TabsTrigger>
           <TabsTrigger value="investment">Investment</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
@@ -298,6 +315,11 @@ export default async function CompanyDetailPage({
               <BusinessModelAnalysis company={company} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Provenance — canonical record across sources */}
+        <TabsContent value="provenance">
+          <Provenance record={canonical} />
         </TabsContent>
 
         {/* Investment */}
