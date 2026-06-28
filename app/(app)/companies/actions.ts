@@ -118,13 +118,23 @@ export async function createCompany(
     });
   }
 
-  // Trigger the automated ingestion pipeline immediately on add.
-  // Best-effort: a connector failure must never block company creation.
-  try {
-    await ingestCompany(supabase, data);
-  } catch (e) {
-    console.error("ingestion on create:", (e as Error).message);
-  }
+  // Kick off ingestion + competitor discovery in parallel on add. Competitor
+  // discovery is seeded with the website-derived description so it grounds the
+  // search in what the company actually does. Both best-effort — a failure must
+  // never block company creation.
+  const hint = companyHint(data.description, data.sector);
+  await Promise.allSettled([
+    ingestCompany(supabase, data).catch((e) =>
+      console.error("ingestion on create:", (e as Error).message),
+    ),
+    discoverAndStoreCompetitors(
+      supabase,
+      data.id,
+      data.name,
+      user.id,
+      hint,
+    ).catch((e) => console.error("competitors on create:", (e as Error).message)),
+  ]);
 
   revalidatePath("/dashboard");
   revalidatePath("/companies");
