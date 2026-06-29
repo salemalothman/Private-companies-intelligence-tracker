@@ -1,4 +1,6 @@
 import "server-only";
+import { xai } from "@ai-sdk/xai";
+import { generateText } from "ai";
 import {
   heuristicExtract,
   type ExtractOptions,
@@ -8,11 +10,13 @@ import {
 export type { ExtractedEntities, ExtractOptions };
 
 export interface ExtractionResult {
-  engine: "llm" | "llm-vision" | "heuristic";
+  engine: "llm" | "grok-vision" | "heuristic";
   entities: ExtractedEntities;
 }
 
 const MODEL = "claude-haiku-4-5-20251001";
+const GROK_VISION_MODEL = "grok-4.3";
+const MAX_OCR_PAGES = 12; // cap rendered pages to bound vision token cost
 
 /** Shared extraction instructions (schema + rules) for the LLM engines. */
 const INSTRUCTIONS = `You are a financial analyst extracting structured data from a document about a private company.
@@ -106,26 +110,43 @@ async function llmExtract(
 }
 
 /**
- * Vision extraction straight from the PDF bytes — Claude reads the rendered
- * pages, so this works on image-based slide decks that yield no extractable
- * text. This is our OCR path; gated on ANTHROPIC_API_KEY.
+ * OCR path for image-based PDFs (slide decks with no extractable text): render
+ * each page to a PNG (pdf-parse / pdfjs), then have Grok's vision model read the
+ * page images and return the same structured entities. Gated on XAI_API_KEY.
  */
-export async function extractEntitiesFromPdf(
+export async function extractEntitiesViaGrokOcr(
   buf: Uint8Array,
   opts: ExtractOptions,
 ): Promise<ExtractionResult> {
-  const base64 = Buffer.from(buf).toString("base64");
-  const raw = await callAnthropic([
-    {
-      type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: base64 },
-    },
-    {
-      type: "text",
-      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nExtract from the attached PDF (it may be a slide deck — read the pages).`,
-    },
-  ]);
-  return { engine: "llm-vision", entities: parseEntities(raw, opts) };
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: buf });
+  let images: Uint8Array[] = [];
+  try {
+    const shot = await parser.getScreenshot({ first: MAX_OCR_PAGES });
+    images = shot.pages.map((p) => p.data).filter(Boolean);
+  } finally {
+    await parser.destroy?.();
+  }
+  if (images.length === 0) throw new Error("could not render PDF pages");
+
+  const { text } = await generateText({
+    model: xai(GROK_VISION_MODEL),
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...images.map(
+            (data) => ({ type: "image" as const, image: data, mediaType: "image/png" }),
+          ),
+          {
+            type: "text" as const,
+            text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nThe document is a slide deck supplied as page images. Extract from all pages.`,
+          },
+        ],
+      },
+    ],
+  });
+  return { engine: "grok-vision", entities: parseEntities(text, opts) };
 }
 
 /**
