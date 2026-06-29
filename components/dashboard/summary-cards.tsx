@@ -1,5 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 import type { PortfolioSummary, ValuationChange } from "@/lib/metrics";
 
@@ -62,7 +70,7 @@ export function SummaryCards({
       </div>
 
       <div className="grid gap-5">
-        <ListPanel title="Latest valuation changes">
+        <ListPanel title="Latest valuation changes" value="changes" defaultOpen>
           {changes.length === 0 ? (
             <Empty>No changes yet.</Empty>
           ) : (
@@ -105,18 +113,29 @@ export function SummaryCards({
 
 function ListPanel({
   title,
+  value,
+  defaultOpen,
   children,
 }: {
   title: string;
+  value: string;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <div className="label-eyebrow border-b border-border px-5 py-3">
-        {title}
-      </div>
-      <div className="divide-y divide-border/70">{children}</div>
-    </div>
+    <Accordion type="single" collapsible defaultValue={defaultOpen ? value : undefined}>
+      <AccordionItem
+        value={value}
+        className="overflow-hidden rounded-xl border border-border"
+      >
+        <AccordionTrigger className="label-eyebrow px-5 py-3 hover:bg-muted/40 data-[state=open]:border-b data-[state=open]:border-border">
+          {title}
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="divide-y divide-border/70">{children}</div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
