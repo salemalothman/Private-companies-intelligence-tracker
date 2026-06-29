@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { runExaEventsSync, type ExaEventsSummary } from "@/lib/agents/exa-events";
+import { runGlobalSync, type GlobalSyncSummary } from "@/lib/agents/global-sync";
 import type { AlertPrefsView } from "@/lib/queries";
 
 /** Mark all of the current user's activity events as seen (clears the badge). */
@@ -41,6 +42,24 @@ export async function updateAlertPrefs(prefs: AlertPrefsView): Promise<void> {
     { onConflict: "user_id" },
   );
   revalidatePath("/dashboard");
+}
+
+/**
+ * On-demand global sync: enrich, modernize competitors, verify financials,
+ * disambiguate signals, and sanitize all source citations across the portfolio.
+ */
+export async function syncAllCompanies(): Promise<
+  GlobalSyncSummary | { error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+  const summary = await runGlobalSync(supabase);
+  revalidatePath("/dashboard");
+  revalidatePath("/companies");
+  return summary;
 }
 
 /** Manually run the Exa events sweep for the current user's companies. */

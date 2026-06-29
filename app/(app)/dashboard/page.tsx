@@ -21,6 +21,7 @@ import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
 import { CompanyTable } from "@/components/dashboard/company-table";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { EventsCalendar } from "@/components/dashboard/events-calendar";
+import { GlobalSyncButton } from "@/components/dashboard/global-sync-button";
 
 export default async function DashboardPage() {
   const [companies, activity, unseen, alertPrefs, calendar] = await Promise.all([
@@ -45,7 +46,12 @@ export default async function DashboardPage() {
       <PageHeader
         title="Portfolio Dashboard"
         subtitle="What is your private portfolio worth today — and what changed?"
-        actions={<AddCompanyDialog />}
+        actions={
+          <div className="flex items-start gap-2">
+            <GlobalSyncButton />
+            <AddCompanyDialog />
+          </div>
+        }
       />
 
       <SummaryCards summary={summary} changes={changes} />

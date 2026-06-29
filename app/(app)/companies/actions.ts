@@ -6,7 +6,7 @@ import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
 import { exaFinancialsFor } from "@/lib/connectors/exa";
 import { formatCurrency } from "@/lib/utils";
-import { discoverCompetitors } from "@/lib/competitors/discover";
+import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
 import { hasLiveConnectors } from "@/lib/connectors/registry";
 import { classifyNews } from "@/lib/news/classify";
 import {
@@ -130,7 +130,7 @@ export async function createCompany(
     ingestCompany(supabase, data).catch((e) =>
       console.error("ingestion on create:", (e as Error).message),
     ),
-    discoverAndStoreCompetitors(
+    refreshCompetitorsFor(
       supabase,
       data.id,
       data.name,
@@ -161,7 +161,7 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
     // discovery is best-effort so an empty/failed result never fails the sync.
     await ingestCompany(supabase, data);
     try {
-      await discoverAndStoreCompetitors(
+      await refreshCompetitorsFor(
         supabase,
         data.id,
         data.name,
@@ -224,84 +224,6 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
   }
 }
 
-/**
- * Discover the company's primary competitors and their latest valuations via
- * the Grok connector (cross-referenced against SEC filings), then replace the
- * stored competitor set. Best-effort; surfaces a message on failure.
- */
-/**
- * Discover the competitive landscape for a company and replace the stored set.
- * Returns the number of competitors found (0 when none). Throws only on a DB
- * write error — an empty result is a valid outcome, not a failure. Shared by
- * the standalone "Find competitors" button and the unified "Sync data" flow.
- */
-/** Build a grounding hint about what the company does (skips stub text). */
-function companyHint(
-  description?: string | null,
-  sector?: string | null,
-): string | undefined {
-  const d = (description ?? "").trim();
-  const usable =
-    d && !/stub connector|tracked via|private company tracked/i.test(d) ? d : "";
-  const parts = [
-    usable,
-    sector && sector.trim().toUpperCase() !== "AI" ? `sector: ${sector}` : "",
-  ].filter(Boolean);
-  return parts.length ? parts.join("; ") : undefined;
-}
-
-async function discoverAndStoreCompetitors(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  companyId: string,
-  companyName: string,
-  userId: string,
-  hint?: string,
-): Promise<number> {
-  // Pass the client so discovery queries the weekly market cache first; the
-  // hint grounds the search in what the company actually does.
-  const { competitors, self } = await discoverCompetitors(companyName, supabase, hint);
-  if (competitors.length === 0) return 0;
-
-  // Replace the prior set so a refresh reflects the latest data.
-  await supabase.from("competitors").delete().eq("company_id", companyId);
-
-  const rows = competitors.map((c) => ({
-    company_id: companyId,
-    user_id: userId,
-    name: c.name,
-    valuation: c.valuation ?? null,
-    valuation_date: c.valuationDate ?? null,
-    revenue: c.revenue ?? null,
-    revenue_basis: c.revenueBasis ?? null,
-    source: c.source,
-    basis: c.basis ?? null,
-    sec_verified: c.secVerified,
-    is_self: false,
-  }));
-
-  // The target's own revenue (its valuation stays authoritative in the
-  // valuations table) is stored as a single is_self row, merged into its row.
-  if (self && (self.revenue != null || self.valuation != null)) {
-    rows.push({
-      company_id: companyId,
-      user_id: userId,
-      name: companyName,
-      valuation: self.valuation ?? null,
-      valuation_date: self.valuationDate ?? null,
-      revenue: self.revenue ?? null,
-      revenue_basis: self.revenueBasis ?? null,
-      source: self.source,
-      basis: self.basis ?? null,
-      sec_verified: false,
-      is_self: true,
-    });
-  }
-
-  const { error } = await supabase.from("competitors").insert(rows);
-  if (error) throw new Error(error.message);
-  return competitors.length;
-}
-
 export async function refreshCompetitors(
   companyId: string,
 ): Promise<ActionResult & { count?: number }> {
@@ -317,7 +239,7 @@ export async function refreshCompetitors(
 
   let count: number;
   try {
-    count = await discoverAndStoreCompetitors(
+    count = await refreshCompetitorsFor(
       supabase,
       company.id,
       company.name,

@@ -520,8 +520,8 @@ export default async function CompanyDetailPage({
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {company.name} ranked against its primary competitors by latest
                   valuation, with revenue/ARR and the implied valuation-to-revenue
-                  multiple. Sourced via Grok X-search (prioritizing trusted
-                  private-market trackers) and cross-checked against SEC filings.
+                  multiple. Each figure is tagged with its primary source
+                  (financial press, SEC filings, or verified X accounts).
                 </p>
               </div>
               <RefreshCompetitorsButton
@@ -542,6 +542,7 @@ export default async function CompanyDetailPage({
                       <TableHead className="text-right">Revenue / ARR</TableHead>
                       <TableHead className="text-right">V / R multiple</TableHead>
                       <TableHead>As of</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Basis</TableHead>
                       <TableHead className="text-right">Verified</TableHead>
                     </TableRow>
@@ -586,9 +587,26 @@ export default async function CompanyDetailPage({
                           {formatDate(e.valuationDate)}
                         </TableCell>
                         <TableCell
-                          className={cn(!e.isTarget && "text-muted-foreground")}
+                          className={cn("text-xs", !e.isTarget && "text-muted-foreground")}
                         >
-                          {e.basis ?? (e.source ? e.source : "—")}
+                          {e.source && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(e.source) ? (
+                            <a
+                              href={`https://${e.source}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline-offset-2 hover:underline"
+                            >
+                              {e.source}
+                            </a>
+                          ) : (
+                            (e.source ?? "—")
+                          )}
+                        </TableCell>
+                        <TableCell
+                          className={cn("max-w-xs truncate text-xs", !e.isTarget && "text-muted-foreground")}
+                          title={e.basis ?? undefined}
+                        >
+                          {e.basis ?? "—"}
                         </TableCell>
                         <TableCell className="text-right">
                           {e.isTarget ? (
