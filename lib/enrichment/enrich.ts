@@ -1,5 +1,6 @@
 import "server-only";
 import { getConnectors } from "@/lib/connectors/registry";
+import { fetchUrlContent } from "@/lib/documents/fetch-url";
 
 export interface EnrichedProfile {
   sector?: string;
@@ -77,8 +78,86 @@ export async function enrichCompanyProfile(
   name: string,
 ): Promise<EnrichedProfile> {
   const base = await resolveBase(name);
-  // Derive the brand logo from the resolved domain (verified client-side).
-  return { ...base, logoUrl: resolveLogo(base.website) };
+  // Deep-read the official website for a high-fidelity description, preferring
+  // it over the model's from-memory one-liner (and grounding niche companies).
+  const fromSite = base.website
+    ? await describeFromWebsite(name, base.website)
+    : undefined;
+  return {
+    ...base,
+    description: fromSite ?? base.description,
+    // Derive the brand logo from the resolved domain (verified client-side).
+    logoUrl: resolveLogo(base.website),
+  };
+}
+
+/**
+ * Fetch the company's official site and distill a comprehensive description of
+ * its core operations, products, and value proposition. Uses the LLM over the
+ * page text when a key is set, else a heuristic over the readable content.
+ * Best-effort — returns undefined on any failure.
+ */
+async function describeFromWebsite(
+  name: string,
+  website: string,
+): Promise<string | undefined> {
+  try {
+    const { text, description } = await fetchUrlContent(website);
+    const content = text.trim();
+    if (content.length < 80 && !description) return undefined;
+
+    if (process.env.ANTHROPIC_API_KEY && content.length >= 80) {
+      const llm = await llmDescribe(name, content).catch(() => undefined);
+      if (llm) return llm;
+    }
+    // Prefer the site's curated meta description over raw body sentences.
+    const meta = description?.replace(/\s+/g, " ").trim();
+    if (meta && meta.length >= 40) return meta.slice(0, 600);
+    return heuristicDescribe(content);
+  } catch {
+    return undefined;
+  }
+}
+
+/** LLM summary of what the company does, grounded in its website text. */
+async function llmDescribe(name: string, content: string): Promise<string> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY!,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 240,
+      messages: [
+        {
+          role: "user",
+          content:
+            `From this text scraped from ${name}'s official website, write a ` +
+            `2-3 sentence description of what the company actually does — its ` +
+            `core operations, main product(s), and value proposition / target ` +
+            `customers. Plain prose only, no preamble, no markdown.\n\n` +
+            content.slice(0, 8000),
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+  const data = await res.json();
+  const out: string = (data?.content?.[0]?.text ?? "").trim();
+  return out.replace(/\s+/g, " ").slice(0, 600);
+}
+
+/** Keyless fallback: the first couple of substantial sentences. */
+function heuristicDescribe(content: string): string | undefined {
+  const sentences = content
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 40 && /[a-z]/.test(s) && /\s/.test(s));
+  const summary = sentences.slice(0, 2).join(" ").slice(0, 400);
+  return summary.length >= 40 ? summary : undefined;
 }
 
 /** The factual profile (without logo) from the LLM or keyless connectors. */

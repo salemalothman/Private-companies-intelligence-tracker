@@ -5,10 +5,17 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Private Portfolio Intelligence Tracker",
+  title: "Automation Investment Intelligence Platform",
   description:
-    "Track private companies, valuations, funding rounds, and portfolio performance.",
-  appleWebApp: { capable: true, statusBarStyle: "default" },
+    "Track private companies, valuations, funding rounds, competitors, and portfolio performance.",
+  applicationName: "Automation Investment Intelligence Platform",
+  icons: { icon: "/logo.svg", apple: "/logo.svg" },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Automation Investment Intelligence Platform",
+  },
 };
 
 export const viewport: Viewport = {

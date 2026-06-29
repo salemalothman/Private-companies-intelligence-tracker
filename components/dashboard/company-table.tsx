@@ -20,15 +20,7 @@ type SortKey =
   | "sector"
   | "amountInvested"
   | "lastValuation"
-  | "changePct"
-  | "riskScore";
-
-function riskVariant(score: number | null) {
-  if (score == null) return "muted" as const;
-  if (score >= 67) return "destructive" as const;
-  if (score >= 34) return "default" as const;
-  return "success" as const;
-}
+  | "changePct";
 
 export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
   const router = useRouter();
@@ -104,7 +96,6 @@ export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
             <SortHead label="Change" k="changePct" className="text-right" />
             <TableHead>Round</TableHead>
             <TableHead>Last Update</TableHead>
-            <SortHead label="Risk" k="riskScore" className="text-right" />
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
@@ -165,11 +156,6 @@ export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
                 <TableCell>{r.lastFundingRound ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(r.lastUpdate)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge variant={riskVariant(r.riskScore)}>
-                    {r.riskScore ?? "—"}
-                  </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge

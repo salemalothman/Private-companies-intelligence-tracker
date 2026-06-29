@@ -3,6 +3,16 @@ import "server-only";
 export interface FetchedDoc {
   title: string;
   text: string;
+  /** Curated page summary from og:description / meta description, if present. */
+  description?: string;
+}
+
+/** First <meta> content matching property|name = key (either attribute order). */
+function metaContent(html: string, key: string): string | undefined {
+  const tag = html.match(
+    new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]*>`, "i"),
+  )?.[0];
+  return tag?.match(/content=["']([^"']+)["']/i)?.[1]?.trim() || undefined;
 }
 
 /** Fetch a URL and reduce it to a title + plain text for extraction. */
@@ -25,6 +35,9 @@ export async function fetchUrlContent(url: string): Promise<FetchedDoc> {
     /* keep title */
   }
 
+  const description =
+    metaContent(html, "og:description") ?? metaContent(html, "description");
+
   const text = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -35,7 +48,7 @@ export async function fetchUrlContent(url: string): Promise<FetchedDoc> {
     .replace(/\s+/g, " ")
     .trim();
 
-  return { title, text };
+  return { title, text, description };
 }
 
 /** Host label for provenance, e.g. "url:techcrunch.com". */

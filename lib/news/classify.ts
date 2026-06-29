@@ -44,3 +44,25 @@ export function classifyNews(
 export function isContractWin(category: string | null | undefined): boolean {
   return category === "contract";
 }
+
+export type Sentiment = "positive" | "neutral" | "negative";
+
+const NEGATIVE =
+  /\b(layoff|lay off|down ?round|decline|loss|lawsuit|shut ?down|cut|miss(?:ed)?|bankrupt|investigation|resign|fraud|probe|delay|recall|breach|hack|outage|sued?|fine[ds]?|plunge|slump|writedown|write-down)\b/i;
+const POSITIVE =
+  /\b(rais\w*|funding|valuation|growth|expand\w*|launch\w*|acqui\w*|partnership|profit\w*|record|surge|double[ds]?|triple[ds]?|milestone|wins?|awarded|secures?|beats?|soars?|breakthrough|ipo|hits?\b)\b/i;
+
+/**
+ * Lightweight keyword sentiment scorer for news items. Negative cues take
+ * precedence (downside matters more), then positive, else neutral. Pure and
+ * deterministic so the same article always scores the same.
+ */
+export function scoreSentiment(
+  title: string,
+  summary?: string | null,
+): Sentiment {
+  const text = `${title} ${summary ?? ""}`;
+  if (NEGATIVE.test(text)) return "negative";
+  if (POSITIVE.test(text)) return "positive";
+  return "neutral";
+}

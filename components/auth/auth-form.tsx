@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import { LineChart } from "lucide-react";
+import { Logo } from "@/components/app/logo";
 import { login, signup, type AuthResult } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,9 +39,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-2">
           <div className="flex items-center gap-2 text-primary">
-            <LineChart className="h-5 w-5" />
+            <Logo className="h-7 w-7 shrink-0" />
             <span className="text-sm font-medium text-foreground">
-              Private Portfolio Intelligence
+              Automation Investment Intelligence Platform
             </span>
           </div>
           <CardTitle className="text-2xl">

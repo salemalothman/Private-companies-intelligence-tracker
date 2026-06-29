@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendApprovalRequest } from "@/lib/email/approval";
+import { siteUrl } from "@/lib/site-url";
 
 export interface AuthResult {
   error?: string;
@@ -43,16 +46,47 @@ export async function signup(
   });
   if (error) return { error: error.message };
 
-  // If email confirmation is disabled, a session exists -> go straight in.
-  if (data.session) {
+  // New accounts default to 'pending_approval' (set by the signup trigger).
+  // Notify the admin with a tokenized approval link. Best-effort: never block
+  // signup on the admin read / email send.
+  let status: string | undefined;
+  if (data.user) {
+    try {
+      const admin = createAdminClient();
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("status, approval_token, email, full_name")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      status = prof?.status;
+      if (prof && prof.status !== "active" && prof.approval_token) {
+        await sendApprovalRequest({
+          email: prof.email ?? email,
+          fullName: prof.full_name ?? fullName,
+          token: prof.approval_token,
+          baseUrl: await siteUrl(),
+        });
+      }
+    } catch (e) {
+      console.error("signup: approval dispatch failed:", (e as Error).message);
+    }
+  }
+
+  // Admin account auto-activates → straight into the app.
+  if (status === "active" && data.session) {
     revalidatePath("/", "layout");
     redirect("/dashboard");
+  }
+  // Pending user with a live session (email confirmation off) → holding page.
+  if (data.session) {
+    revalidatePath("/", "layout");
+    redirect("/pending");
   }
 
   return {
     error:
-      "Account created. Check your email to confirm, then sign in. " +
-      "(Tip: disable email confirmation in Supabase Auth settings for instant access.)",
+      "Account created — it's now pending admin approval. " +
+      "You'll be able to sign in once an administrator approves your access.",
   };
 }
 

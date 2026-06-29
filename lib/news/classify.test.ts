@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyNews, isContractWin } from "@/lib/news/classify";
+import { classifyNews, isContractWin, scoreSentiment } from "@/lib/news/classify";
 
 describe("classifyNews", () => {
   it("flags clear contract wins / business deals", () => {
@@ -34,5 +34,19 @@ describe("classifyNews", () => {
     expect(isContractWin("contract")).toBe(true);
     expect(isContractWin(null)).toBe(false);
     expect(isContractWin("general")).toBe(false);
+  });
+});
+
+describe("scoreSentiment", () => {
+  it("flags positive on raises/growth", () => {
+    expect(scoreSentiment("Acme raises $50M Series B")).toBe("positive");
+    expect(scoreSentiment("Acme secures major partnership")).toBe("positive");
+  });
+  it("flags negative on downside news (precedence over positive cues)", () => {
+    expect(scoreSentiment("Acme announces layoffs after a down round")).toBe("negative");
+    expect(scoreSentiment("Acme faces lawsuit despite recent funding")).toBe("negative");
+  });
+  it("defaults to neutral", () => {
+    expect(scoreSentiment("Acme publishes its quarterly newsletter")).toBe("neutral");
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Database types for the Private Portfolio Intelligence Tracker.
+ * Database types for the Automation Investment Intelligence Platform.
  * Hand-maintained to match supabase/migrations. Can be regenerated with
  * `supabase gen types typescript`.
  *
@@ -14,14 +14,23 @@ export type Sentiment = "positive" | "neutral" | "negative";
 type Empty = { [_ in never]: never };
 
 // --- profiles ---
+export type ProfileStatus = "pending_approval" | "active";
 export type ProfileRow = {
   id: string;
   full_name: string | null;
+  email: string | null;
+  status: ProfileStatus;
+  approval_token: string | null;
+  approved_at: string | null;
   created_at: string;
 }
 type ProfileInsert = {
   id: string;
   full_name?: string | null;
+  email?: string | null;
+  status?: ProfileStatus;
+  approval_token?: string | null;
+  approved_at?: string | null;
   created_at?: string;
 }
 
@@ -38,7 +47,6 @@ export type CompanyRow = {
   founders: string[] | null;
   description: string | null;
   status: CompanyStatus;
-  risk_score: number | null;
   realized_proceeds: number;
   carry_pct: number | null;
   mgmt_fee_pct: number | null;
@@ -57,7 +65,6 @@ type CompanyInsert = {
   founders?: string[] | null;
   description?: string | null;
   status?: CompanyStatus;
-  risk_score?: number | null;
   realized_proceeds?: number;
   carry_pct?: number | null;
   mgmt_fee_pct?: number | null;
@@ -200,6 +207,8 @@ export type DocumentRowDb = {
   file_path: string;
   type: string | null;
   extracted_data: Record<string, unknown> | null;
+  diff: Record<string, unknown> | null;
+  diff_vs: string | null;
   status: string;
   created_at: string;
 };
@@ -210,6 +219,8 @@ type DocumentInsert = {
   file_path: string;
   type?: string | null;
   extracted_data?: Record<string, unknown> | null;
+  diff?: Record<string, unknown> | null;
+  diff_vs?: string | null;
   status?: string;
 }
 
@@ -294,6 +305,108 @@ type MarketSyncRunInsert = {
   detail?: string | null;
 };
 
+// --- portfolio events (activity feed / alerts) ---
+export type PortfolioEventType =
+  | "funding_round"
+  | "valuation"
+  | "contract_win"
+  | "competitor";
+
+export type PortfolioEventRow = {
+  id: string;
+  user_id: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  source: string | null;
+  occurred_at: string | null;
+  seen: boolean;
+  created_at: string;
+};
+type PortfolioEventInsert = {
+  id?: string;
+  user_id?: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail?: string | null;
+  source?: string | null;
+  occurred_at?: string | null;
+  seen?: boolean;
+};
+
+// --- digest preferences (per-user reporting config) ---
+export type DigestFrequency = "weekly" | "monthly";
+export type DigestPrefsRow = {
+  user_id: string;
+  enabled: boolean;
+  frequency: DigestFrequency;
+  include_holdings: boolean;
+  include_activity: boolean;
+  recipient_email: string | null;
+  updated_at: string;
+};
+type DigestPrefsInsert = {
+  user_id?: string;
+  enabled?: boolean;
+  frequency?: DigestFrequency;
+  include_holdings?: boolean;
+  include_activity?: boolean;
+  recipient_email?: string | null;
+  updated_at?: string;
+};
+
+// --- company_events (web-fetched calendar: corporate / valuation / secondary) ---
+export type CompanyEventType = "corporate" | "valuation" | "secondary";
+
+export type CompanyEventRow = {
+  id: string;
+  user_id: string;
+  company_id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  event_date: string | null;
+  value: number | null;
+  source: string | null;
+  url: string | null;
+  created_at: string;
+};
+type CompanyEventInsert = {
+  id?: string;
+  user_id?: string;
+  company_id: string;
+  type?: string;
+  title: string;
+  detail?: string | null;
+  event_date?: string | null;
+  value?: number | null;
+  source?: string | null;
+  url?: string | null;
+};
+
+// --- alert preferences ---
+export type AlertPrefsRow = {
+  user_id: string;
+  funding_round: boolean;
+  valuation: boolean;
+  contract_win: boolean;
+  competitor: boolean;
+  valuation_min_pct: number;
+  created_at: string;
+  updated_at: string;
+};
+type AlertPrefsInsert = {
+  user_id?: string;
+  funding_round?: boolean;
+  valuation?: boolean;
+  contract_win?: boolean;
+  competitor?: boolean;
+  valuation_min_pct?: number;
+  updated_at?: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -363,6 +476,30 @@ export interface Database {
         Update: Partial<MarketSyncRunInsert>;
         Relationships: [];
       };
+      portfolio_events: {
+        Row: PortfolioEventRow;
+        Insert: PortfolioEventInsert;
+        Update: Partial<PortfolioEventInsert>;
+        Relationships: [];
+      };
+      alert_prefs: {
+        Row: AlertPrefsRow;
+        Insert: AlertPrefsInsert;
+        Update: Partial<AlertPrefsInsert>;
+        Relationships: [];
+      };
+      company_events: {
+        Row: CompanyEventRow;
+        Insert: CompanyEventInsert;
+        Update: Partial<CompanyEventInsert>;
+        Relationships: [];
+      };
+      digest_prefs: {
+        Row: DigestPrefsRow;
+        Insert: DigestPrefsInsert;
+        Update: Partial<DigestPrefsInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -382,6 +519,10 @@ export type IngestionRun = IngestionRunRow;
 export type Competitor = CompetitorRow;
 export type MarketValuation = MarketValuationRow;
 export type MarketSyncRun = MarketSyncRunRow;
+export type PortfolioEvent = PortfolioEventRow;
+export type AlertPrefs = AlertPrefsRow;
+export type CompanyEvent = CompanyEventRow;
+export type DigestPrefs = DigestPrefsRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

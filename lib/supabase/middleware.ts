@@ -2,7 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/types";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth"];
+// "/api" routes self-authenticate (cron bearer token, approval webhook token)
+// and must not be redirected to the login screen.
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth", "/api"];
 
 /** Refresh the Supabase session and gate the (app) routes behind auth. */
 export async function updateSession(request: NextRequest) {
@@ -12,6 +14,12 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Never cache auth/profile reads in middleware — a stale approval status
+      // would keep an approved user trapped on /pending (Next caches GET fetch).
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+          fetch(input, { ...init, cache: "no-store" }),
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -46,14 +54,34 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Signed-in users shouldn't sit on the auth screens (root / login / signup).
-  if (
-    user &&
-    (pathname === "/" || pathname === "/login" || pathname === "/signup")
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+  if (user) {
+    // Admin-gated onboarding: accounts stay blocked until approved. Read the
+    // user's own profile status (RLS-scoped) and route accordingly.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("id", user.id)
+      .maybeSingle();
+    const active = profile?.status === "active";
+
+    if (!active) {
+      // Pending accounts may only reach the holding page; everything else
+      // bounces there (no operational access until approved).
+      if (pathname !== "/pending") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/pending";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
+      return supabaseResponse;
+    }
+
+    // Active users shouldn't sit on the auth or holding screens.
+    if (["/", "/login", "/signup", "/pending"].includes(pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

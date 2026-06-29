@@ -1,0 +1,124 @@
+import type { CompanyWithRelations } from "@/lib/types";
+
+/**
+ * Canonical company record with source lineage.
+ *
+ * Merges the same fact (valuation, revenue) reported across our sources —
+ * the valuations table, the AG Dillon / Exa market cache, and the competitor
+ * self-row — into one canonical value, with provenance, a corroboration count
+ * (distinct providers that agree), and a conflict flag when they materially
+ * disagree. Pure and deterministic. Observational only — no risk scoring.
+ */
+
+export interface SourceObservation {
+  source: string;
+  value: number | null;
+  date: string | null;
+}
+
+export interface CanonicalField {
+  value: number | null;
+  asOf: string | null;
+  observations: SourceObservation[];
+  /** Distinct providers whose value agrees with the canonical (within 15%). */
+  corroboration: number;
+  /** A provider's value diverges from the canonical by >25%. */
+  conflict: boolean;
+}
+
+export interface CanonicalRecord {
+  valuation: CanonicalField;
+  revenue: CanonicalField;
+  sources: string[]; // distinct providers across the whole record
+}
+
+const AGREE = 0.15; // within 15% → corroborates
+const DIVERGE = 0.25; // beyond 25% → conflict
+const WINDOW_MS = 120 * 86_400_000; // only contemporaneous reports corroborate/conflict
+
+/** Reduce a source label to its provider ("grok:x:social" -> "grok"). */
+export function provider(source: string | null | undefined): string {
+  const s = (source ?? "").trim().toLowerCase();
+  if (!s) return "manual";
+  if (s.startsWith("pdf:")) return "document";
+  if (s.startsWith("url:")) return "web";
+  if (s.includes("agdillon")) return "agdillon";
+  return s.split(/[:\s(]/)[0] || "manual";
+}
+
+function field(observations: SourceObservation[]): CanonicalField {
+  const valued = observations.filter((o) => o.value != null);
+  if (valued.length === 0) {
+    return { value: null, asOf: null, observations, corroboration: 0, conflict: false };
+  }
+  // Canonical = most recent dated observation with a value.
+  const canon = [...valued].sort((a, b) =>
+    (b.date ?? "").localeCompare(a.date ?? ""),
+  )[0];
+  const v = canon.value as number;
+  const canonTime = canon.date ? Date.parse(canon.date) : null;
+  // Only contemporaneous reports count — a historical round at a different
+  // valuation is a timeline point, not a disagreement about the current mark.
+  const near = (o: SourceObservation) =>
+    !o.date || canonTime == null || Math.abs(Date.parse(o.date) - canonTime) <= WINDOW_MS;
+  const co = valued.filter(near);
+  const rel = (o: SourceObservation) => Math.abs((o.value as number) - v) / v;
+  const corroboration = new Set(
+    co.filter((o) => rel(o) <= AGREE).map((o) => provider(o.source)),
+  ).size;
+  const conflict = co.some((o) => rel(o) > DIVERGE);
+  return { value: v, asOf: canon.date, observations: co, corroboration, conflict };
+}
+
+export interface CanonicalInputs {
+  market?: {
+    source: string | null;
+    valuation: number | null;
+    valuation_date: string | null;
+    revenue: number | null;
+    as_of: string | null;
+  } | null;
+  self?: {
+    source: string | null;
+    valuation: number | null;
+    revenue: number | null;
+    valuation_date: string | null;
+  } | null;
+}
+
+export function buildCanonicalRecord(
+  company: CompanyWithRelations,
+  inputs: CanonicalInputs = {},
+): CanonicalRecord {
+  const valuationObs: SourceObservation[] = company.valuations
+    .filter((v) => v.post_money != null)
+    .map((v) => ({ source: v.source ?? "manual", value: v.post_money, date: v.date }));
+  const revenueObs: SourceObservation[] = [];
+
+  if (inputs.market) {
+    const m = inputs.market;
+    if (m.valuation != null)
+      valuationObs.push({
+        source: m.source ?? "agdillon",
+        value: m.valuation,
+        date: m.valuation_date ?? m.as_of,
+      });
+    if (m.revenue != null)
+      revenueObs.push({ source: m.source ?? "agdillon", value: m.revenue, date: m.as_of });
+  }
+  if (inputs.self) {
+    const s = inputs.self;
+    if (s.valuation != null)
+      valuationObs.push({ source: s.source ?? "grok", value: s.valuation, date: s.valuation_date });
+    if (s.revenue != null)
+      revenueObs.push({ source: s.source ?? "grok", value: s.revenue, date: s.valuation_date });
+  }
+
+  const valuation = field(valuationObs);
+  const revenue = field(revenueObs);
+  const sources = [
+    ...new Set([...valuationObs, ...revenueObs].map((o) => provider(o.source))),
+  ].sort();
+
+  return { valuation, revenue, sources };
+}

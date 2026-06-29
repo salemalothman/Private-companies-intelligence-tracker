@@ -3,21 +3,12 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 import type { PortfolioSummary, ValuationChange } from "@/lib/metrics";
 
-interface UpcomingEvent {
-  id: string;
-  name: string;
-  label: string;
-  date: string | null;
-}
-
 export function SummaryCards({
   summary,
   changes,
-  events,
 }: {
   summary: PortfolioSummary;
   changes: ValuationChange[];
-  events: UpcomingEvent[];
 }) {
   const gainPositive = summary.unrealizedGain >= 0;
 
@@ -70,7 +61,7 @@ export function SummaryCards({
         ))}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5">
         <ListPanel title="Latest valuation changes">
           {changes.length === 0 ? (
             <Empty>No changes yet.</Empty>
@@ -105,24 +96,6 @@ export function SummaryCards({
                 </Link>
               );
             })
-          )}
-        </ListPanel>
-
-        <ListPanel title="Upcoming events">
-          {events.length === 0 ? (
-            <Empty>Recent activity will appear here.</Empty>
-          ) : (
-            events.map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center justify-between px-5 py-3 text-sm"
-              >
-                <span className="font-medium">{e.name}</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {e.label} · {formatDate(e.date)}
-                </span>
-              </div>
-            ))
           )}
         </ListPanel>
       </div>
