@@ -1,11 +1,13 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { nameKey } from "@/lib/market-cache/parse";
 import type {
   AlertPrefsRow,
   CompanyEventRow,
   CompanyWithRelations,
   CompetitorRow,
+  DigestPrefsRow,
   MarketValuationRow,
   PortfolioEventRow,
 } from "@/lib/types";
@@ -37,6 +39,80 @@ export async function getAlertPrefs(): Promise<AlertPrefsView> {
     )
     .maybeSingle();
   return data ?? DEFAULT_ALERT_PREFS;
+}
+
+export type DigestPrefsView = Pick<
+  DigestPrefsRow,
+  | "enabled"
+  | "frequency"
+  | "include_holdings"
+  | "include_activity"
+  | "recipient_email"
+>;
+
+export const DEFAULT_DIGEST_PREFS: DigestPrefsView = {
+  enabled: true,
+  frequency: "weekly",
+  include_holdings: true,
+  include_activity: true,
+  recipient_email: null,
+};
+
+/** The current user's digest configuration, or sensible defaults. */
+export async function getDigestPrefs(): Promise<DigestPrefsView> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("digest_prefs")
+    .select(
+      "enabled, frequency, include_holdings, include_activity, recipient_email",
+    )
+    .maybeSingle();
+  return data ?? DEFAULT_DIGEST_PREFS;
+}
+
+export interface ReportFile {
+  name: string;
+  date: string;
+  size: number;
+  url: string;
+}
+
+/**
+ * The current user's generated digests from the private `reports` bucket, with
+ * short-lived signed download URLs. Listed via the admin client scoped to the
+ * verified user's own folder (the bucket has no per-user storage policy).
+ */
+export async function listReports(): Promise<ReportFile[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const admin = createAdminClient();
+  const { data: files, error } = await admin.storage
+    .from("reports")
+    .list(user.id, { sortBy: { column: "name", order: "desc" }, limit: 100 });
+  if (error) {
+    console.error("listReports:", error.message);
+    return [];
+  }
+
+  const out: ReportFile[] = [];
+  for (const f of files ?? []) {
+    if (!f.name.endsWith(".pdf")) continue;
+    const path = `${user.id}/${f.name}`;
+    const { data: signed } = await admin.storage
+      .from("reports")
+      .createSignedUrl(path, 3600);
+    out.push({
+      name: f.name,
+      date: f.name.replace(/-digest\.pdf$/, ""),
+      size: (f.metadata as { size?: number } | null)?.size ?? 0,
+      url: signed?.signedUrl ?? "",
+    });
+  }
+  return out;
 }
 
 const COMPANY_WITH_RELATIONS =

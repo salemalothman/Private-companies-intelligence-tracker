@@ -332,6 +332,27 @@ type PortfolioEventInsert = {
   seen?: boolean;
 };
 
+// --- digest preferences (per-user reporting config) ---
+export type DigestFrequency = "weekly" | "monthly";
+export type DigestPrefsRow = {
+  user_id: string;
+  enabled: boolean;
+  frequency: DigestFrequency;
+  include_holdings: boolean;
+  include_activity: boolean;
+  recipient_email: string | null;
+  updated_at: string;
+};
+type DigestPrefsInsert = {
+  user_id?: string;
+  enabled?: boolean;
+  frequency?: DigestFrequency;
+  include_holdings?: boolean;
+  include_activity?: boolean;
+  recipient_email?: string | null;
+  updated_at?: string;
+};
+
 // --- company_events (web-fetched calendar: corporate / valuation / secondary) ---
 export type CompanyEventType = "corporate" | "valuation" | "secondary";
 
@@ -469,6 +490,12 @@ export interface Database {
         Update: Partial<CompanyEventInsert>;
         Relationships: [];
       };
+      digest_prefs: {
+        Row: DigestPrefsRow;
+        Insert: DigestPrefsInsert;
+        Update: Partial<DigestPrefsInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -491,6 +518,7 @@ export type MarketSyncRun = MarketSyncRunRow;
 export type PortfolioEvent = PortfolioEventRow;
 export type AlertPrefs = AlertPrefsRow;
 export type CompanyEvent = CompanyEventRow;
+export type DigestPrefs = DigestPrefsRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {

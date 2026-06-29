@@ -60,6 +60,9 @@ export interface DigestInput {
   generatedAt: string; // ISO date
   /** Notable portfolio events from the last week (activity feed). */
   activity?: DigestActivity[];
+  /** Section toggles (per-user digest config). */
+  includeHoldings?: boolean;
+  includeActivity?: boolean;
 }
 
 /** Render a one-page professional portfolio digest PDF. */
@@ -67,6 +70,8 @@ export async function buildDigestPdf({
   companies,
   generatedAt,
   activity = [],
+  includeHoldings = true,
+  includeActivity = true,
 }: DigestInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
@@ -131,33 +136,35 @@ export async function buildDigestPdf({
   y -= 58;
 
   // Holdings table
-  text("HOLDINGS", M, y, { size: 9, bold: true, color: MUTED });
-  y -= 18;
-  const cols = [M, M + 200, M + 320, M + 430];
-  text("Company", cols[0], y, { size: 8, bold: true, color: MUTED });
-  text("Invested", cols[1], y, { size: 8, bold: true, color: MUTED });
-  text("Est. value", cols[2], y, { size: 8, bold: true, color: MUTED });
-  text("Change", cols[3], y, { size: 8, bold: true, color: MUTED });
-  y -= 4;
-  page.drawLine({ start: { x: M, y }, end: { x: 547, y }, thickness: 0.5, color: rgb(0.85, 0.87, 0.9) });
-  y -= 16;
-  for (const co of companies) {
-    const r = companyTableRow(co);
-    text(r.name.slice(0, 34), cols[0], y, { size: 10 });
-    text(formatCurrency(r.amountInvested), cols[1], y, { size: 10 });
-    text(formatCurrency(currentValue(co)), cols[2], y, { size: 10 });
-    text(
-      r.changePct == null ? "—" : formatPercent(r.changePct, { signed: true }),
-      cols[3],
-      y,
-      { size: 10, color: (r.changePct ?? 0) >= 0 ? GREEN : RED },
-    );
+  if (includeHoldings) {
+    text("HOLDINGS", M, y, { size: 9, bold: true, color: MUTED });
     y -= 18;
-    if (y < 140) break;
+    const cols = [M, M + 200, M + 320, M + 430];
+    text("Company", cols[0], y, { size: 8, bold: true, color: MUTED });
+    text("Invested", cols[1], y, { size: 8, bold: true, color: MUTED });
+    text("Est. value", cols[2], y, { size: 8, bold: true, color: MUTED });
+    text("Change", cols[3], y, { size: 8, bold: true, color: MUTED });
+    y -= 4;
+    page.drawLine({ start: { x: M, y }, end: { x: 547, y }, thickness: 0.5, color: rgb(0.85, 0.87, 0.9) });
+    y -= 16;
+    for (const co of companies) {
+      const r = companyTableRow(co);
+      text(r.name.slice(0, 34), cols[0], y, { size: 10 });
+      text(formatCurrency(r.amountInvested), cols[1], y, { size: 10 });
+      text(formatCurrency(currentValue(co)), cols[2], y, { size: 10 });
+      text(
+        r.changePct == null ? "—" : formatPercent(r.changePct, { signed: true }),
+        cols[3],
+        y,
+        { size: 10, color: (r.changePct ?? 0) >= 0 ? GREEN : RED },
+      );
+      y -= 18;
+      if (y < 140) break;
+    }
   }
 
   // Notable activity (last 7 days) from the portfolio events feed.
-  if (activity.length && y > 130) {
+  if (includeActivity && activity.length && y > 130) {
     y -= 14;
     text("NOTABLE ACTIVITY (LAST 7 DAYS)", M, y, {
       size: 9,
@@ -188,20 +195,31 @@ export async function buildDigestPdf({
 export interface DigestRunSummary {
   users: number;
   reports: number;
+  skipped: number;
   status: "success" | "partial";
   detail?: string;
 }
 
 /**
- * Weekly reporting engine: builds a PDF digest per user from their portfolio and
+ * Reporting engine: builds a PDF digest per user from their portfolio and
  * uploads it to the private `reports` Storage bucket at {userId}/{date}-digest.pdf.
- * (Email delivery is deferred — the PDF is stored/downloadable for now.)
+ *
+ * Respects each user's digest_prefs (enabled, frequency, section toggles). Pass
+ * `userId` to scope to one user and `force: true` for an on-demand "generate
+ * now" that ignores the enabled/frequency gates. The weekly cron calls it with
+ * no options (all users, gated by prefs).
  */
-export async function runWeeklyDigest(supabase: DB): Promise<DigestRunSummary> {
-  const { data, error } = await supabase
+export async function runWeeklyDigest(
+  supabase: DB,
+  opts: { userId?: string; force?: boolean } = {},
+): Promise<DigestRunSummary> {
+  let companiesQuery = supabase
     .from("companies")
     .select("*, investments(*), valuations(*), funding_rounds(*), news(*)");
-  if (error) return { users: 0, reports: 0, status: "partial", detail: error.message };
+  if (opts.userId) companiesQuery = companiesQuery.eq("user_id", opts.userId);
+  const { data, error } = await companiesQuery;
+  if (error)
+    return { users: 0, reports: 0, skipped: 0, status: "partial", detail: error.message };
 
   const byUser = new Map<string, CompanyWithRelations[]>();
   for (const c of (data ?? []) as unknown as (CompanyWithRelations & { user_id: string })[]) {
@@ -230,15 +248,40 @@ export async function runWeeklyDigest(supabase: DB): Promise<DigestRunSummary> {
     activityByUser.set(e.user_id, list);
   }
 
-  const date = new Date().toISOString().slice(0, 10);
+  // Per-user digest configuration.
+  let prefsQuery = supabase.from("digest_prefs").select("*");
+  if (opts.userId) prefsQuery = prefsQuery.eq("user_id", opts.userId);
+  const { data: prefRows } = await prefsQuery;
+  const prefsByUser = new Map(
+    (prefRows ?? []).map((p) => [p.user_id, p] as const),
+  );
+
+  const now = new Date();
+  const dayOfMonth = now.getUTCDate();
+  const date = now.toISOString().slice(0, 10);
   let reports = 0;
+  let skipped = 0;
   const errors: string[] = [];
   for (const [userId, companies] of byUser) {
+    const prefs = prefsByUser.get(userId);
+    // Honor enabled / frequency gates unless this is a forced on-demand run.
+    if (!opts.force) {
+      if (prefs && !prefs.enabled) {
+        skipped += 1;
+        continue;
+      }
+      if ((prefs?.frequency ?? "weekly") === "monthly" && dayOfMonth > 7) {
+        skipped += 1;
+        continue;
+      }
+    }
     try {
       const pdf = await buildDigestPdf({
         companies,
         generatedAt: date,
         activity: activityByUser.get(userId) ?? [],
+        includeHoldings: prefs?.include_holdings ?? true,
+        includeActivity: prefs?.include_activity ?? true,
       });
       const { error: upErr } = await supabase.storage
         .from(REPORT_BUCKET)
@@ -256,6 +299,7 @@ export async function runWeeklyDigest(supabase: DB): Promise<DigestRunSummary> {
   return {
     users: byUser.size,
     reports,
+    skipped,
     status: errors.length ? "partial" : "success",
     detail: errors.length ? errors.slice(0, 3).join("; ") : undefined,
   };
