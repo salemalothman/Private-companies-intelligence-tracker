@@ -9,9 +9,15 @@ import {
   Handshake,
   ShieldCheck,
 } from "lucide-react";
-import { getCompany, getCompetitors, getMarketValuation } from "@/lib/queries";
+import {
+  getCompany,
+  getCompetitors,
+  getDocuments,
+  getMarketValuation,
+} from "@/lib/queries";
 import { buildCanonicalRecord } from "@/lib/canonical";
 import { Provenance } from "@/components/company/provenance";
+import { DataRoom } from "@/components/company/data-room";
 import {
   companyChangePct,
   companyInvested,
@@ -86,9 +92,10 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const company = await getCompany(id);
   if (!company) notFound();
-  const [competitors, marketRow] = await Promise.all([
+  const [competitors, marketRow, documents] = await Promise.all([
     getCompetitors(id),
     getMarketValuation(company.name),
+    getDocuments(id),
   ]);
 
   const invested = companyInvested(company);
@@ -270,6 +277,7 @@ export default async function CompanyDetailPage({
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="provenance">Provenance</TabsTrigger>
+          <TabsTrigger value="dataroom">Data room</TabsTrigger>
           <TabsTrigger value="investment">Investment</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
@@ -320,6 +328,11 @@ export default async function CompanyDetailPage({
         {/* Provenance — canonical record across sources */}
         <TabsContent value="provenance">
           <Provenance record={canonical} />
+        </TabsContent>
+
+        {/* Data room — documents + diffs vs previous deck */}
+        <TabsContent value="dataroom">
+          <DataRoom documents={documents} />
         </TabsContent>
 
         {/* Investment */}

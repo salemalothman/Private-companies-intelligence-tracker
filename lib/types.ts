@@ -207,6 +207,8 @@ export type DocumentRowDb = {
   file_path: string;
   type: string | null;
   extracted_data: Record<string, unknown> | null;
+  diff: Record<string, unknown> | null;
+  diff_vs: string | null;
   status: string;
   created_at: string;
 };
@@ -217,6 +219,8 @@ type DocumentInsert = {
   file_path: string;
   type?: string | null;
   extracted_data?: Record<string, unknown> | null;
+  diff?: Record<string, unknown> | null;
+  diff_vs?: string | null;
   status?: string;
 }
 

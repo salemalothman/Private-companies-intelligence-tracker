@@ -7,6 +7,8 @@ import { extractEntities } from "@/lib/documents/extract";
 import { cleanPdfText, hasReadableText } from "@/lib/documents/clean";
 import { fetchUrlContent, urlSource } from "@/lib/documents/fetch-url";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
+import { diffDocuments } from "@/lib/documents/diff";
+import type { ExtractedEntities } from "@/lib/documents/heuristic";
 
 const DOC_BUCKET = "documents";
 
@@ -46,6 +48,34 @@ function revalidate(companyId: string) {
   revalidatePath("/fund");
 }
 
+/**
+ * Data-room diff: compare the new document's extracted facts against the most
+ * recent prior document for the same company, so successive board decks become
+ * a tracked change-set. Returns the diff (when non-empty) + the prior doc id.
+ */
+async function priorDocDiff(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+  entities: ExtractedEntities,
+): Promise<{ diff: Record<string, unknown> | null; diffVs: string | null }> {
+  const { data: prev } = await supabase
+    .from("documents")
+    .select("id, extracted_data")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!prev?.extracted_data) return { diff: null, diffVs: null };
+  const d = diffDocuments(
+    prev.extracted_data as unknown as ExtractedEntities,
+    entities,
+  );
+  return {
+    diff: d.changes.length ? (d as unknown as Record<string, unknown>) : null,
+    diffVs: prev.id,
+  };
+}
+
 /** Ingest a news/document URL: fetch → extract → route to the asset's tabs. */
 export async function processDocumentUrl(
   companyId: string,
@@ -67,6 +97,7 @@ export async function processDocumentUrl(
       source,
       url,
     });
+    const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);
     const applied = await applyMappedIngest(supabase, companyId, entities);
 
     await supabase.from("documents").insert({
@@ -75,6 +106,8 @@ export async function processDocumentUrl(
       file_path: url,
       type: "url",
       extracted_data: entities as unknown as Record<string, unknown>,
+      diff,
+      diff_vs: diffVs,
       status: "done",
     });
 
@@ -145,6 +178,7 @@ async function ingestPdfBuffer(
   const title = filename.replace(/\.pdf$/i, "");
   const source = `pdf:${filename}`;
   const { engine, entities } = await extractEntities(text, { title, source });
+  const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);
   const applied = await applyMappedIngest(supabase, companyId, entities);
 
   await supabase.from("documents").insert({
@@ -153,6 +187,8 @@ async function ingestPdfBuffer(
     file_path: filePath,
     type: "pdf",
     extracted_data: entities as unknown as Record<string, unknown>,
+    diff,
+    diff_vs: diffVs,
     status: "done",
   });
 

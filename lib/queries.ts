@@ -8,6 +8,7 @@ import type {
   CompanyWithRelations,
   CompetitorRow,
   DigestPrefsRow,
+  DocumentRowDb,
   MarketValuationRow,
   PortfolioEventRow,
 } from "@/lib/types";
@@ -169,6 +170,21 @@ export async function getCompetitors(
     return [];
   }
   return data ?? [];
+}
+
+/** A company's ingested documents (data room), newest first, with diffs. */
+export async function getDocuments(companyId: string): Promise<DocumentRowDb[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, company_id, user_id, type, file_path, diff, diff_vs, status, created_at")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("getDocuments:", error.message);
+    return [];
+  }
+  return (data ?? []) as unknown as DocumentRowDb[];
 }
 
 /** The market-cache valuation for a company name, if any (provenance source). */
