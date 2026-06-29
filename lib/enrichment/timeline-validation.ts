@@ -122,6 +122,58 @@ export function validateTimeline(entries: TimelineEntry[]): TimelineResult {
   return { keep, anomalies };
 }
 
+export interface IngestFilterResult<T> {
+  accepted: T[];
+  rejected: { entry: T; reasons: string[] }[];
+}
+
+/**
+ * Write-time guard: reject incoming valuations before they're persisted.
+ * An UNTRUSTED candidate is rejected when it would break the established
+ * verified timeline — a backdated value exceeding a later verified round, or a
+ * duplicate of a verified entry. Trusted (real-publisher / SEC) candidates and
+ * chronologically-consistent ones are accepted; the post-hoc sweep
+ * (validateAllTimelines) still catches anything that lands before its
+ * verified successors exist.
+ */
+export function filterIngestValuations<
+  T extends { date: string | null; post_money: number; source: string | null },
+>(existing: TimelineEntry[], candidates: T[]): IngestFilterResult<T> {
+  const trustedExisting = existing.filter(
+    (e) => e.date && e.post_money != null && isTrustedSource(e.source),
+  );
+  const accepted: T[] = [];
+  const rejected: { entry: T; reasons: string[] }[] = [];
+
+  for (const c of candidates) {
+    if (!c.date || c.post_money == null || isTrustedSource(c.source)) {
+      accepted.push(c); // unvalidatable or verified → allow (dedup handles the rest)
+      continue;
+    }
+    const reasons: string[] = [];
+    if (
+      trustedExisting.some(
+        (o) =>
+          (o.date as string) > (c.date as string) &&
+          (o.post_money as number) < c.post_money * (1 - DOWN_TOLERANCE),
+      )
+    )
+      reasons.push("backdated valuation exceeds a later verified round");
+    if (
+      trustedExisting.some(
+        (o) =>
+          o.date === c.date &&
+          Math.abs((o.post_money as number) - c.post_money) <= c.post_money * DUP_TOLERANCE,
+      )
+    )
+      reasons.push("unverified duplicate of a verified entry");
+
+    if (reasons.length) rejected.push({ entry: c, reasons });
+    else accepted.push(c);
+  }
+  return { accepted, rejected };
+}
+
 export interface TimelineValidationSummary {
   scanned: number;
   stripped: number;

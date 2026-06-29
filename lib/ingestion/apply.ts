@@ -3,6 +3,7 @@ import type { Database } from "@/lib/types";
 import type { MappedIngest } from "@/lib/ingestion/map";
 import { classifyNews } from "@/lib/news/classify";
 import { buildIngestEvents } from "@/lib/events";
+import { filterIngestValuations } from "@/lib/enrichment/timeline-validation";
 
 type DB = SupabaseClient<Database>;
 
@@ -49,7 +50,7 @@ export async function applyMappedIngest(
     supabase.from("funding_rounds").select("round").eq("company_id", companyId),
     supabase
       .from("valuations")
-      .select("date, round, post_money")
+      .select("date, round, post_money, source")
       .eq("company_id", companyId),
     supabase.from("news").select("title").eq("company_id", companyId),
     supabase.from("competitors").select("name").eq("company_id", companyId),
@@ -77,9 +78,22 @@ export async function applyMappedIngest(
   const newRounds = mapped.fundingRounds.filter(
     (r) => !haveRound.has(r.round.toLowerCase()),
   );
-  const newVals = mapped.valuations.filter(
+  const dedupedVals = mapped.valuations.filter(
     (v) => !haveVal.has(`${v.date}|${(v.round ?? "").toLowerCase()}`),
   );
+  // Write-time timeline guard: reject backdated/hallucinated valuations from
+  // untrusted sources before they land (e.g. a $9B value backdated to 2023 from
+  // an "exa" label that would contradict a later verified round).
+  const { accepted: newVals, rejected: rejectedVals } = filterIngestValuations(
+    (vals ?? []) as { date: string | null; post_money: number | null; source: string | null }[],
+    dedupedVals,
+  );
+  if (rejectedVals.length) {
+    console.warn(
+      `applyMappedIngest: rejected ${rejectedVals.length} valuation(s) for ${companyId}:`,
+      rejectedVals.map((r) => `${r.entry.date} $${r.entry.post_money} (${r.reasons.join(", ")})`).join("; "),
+    );
+  }
   const newNews = mapped.news.filter((n) => !haveNews.has(n.title.toLowerCase()));
 
   // Competitors extracted from the document — dedupe against existing rows and
