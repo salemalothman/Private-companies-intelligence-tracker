@@ -11,6 +11,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -107,56 +113,63 @@ export function EventsCalendar({
           {pending ? "Scanning…" : "Scan for events"}
         </Button>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <Section title="Upcoming" icon={CalendarClock} count={upcoming.length}>
-          {upcoming.length === 0 ? (
-            <Empty>
-              No upcoming events. Run a scan to fetch scheduled events, fresh
-              valuations, and secondary prices from the web.
-            </Empty>
-          ) : (
-            <div className="divide-y divide-border/70">
-              {upcoming.map((e) => (
-                <Row key={e.id} e={e} />
-              ))}
-            </div>
-          )}
-        </Section>
-
-        {past.length > 0 && (
-          <Section title="Historical timeline" icon={History} count={past.length}>
-            <div className="divide-y divide-border/70">
-              {past.slice(0, 12).map((e) => (
-                <Row key={e.id} e={e} muted />
-              ))}
-            </div>
+      <CardContent>
+        {/* Upcoming defaults open; the longer historical timeline starts collapsed. */}
+        <Accordion type="multiple" defaultValue={["upcoming"]} className="space-y-3">
+          <Section value="upcoming" title="Upcoming" icon={CalendarClock} count={upcoming.length}>
+            {upcoming.length === 0 ? (
+              <Empty>
+                No upcoming events. Run a scan to fetch scheduled events, fresh
+                valuations, and secondary prices from the web.
+              </Empty>
+            ) : (
+              <div className="divide-y divide-border/70">
+                {upcoming.map((e) => (
+                  <Row key={e.id} e={e} />
+                ))}
+              </div>
+            )}
           </Section>
-        )}
+
+          {past.length > 0 && (
+            <Section value="historical" title="Historical timeline" icon={History} count={past.length}>
+              <div className="divide-y divide-border/70">
+                {past.slice(0, 12).map((e) => (
+                  <Row key={e.id} e={e} muted />
+                ))}
+              </div>
+            </Section>
+          )}
+        </Accordion>
       </CardContent>
     </Card>
   );
 }
 
 function Section({
+  value,
   title,
   icon: Icon,
   count,
   children,
 }: {
+  value: string;
   title: string;
   icon: LucideIcon;
   count: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <div className="label-eyebrow flex items-center gap-2 border-b border-border px-5 py-2.5">
-        <Icon className="h-3.5 w-3.5" />
-        {title}
-        <span className="text-muted-foreground">({count})</span>
-      </div>
-      {children}
-    </div>
+    <AccordionItem value={value} className="overflow-hidden rounded-lg border border-border">
+      <AccordionTrigger className="label-eyebrow px-5 py-2.5 hover:bg-muted/40 data-[state=open]:border-b data-[state=open]:border-border">
+        <span className="flex items-center gap-2">
+          <Icon className="h-3.5 w-3.5" />
+          {title}
+          <span className="text-muted-foreground">({count})</span>
+        </span>
+      </AccordionTrigger>
+      <AccordionContent>{children}</AccordionContent>
+    </AccordionItem>
   );
 }
 

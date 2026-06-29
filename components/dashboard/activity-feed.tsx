@@ -10,7 +10,13 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatDate } from "@/lib/utils";
@@ -39,34 +45,42 @@ export function ActivityFeed({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div className="flex items-center gap-2">
-          <CardTitle className="text-sm font-medium">Portfolio activity</CardTitle>
-          {unseen > 0 && <Badge variant="default">{unseen} new</Badge>}
-        </div>
-        <div className="flex items-center gap-1">
-          {unseen > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={() => start(() => markEventsSeen().then(() => router.refresh()))}
-            >
-              <Check className="h-3.5 w-3.5" /> Mark all read
-            </Button>
-          )}
-          <AlertPrefsDialog prefs={prefs} />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {events.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No activity yet — funding rounds, valuation moves, contract wins, and
-            new competitors will appear here as data refreshes.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {events.map((e) => {
+      {/* The full activity list starts collapsed to keep the dashboard compact. */}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="activity" className="border-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <AccordionTrigger className="flex-none gap-2 hover:opacity-80">
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-medium text-foreground">
+                  Portfolio activity
+                </span>
+                {unseen > 0 && <Badge variant="default">{unseen} new</Badge>}
+              </span>
+            </AccordionTrigger>
+            <div className="flex items-center gap-1">
+              {unseen > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={() => start(() => markEventsSeen().then(() => router.refresh()))}
+                >
+                  <Check className="h-3.5 w-3.5" /> Mark all read
+                </Button>
+              )}
+              <AlertPrefsDialog prefs={prefs} />
+            </div>
+          </CardHeader>
+          <AccordionContent>
+            <CardContent>
+              {events.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No activity yet — funding rounds, valuation moves, contract
+                  wins, and new competitors will appear here as data refreshes.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {events.map((e) => {
               const Icon = ICON[e.type] ?? TrendingUp;
               return (
                 <li key={e.id}>
@@ -104,11 +118,14 @@ export function ActivityFeed({
                     </span>
                   </button>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
+                  );
+                })}
+                </ul>
+              )}
+            </CardContent>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
   );
 }
