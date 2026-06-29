@@ -14,14 +14,23 @@ export type Sentiment = "positive" | "neutral" | "negative";
 type Empty = { [_ in never]: never };
 
 // --- profiles ---
+export type ProfileStatus = "pending_approval" | "active";
 export type ProfileRow = {
   id: string;
   full_name: string | null;
+  email: string | null;
+  status: ProfileStatus;
+  approval_token: string | null;
+  approved_at: string | null;
   created_at: string;
 }
 type ProfileInsert = {
   id: string;
   full_name?: string | null;
+  email?: string | null;
+  status?: ProfileStatus;
+  approval_token?: string | null;
+  approved_at?: string | null;
   created_at?: string;
 }
 
