@@ -1,4 +1,5 @@
 import type { CompanyWithRelations } from "@/lib/types";
+import { valuationToRevenue } from "@/lib/competitors/rank";
 
 /**
  * Canonical company record with source lineage.
@@ -29,6 +30,8 @@ export interface CanonicalField {
 export interface CanonicalRecord {
   valuation: CanonicalField;
   revenue: CanonicalField;
+  /** Valuation-to-Revenue multiple (latest valuation ÷ revenue), null if uncomputable. */
+  multiple: number | null;
   sources: string[]; // distinct providers across the whole record
 }
 
@@ -129,5 +132,10 @@ export function buildCanonicalRecord(
     ...new Set([...valuationObs, ...revenueObs].map((o) => provider(o.source))),
   ].sort();
 
-  return { valuation, revenue, sources };
+  return {
+    valuation,
+    revenue,
+    multiple: valuationToRevenue(valuation.value, revenue.value),
+    sources,
+  };
 }

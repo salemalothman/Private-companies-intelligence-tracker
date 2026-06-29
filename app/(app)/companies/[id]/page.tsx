@@ -152,7 +152,9 @@ export default async function CompanyDetailPage({
       // Grok-discovered figure when the company has no recorded valuations.
       valuation: valuationAmount(latestVal) ?? selfMetric?.valuation ?? null,
       valuationDate: latestVal?.date ?? selfMetric?.valuation_date ?? null,
-      revenue: selfMetric?.revenue ?? null,
+      // Use the reconciled canonical revenue (durable companies.revenue + market
+      // + self) so the portfolio company's own V/R multiple is populated.
+      revenue: canonical.revenue.value,
     },
     peers,
   );
@@ -227,7 +229,7 @@ export default async function CompanyDetailPage({
 
       {/* Key stats */}
       <Card>
-        <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 lg:grid-cols-5">
+        <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="Invested" value={formatCurrency(invested)} />
           <Stat
             label="Est. current value"
@@ -256,6 +258,10 @@ export default async function CompanyDetailPage({
                 ? formatCurrency(canonical.revenue.value)
                 : "—"
             }
+          />
+          <Stat
+            label="V / R multiple"
+            value={canonical.multiple != null ? formatMultiple(canonical.multiple) : "—"}
           />
         </CardContent>
       </Card>

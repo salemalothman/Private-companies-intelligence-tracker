@@ -1,7 +1,7 @@
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMultiple } from "@/lib/utils";
 import { provider, type CanonicalField, type CanonicalRecord } from "@/lib/canonical";
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -90,6 +90,20 @@ export function Provenance({ record }: { record: CanonicalRecord }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <FieldCard title="Valuation" field={record.valuation} />
         <FieldCard title="Revenue / ARR" field={record.revenue} />
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-5 py-3">
+        <div>
+          <div className="text-xs text-muted-foreground">
+            Valuation-to-Revenue multiple
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Latest valuation ÷ trailing revenue / ARR
+          </div>
+        </div>
+        <div className="text-2xl font-semibold tabular-nums">
+          {record.multiple != null ? formatMultiple(record.multiple) : "—"}
+        </div>
       </div>
 
       {record.sources.length > 0 && (
