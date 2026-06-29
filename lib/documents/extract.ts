@@ -10,7 +10,7 @@ import {
 export type { ExtractedEntities, ExtractOptions };
 
 export interface ExtractionResult {
-  engine: "llm" | "grok-vision" | "heuristic";
+  engine: "llm" | "llm-vision" | "grok-vision" | "heuristic";
   entities: ExtractedEntities;
 }
 
@@ -110,8 +110,31 @@ async function llmExtract(
 }
 
 /**
- * OCR path for image-based PDFs (slide decks with no extractable text): render
- * each page to a PNG (pdf-parse / pdfjs), then have Grok's vision model read the
+ * Primary OCR path for image-based PDFs: send the PDF straight to Claude
+ * (claude-haiku-4-5), which natively reads the rendered pages — no rasterizing
+ * needed. Returns the same structured entities. Gated on ANTHROPIC_API_KEY.
+ */
+export async function extractEntitiesFromPdf(
+  buf: Uint8Array,
+  opts: ExtractOptions,
+): Promise<ExtractionResult> {
+  const base64 = Buffer.from(buf).toString("base64");
+  const raw = await callAnthropic([
+    {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: base64 },
+    },
+    {
+      type: "text",
+      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nExtract from the attached PDF (it may be a slide deck — read the pages).`,
+    },
+  ]);
+  return { engine: "llm-vision", entities: parseEntities(raw, opts) };
+}
+
+/**
+ * Fallback OCR for image-based PDFs when only Grok is available: render each
+ * page to a PNG (pdf-parse / pdfjs), then have Grok's vision model read the
  * page images and return the same structured entities. Gated on XAI_API_KEY.
  */
 export async function extractEntitiesViaGrokOcr(
