@@ -55,6 +55,31 @@ describe("validateTimeline — Replit's true sequence", () => {
     expect(accepted.map((a) => a.date).sort()).toEqual(["2026-04-01", "2026-06-01"]);
   });
 
+  it("strips a forward down-round regression and an implausible outlier", () => {
+    const { keep, anomalies } = validateTimeline([
+      { id: "v", date: "2026-03-14", post_money: 9e9, source: "techcrunch.com" },
+      { id: "w", date: "2026-06-29", post_money: 3e9, source: "unverified — primary source pending" },
+      { id: "z", date: "2026-06-19", post_money: 4.6e12, source: "exa" }, // $4.6T
+    ]);
+    const stripped = anomalies.filter((a) => a.action === "strip").map((a) => a.entry.id).sort();
+    expect(stripped).toEqual(["w", "z"]);
+    expect(keep.map((k) => k.id)).toEqual(["v"]);
+  });
+
+  it("rejects forward down-rounds, any-date duplicates, and absurd outliers at write time", () => {
+    const existing: TimelineEntry[] = [
+      { date: "2026-03-14", post_money: 9e9, source: "techcrunch.com" },
+    ];
+    const { accepted, rejected } = filterIngestValuations(existing, [
+      { date: "2026-06-29", post_money: 3e9, source: "exa" }, // forward low
+      { date: "2026-01-01", post_money: 9e9, source: "exa" }, // any-date dup of verified $9B
+      { date: "2026-06-19", post_money: 4.6e12, source: "exa" }, // absurd
+      { date: "2026-09-01", post_money: 1.2e10, source: "bloomberg.com" }, // trusted growth
+    ]);
+    expect(rejected).toHaveLength(3);
+    expect(accepted.map((a) => a.post_money)).toEqual([1.2e10]);
+  });
+
   it("keeps a lone unverified entry (only source) but flags it", () => {
     const { keep, anomalies } = validateTimeline([
       { id: "x", date: "2024-01-01", post_money: 2e9, round: "Series B", source: "grok:x" },

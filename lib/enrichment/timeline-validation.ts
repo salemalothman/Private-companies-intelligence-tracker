@@ -20,7 +20,32 @@ import { isGenericSource } from "@/lib/enrichment/sanitize-sources";
 type DB = SupabaseClient<Database>;
 
 const DOWN_TOLERANCE = 0.05; // a later value below (1 - 5%) of an earlier one = down round
-const DUP_TOLERANCE = 0.02; // same-date values within 2% = duplicate
+const DUP_TOLERANCE = 0.02; // values within 2% of a verified figure = duplicate
+const MAX_PLAUSIBLE = 5e11; // $500B — above any real private company; higher = a parse error
+
+/**
+ * Reasons an entry is invalid against a set of trusted reference entries.
+ * Implausible outliers are rejected from any source; untrusted entries are also
+ * rejected when they break monotonic growth (in either direction) or duplicate
+ * a verified figure.
+ */
+function rejectionReasons(
+  entry: { date: string; post_money: number; source: string | null },
+  trustedRefs: { date: string; post_money: number }[],
+): string[] {
+  const reasons: string[] = [];
+  const v = entry.post_money;
+  if (v > MAX_PLAUSIBLE) reasons.push("implausible valuation — likely a parse error");
+  if (!isTrustedSource(entry.source)) {
+    if (trustedRefs.some((o) => o.date > entry.date && o.post_money < v * (1 - DOWN_TOLERANCE)))
+      reasons.push("backdated valuation exceeds a later verified round");
+    if (trustedRefs.some((o) => o.date < entry.date && o.post_money > v * (1 + DOWN_TOLERANCE)))
+      reasons.push("valuation falls below an earlier verified round (untrusted down-round)");
+    if (trustedRefs.some((o) => Math.abs(o.post_money - v) <= v * DUP_TOLERANCE))
+      reasons.push("unverified duplicate of a verified figure");
+  }
+  return reasons;
+}
 
 export interface TimelineEntry {
   id?: string;
@@ -64,7 +89,9 @@ export function isTrustedSource(source: string | null | undefined): boolean {
 export function validateTimeline(entries: TimelineEntry[]): TimelineResult {
   const keep: TimelineEntry[] = [];
   const anomalies: TimelineAnomaly[] = [];
-  const dated = entries.filter((e) => e.date && e.post_money != null);
+  const trustedRefs = entries
+    .filter((e) => e.date && e.post_money != null && isTrustedSource(e.source))
+    .map((e) => ({ date: e.date as string, post_money: e.post_money as number }));
 
   for (const e of entries) {
     if (!(e.date && e.post_money != null)) {
@@ -75,46 +102,19 @@ export function validateTimeline(entries: TimelineEntry[]): TimelineResult {
       });
       continue;
     }
-    const trusted = isTrustedSource(e.source);
-    const value = e.post_money as number;
-    const date = e.date as string;
-
-    const exceedsLaterVerified = dated.some(
-      (o) =>
-        o !== e &&
-        (o.date as string) > date &&
-        isTrustedSource(o.source) &&
-        (o.post_money as number) < value * (1 - DOWN_TOLERANCE),
+    const entry = { date: e.date, post_money: e.post_money, source: e.source };
+    // Compare against trusted refs other than this entry itself.
+    const refs = trustedRefs.filter(
+      (o) => !(o.date === entry.date && o.post_money === entry.post_money && isTrustedSource(e.source)),
     );
-    const redundantDup =
-      !trusted &&
-      dated.some(
-        (o) =>
-          o !== e &&
-          isTrustedSource(o.source) &&
-          o.date === date &&
-          Math.abs((o.post_money as number) - value) <= value * DUP_TOLERANCE,
-      );
+    const reasons = rejectionReasons(entry, refs);
 
-    const reasons: string[] = [];
-    if (exceedsLaterVerified)
-      reasons.push("valuation exceeds a later verified round (breaks monotonic growth / sequential-round logic)");
-    if (!trusted) reasons.push("source is not a trusted primary publisher");
-    if (redundantDup) reasons.push("redundant unverified duplicate of a verified entry");
-
-    if (!trusted && (exceedsLaterVerified || redundantDup)) {
+    if (reasons.length) {
       anomalies.push({ entry: e, reasons, action: "strip" });
-    } else if (!trusted) {
-      anomalies.push({ entry: e, reasons, action: "flag" });
+    } else if (!isTrustedSource(e.source)) {
+      anomalies.push({ entry: e, reasons: ["unverified, but chronologically consistent"], action: "flag" });
       keep.push(e); // lone unverified — keep but flagged
     } else {
-      if (exceedsLaterVerified) {
-        anomalies.push({
-          entry: e,
-          reasons: ["verified entry exceeds a later verified round — review for a genuine down round"],
-          action: "flag",
-        });
-      }
       keep.push(e);
     }
   }
@@ -139,35 +139,21 @@ export interface IngestFilterResult<T> {
 export function filterIngestValuations<
   T extends { date: string | null; post_money: number; source: string | null },
 >(existing: TimelineEntry[], candidates: T[]): IngestFilterResult<T> {
-  const trustedExisting = existing.filter(
-    (e) => e.date && e.post_money != null && isTrustedSource(e.source),
-  );
+  const trustedRefs = existing
+    .filter((e) => e.date && e.post_money != null && isTrustedSource(e.source))
+    .map((e) => ({ date: e.date as string, post_money: e.post_money as number }));
   const accepted: T[] = [];
   const rejected: { entry: T; reasons: string[] }[] = [];
 
   for (const c of candidates) {
-    if (!c.date || c.post_money == null || isTrustedSource(c.source)) {
-      accepted.push(c); // unvalidatable or verified → allow (dedup handles the rest)
+    if (c.date == null || c.post_money == null) {
+      accepted.push(c); // unvalidatable here — dedup / sweep handle it
       continue;
     }
-    const reasons: string[] = [];
-    if (
-      trustedExisting.some(
-        (o) =>
-          (o.date as string) > (c.date as string) &&
-          (o.post_money as number) < c.post_money * (1 - DOWN_TOLERANCE),
-      )
-    )
-      reasons.push("backdated valuation exceeds a later verified round");
-    if (
-      trustedExisting.some(
-        (o) =>
-          o.date === c.date &&
-          Math.abs((o.post_money as number) - c.post_money) <= c.post_money * DUP_TOLERANCE,
-      )
-    )
-      reasons.push("unverified duplicate of a verified entry");
-
+    const reasons = rejectionReasons(
+      { date: c.date, post_money: c.post_money, source: c.source },
+      trustedRefs,
+    );
     if (reasons.length) rejected.push({ entry: c, reasons });
     else accepted.push(c);
   }

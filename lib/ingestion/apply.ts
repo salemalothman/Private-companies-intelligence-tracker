@@ -3,7 +3,10 @@ import type { Database } from "@/lib/types";
 import type { MappedIngest } from "@/lib/ingestion/map";
 import { classifyNews } from "@/lib/news/classify";
 import { buildIngestEvents } from "@/lib/events";
-import { filterIngestValuations } from "@/lib/enrichment/timeline-validation";
+import {
+  filterIngestValuations,
+  isTrustedSource,
+} from "@/lib/enrichment/timeline-validation";
 
 type DB = SupabaseClient<Database>;
 
@@ -54,7 +57,11 @@ export async function applyMappedIngest(
       .eq("company_id", companyId),
     supabase.from("news").select("title").eq("company_id", companyId),
     supabase.from("competitors").select("name").eq("company_id", companyId),
-    supabase.from("companies").select("user_id").eq("id", companyId).maybeSingle(),
+    supabase
+      .from("companies")
+      .select("user_id, revenue, revenue_source")
+      .eq("id", companyId)
+      .maybeSingle(),
     supabase
       .from("portfolio_events")
       .select("type, title, occurred_at")
@@ -166,14 +173,21 @@ export async function applyMappedIngest(
     );
   }
 
-  // Map the subject company's own revenue onto its durable financial profile.
+  // Map the subject company's own revenue onto its durable financial profile —
+  // but never let an UNTRUSTED figure clobber an existing trusted one (e.g. an
+  // Exa "$1B projection" overwriting a verified $240M from techcrunch.com).
   let revenueUpdated = false;
-  if (mapped.revenue != null && mapped.revenue > 0) {
+  const incomingRevSource = mapped.revenueSource ?? "document";
+  const revenueClobberOk =
+    company?.revenue == null ||
+    isTrustedSource(incomingRevSource) ||
+    !isTrustedSource(company?.revenue_source);
+  if (mapped.revenue != null && mapped.revenue > 0 && revenueClobberOk) {
     const { error: revErr } = await supabase
       .from("companies")
       .update({
         revenue: mapped.revenue,
-        revenue_source: mapped.revenueSource ?? "document",
+        revenue_source: incomingRevSource,
         revenue_date: new Date().toISOString().slice(0, 10),
       })
       .eq("id", companyId);

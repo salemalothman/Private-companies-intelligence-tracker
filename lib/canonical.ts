@@ -1,5 +1,6 @@
 import type { CompanyWithRelations } from "@/lib/types";
 import { valuationToRevenue } from "@/lib/competitors/rank";
+import { isTrustedSource } from "@/lib/enrichment/timeline-validation";
 
 /**
  * Canonical company record with source lineage.
@@ -60,8 +61,12 @@ function field(observations: SourceObservation[]): CanonicalField {
   if (valued.length === 0) {
     return { value: null, asOf: null, observations, corroboration: 0, conflict: false };
   }
-  // Canonical = most recent dated observation with a value.
-  const canon = [...valued].sort((a, b) =>
+  // Canonical = most recent dated observation, preferring trusted publishers so
+  // an unverified figure (e.g. a leaked aggregator value) can never become the
+  // headline when a verified one exists.
+  const trusted = valued.filter((o) => isTrustedSource(o.source));
+  const pool = trusted.length ? trusted : valued;
+  const canon = [...pool].sort((a, b) =>
     (b.date ?? "").localeCompare(a.date ?? ""),
   )[0];
   const v = canon.value as number;
