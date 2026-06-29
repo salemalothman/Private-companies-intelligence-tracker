@@ -249,6 +249,14 @@ export default async function CompanyDetailPage({
             label="Ownership"
             value={ownership != null ? `${ownership}%` : "—"}
           />
+          <Stat
+            label="Revenue / ARR"
+            value={
+              canonical.revenue.value != null
+                ? formatCurrency(canonical.revenue.value)
+                : "—"
+            }
+          />
         </CardContent>
       </Card>
 

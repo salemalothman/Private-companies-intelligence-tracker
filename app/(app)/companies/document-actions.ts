@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { extractEntities } from "@/lib/documents/extract";
+import { extractEntities, extractEntitiesFromPdf } from "@/lib/documents/extract";
 import { cleanPdfText, hasReadableText } from "@/lib/documents/clean";
 import { fetchUrlContent, urlSource } from "@/lib/documents/fetch-url";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
@@ -15,7 +15,7 @@ const DOC_BUCKET = "documents";
 export interface DocResult {
   ok?: boolean;
   error?: string;
-  engine?: "llm" | "heuristic";
+  engine?: "llm" | "llm-vision" | "heuristic";
   roundsAdded?: number;
   valuationsAdded?: number;
   newsAdded?: number;
@@ -172,16 +172,29 @@ async function ingestPdfBuffer(
   // Strip page markers, control chars, decorative runs, and re-join hyphenated
   // line breaks into readable prose before extraction.
   const text = cleanPdfText(raw);
-
-  if (!hasReadableText(text))
-    return {
-      error:
-        "This PDF has little or no extractable text — it looks image-based (e.g. a slide deck), so OCR is required. See ARCHITECTURE.md.",
-    };
-
   const title = filename.replace(/\.pdf$/i, "");
   const source = `pdf:${filename}`;
-  const { engine, entities } = await extractEntities(text, { title, source });
+
+  let engine: "llm" | "llm-vision" | "heuristic";
+  let entities;
+  if (hasReadableText(text)) {
+    ({ engine, entities } = await extractEntities(text, { title, source }));
+  } else if (process.env.ANTHROPIC_API_KEY) {
+    // Image-based deck (no extractable text) → OCR by sending the PDF to
+    // Claude's vision/document API, which reads the rendered pages.
+    try {
+      ({ engine, entities } = await extractEntitiesFromPdf(buf, { title, source }));
+    } catch (e) {
+      return {
+        error: `Couldn't read this PDF — it's image-based and OCR failed (${(e as Error).message}). Try a smaller file or paste the source URL.`,
+      };
+    }
+  } else {
+    return {
+      error:
+        "This PDF is image-based (e.g. a slide deck) with no extractable text. OCR needs ANTHROPIC_API_KEY configured. See ARCHITECTURE.md.",
+    };
+  }
   const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);
   const applied = await applyMappedIngest(supabase, companyId, {
     ...entities,
