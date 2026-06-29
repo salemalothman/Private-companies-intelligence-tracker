@@ -57,7 +57,11 @@ async function callAnthropic(content: unknown): Promise<string> {
       messages: [{ role: "user", content }],
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const detail = body.match(/"message":\s*"([^"]+)"/)?.[1] ?? body.slice(0, 160);
+    throw new Error(`Anthropic ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
   const data = await res.json();
   return data?.content?.[0]?.text ?? "";
 }
@@ -110,23 +114,49 @@ async function llmExtract(
 }
 
 /**
- * Primary OCR path for image-based PDFs: send the PDF straight to Claude
- * (claude-haiku-4-5), which natively reads the rendered pages — no rasterizing
- * needed. Returns the same structured entities. Gated on ANTHROPIC_API_KEY.
+ * Render the first N pages of a PDF to downscaled PNGs (pdf-parse / pdfjs +
+ * @napi-rs/canvas, all bundled). Bounding page count and width keeps the vision
+ * request small — large/many-page decks blow past the native-PDF input limits.
+ */
+async function renderPdfPages(buf: Uint8Array): Promise<Uint8Array[]> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: buf });
+  try {
+    const shot = await parser.getScreenshot({
+      first: MAX_OCR_PAGES,
+      desiredWidth: 1280,
+      imageDataUrl: false,
+    });
+    return shot.pages.map((p) => p.data).filter(Boolean);
+  } finally {
+    await parser.destroy?.();
+  }
+}
+
+/**
+ * Primary OCR path for image-based PDFs: render the pages to images, then have
+ * Claude (claude-haiku-4-5) read them and return the same structured entities.
+ * Rendering (rather than sending the raw PDF) keeps the request within limits
+ * for large slide decks. Gated on ANTHROPIC_API_KEY.
  */
 export async function extractEntitiesFromPdf(
   buf: Uint8Array,
   opts: ExtractOptions,
 ): Promise<ExtractionResult> {
-  const base64 = Buffer.from(buf).toString("base64");
+  const images = await renderPdfPages(buf);
+  if (images.length === 0) throw new Error("could not render PDF pages");
   const raw = await callAnthropic([
-    {
-      type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: base64 },
-    },
+    ...images.map((data) => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/png",
+        data: Buffer.from(data).toString("base64"),
+      },
+    })),
     {
       type: "text",
-      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nExtract from the attached PDF (it may be a slide deck — read the pages).`,
+      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nThe document is a slide deck supplied as page images. Extract from all pages.`,
     },
   ]);
   return { engine: "llm-vision", entities: parseEntities(raw, opts) };
@@ -134,22 +164,14 @@ export async function extractEntitiesFromPdf(
 
 /**
  * Fallback OCR for image-based PDFs when only Grok is available: render each
- * page to a PNG (pdf-parse / pdfjs), then have Grok's vision model read the
- * page images and return the same structured entities. Gated on XAI_API_KEY.
+ * page to a PNG, then have Grok's vision model read the page images and return
+ * the same structured entities. Gated on XAI_API_KEY.
  */
 export async function extractEntitiesViaGrokOcr(
   buf: Uint8Array,
   opts: ExtractOptions,
 ): Promise<ExtractionResult> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buf });
-  let images: Uint8Array[] = [];
-  try {
-    const shot = await parser.getScreenshot({ first: MAX_OCR_PAGES });
-    images = shot.pages.map((p) => p.data).filter(Boolean);
-  } finally {
-    await parser.destroy?.();
-  }
+  const images = await renderPdfPages(buf);
   if (images.length === 0) throw new Error("could not render PDF pages");
 
   const { text } = await generateText({
