@@ -59,6 +59,7 @@ export async function syncAllCompanies(): Promise<
   const summary = await runGlobalSync(supabase);
   revalidatePath("/dashboard");
   revalidatePath("/companies");
+  revalidatePath("/companies/[id]", "page"); // refresh every company detail page
   return summary;
 }
 
