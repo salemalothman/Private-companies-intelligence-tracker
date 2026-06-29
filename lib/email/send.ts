@@ -1,10 +1,17 @@
 import "server-only";
 
+export interface EmailAttachment {
+  filename: string;
+  /** Base64-encoded file content. */
+  content: string;
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface SendResult {
@@ -43,6 +50,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
         subject: msg.subject,
         html: msg.html,
         text: msg.text,
+        attachments: msg.attachments,
       }),
     });
     if (!res.ok) {

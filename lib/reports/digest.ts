@@ -8,6 +8,7 @@ import {
   portfolioSummary,
 } from "@/lib/metrics";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
+import { sendDigestEmail } from "@/lib/email/digest-email";
 
 type DB = SupabaseClient<Database>;
 
@@ -94,20 +95,27 @@ export async function buildDigestPdf({
       color: opts.color ?? INK,
     });
 
-  // Header
-  drawLogo(page, M, y + 26, 30);
-  text("Automation Investment Intelligence Platform", M + 40, y + 14, {
-    size: 13,
+  // Header — logo mark + two-line wordmark on the left, brand-teal report
+  // label + date right-aligned, closed with a teal accent rule.
+  drawLogo(page, M, y + 28, 30);
+  text("Automation Investment", M + 42, y + 16, { size: 13, bold: true });
+  text("Intelligence Platform", M + 42, y + 3, { size: 10, color: MUTED });
+
+  const rLabel = "PORTFOLIO DIGEST";
+  text(rLabel, 547 - bold.widthOfTextAtSize(rLabel, 9), y + 16, {
+    size: 9,
     bold: true,
+    color: TEAL,
   });
-  text("Weekly Portfolio Digest", M + 40, y, { size: 10, color: MUTED });
-  text(`Generated ${formatDate(generatedAt)}`, M + 40, y - 12, {
+  const gen = `Generated ${formatDate(generatedAt)}`;
+  text(gen, 547 - font.widthOfTextAtSize(gen, 9), y + 3, {
     size: 9,
     color: MUTED,
   });
-  y -= 56;
-  page.drawLine({ start: { x: M, y }, end: { x: 547, y }, thickness: 0.75, color: rgb(0.85, 0.87, 0.9) });
-  y -= 28;
+
+  y -= 34;
+  page.drawLine({ start: { x: M, y }, end: { x: 547, y }, thickness: 1.25, color: TEAL });
+  y -= 30;
 
   // Portfolio summary
   const s = portfolioSummary(companies);
@@ -196,6 +204,7 @@ export interface DigestRunSummary {
   users: number;
   reports: number;
   skipped: number;
+  emailed: number;
   status: "success" | "partial";
   detail?: string;
 }
@@ -219,7 +228,7 @@ export async function runWeeklyDigest(
   if (opts.userId) companiesQuery = companiesQuery.eq("user_id", opts.userId);
   const { data, error } = await companiesQuery;
   if (error)
-    return { users: 0, reports: 0, skipped: 0, status: "partial", detail: error.message };
+    return { users: 0, reports: 0, skipped: 0, emailed: 0, status: "partial", detail: error.message };
 
   const byUser = new Map<string, CompanyWithRelations[]>();
   for (const c of (data ?? []) as unknown as (CompanyWithRelations & { user_id: string })[]) {
@@ -261,6 +270,7 @@ export async function runWeeklyDigest(
   const date = now.toISOString().slice(0, 10);
   let reports = 0;
   let skipped = 0;
+  let emailed = 0;
   const errors: string[] = [];
   for (const [userId, companies] of byUser) {
     const prefs = prefsByUser.get(userId);
@@ -289,8 +299,28 @@ export async function runWeeklyDigest(
           contentType: "application/pdf",
           upsert: true,
         });
-      if (upErr) errors.push(upErr.message);
-      else reports += 1;
+      if (upErr) {
+        errors.push(upErr.message);
+        continue;
+      }
+      reports += 1;
+
+      // Deliver by email with the PDF attached, when a recipient is configured
+      // and email is wired up (degrades to a no-op otherwise).
+      const to = prefs?.recipient_email?.trim();
+      if (to) {
+        const s = portfolioSummary(companies);
+        const res = await sendDigestEmail({
+          to,
+          generatedAt: date,
+          portfolioValue: s.portfolioValue,
+          companyCount: s.companyCount,
+          pdf,
+          filename: `portfolio-digest-${date}.pdf`,
+        });
+        if (res.ok) emailed += 1;
+        else if (res.error) errors.push(`email ${to}: ${res.error}`);
+      }
     } catch (e) {
       errors.push(`${userId}: ${(e as Error).message}`);
     }
@@ -300,6 +330,7 @@ export async function runWeeklyDigest(
     users: byUser.size,
     reports,
     skipped,
+    emailed,
     status: errors.length ? "partial" : "success",
     detail: errors.length ? errors.slice(0, 3).join("; ") : undefined,
   };

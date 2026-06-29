@@ -86,7 +86,11 @@ export function ReportsView({
     setMsg(null);
     startGen(async () => {
       const r = await generateDigestNow();
-      setMsg("error" in r ? r.error : `Digest generated (${r.reports} report).`);
+      setMsg(
+        "error" in r
+          ? r.error
+          : `Digest generated${r.emailed ? " and emailed to recipient" : ""}.`,
+      );
       router.refresh();
     });
   }
