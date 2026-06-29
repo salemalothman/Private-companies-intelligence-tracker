@@ -17,7 +17,7 @@ export default async function CompaniesPage() {
         } in your portfolio`}
         actions={<AddCompanyDialog />}
       />
-      <CompanyTable rows={rows} />
+      <CompanyTable rows={rows} companies={companies} />
     </div>
   );
 }

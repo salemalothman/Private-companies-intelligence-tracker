@@ -11,16 +11,31 @@ import type { Company } from "@/lib/types";
 export function EditOverviewDialog({
   company,
   defaults,
+  iconOnly = false,
 }: {
   company: Company;
   defaults: { carry_pct: number; mgmt_fee_pct: number };
+  /** Render a compact icon-only trigger (for dense lists). */
+  iconOnly?: boolean;
 }) {
   return (
     <FormDialog
       trigger={
-        <Button size="sm" variant="ghost" className="gap-2">
-          <Pencil className="h-3.5 w-3.5" /> Edit
-        </Button>
+        iconOnly ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Edit company"
+            aria-label={`Edit ${company.name}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost" className="gap-2">
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        )
       }
       title="Edit company overview"
       action={updateCompanyOverview.bind(null, company.id)}

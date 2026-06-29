@@ -1,12 +1,7 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   DollarSign,
   History,
-  RefreshCw,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -18,9 +13,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
-import { scanCompanyEvents } from "@/app/(app)/dashboard/actions";
 import type { CalendarEvent } from "@/lib/queries";
 
 const ICON: Record<string, LucideIcon> = {
@@ -84,34 +77,10 @@ export function EventsCalendar({
   upcoming: CalendarEvent[];
   past: CalendarEvent[];
 }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
-
-  function scan() {
-    setMsg(null);
-    start(async () => {
-      const r = await scanCompanyEvents();
-      if ("error" in r) setMsg(r.error);
-      else
-        setMsg(
-          `Scanned ${r.companies} ${r.companies === 1 ? "company" : "companies"} — ${r.inserted} new event${r.inserted === 1 ? "" : "s"} added.`,
-        );
-      router.refresh();
-    });
-  }
-
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div>
-          <CardTitle className="text-sm font-medium">Events &amp; market signals</CardTitle>
-          {msg && <p className="mt-0.5 text-xs text-muted-foreground">{msg}</p>}
-        </div>
-        <Button size="sm" onClick={scan} disabled={pending}>
-          <RefreshCw className={cn("h-3.5 w-3.5", pending && "animate-spin")} />
-          {pending ? "Scanning…" : "Scan for events"}
-        </Button>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">Events &amp; market signals</CardTitle>
       </CardHeader>
       <CardContent>
         {/* Upcoming defaults open; the longer historical timeline starts collapsed. */}

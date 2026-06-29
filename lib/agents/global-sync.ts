@@ -4,6 +4,7 @@ import type { Database } from "@/lib/types";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
 import { exaFinancialsFor } from "@/lib/connectors/exa";
+import { runExaEventsSync } from "@/lib/agents/exa-events";
 import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
 import { purgeWrongEntitySignals } from "@/lib/enrichment/disambiguation";
 import {
@@ -111,6 +112,14 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     } catch (e) {
       errors.push(`${c.name}: ${(e as Error).message}`);
     }
+  }
+
+  // 4b. Events sweep — scheduled corporate events, fresh valuations, and
+  //     secondary prices (folded into Sync so it's the single on-demand action).
+  try {
+    await runExaEventsSync(supabase);
+  } catch (e) {
+    errors.push(`events: ${(e as Error).message}`);
   }
 
   // 5. Timeline validation — strip backdated/hallucinated valuations that break

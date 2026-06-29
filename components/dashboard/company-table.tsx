@@ -12,8 +12,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { EditOverviewDialog } from "@/components/company/overview-form";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
-import type { CompanyTableRow } from "@/lib/metrics";
+import { DEFAULT_FUND_FEES, type CompanyTableRow } from "@/lib/metrics";
+import type { Company } from "@/lib/types";
 
 type SortKey =
   | "name"
@@ -22,10 +24,21 @@ type SortKey =
   | "lastValuation"
   | "changePct";
 
-export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
+export function CompanyTable({
+  rows,
+  companies = [],
+}: {
+  rows: CompanyTableRow[];
+  /** Full company records, so each row gets an inline Edit dialog. */
+  companies?: Company[];
+}) {
   const router = useRouter();
   const [sort, setSort] = useState<SortKey>("amountInvested");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const byId = useMemo(
+    () => new Map(companies.map((c) => [c.id, c])),
+    [companies],
+  );
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -97,6 +110,9 @@ export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
             <TableHead>Round</TableHead>
             <TableHead>Last Update</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="w-10 text-right">
+              <span className="sr-only">Edit</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -163,6 +179,21 @@ export function CompanyTable({ rows }: { rows: CompanyTableRow[] }) {
                   >
                     {r.status}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {byId.has(r.id) && (
+                    // Stop row-navigation when interacting with the edit dialog.
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <EditOverviewDialog
+                        company={byId.get(r.id)!}
+                        defaults={{
+                          carry_pct: DEFAULT_FUND_FEES.carryPct,
+                          mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
+                        }}
+                        iconOnly
+                      />
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             );

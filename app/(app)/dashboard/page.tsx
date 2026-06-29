@@ -68,7 +68,7 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Portfolio companies</h2>
-        <CompanyTable rows={rows} />
+        <CompanyTable rows={rows} companies={companies} />
       </section>
     </div>
   );
