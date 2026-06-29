@@ -20,6 +20,7 @@ export interface DocResult {
   valuationsAdded?: number;
   newsAdded?: number;
   competitorsAdded?: number;
+  revenueUpdated?: boolean;
 }
 
 async function authed() {
@@ -98,7 +99,10 @@ export async function processDocumentUrl(
       url,
     });
     const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);
-    const applied = await applyMappedIngest(supabase, companyId, entities);
+    const applied = await applyMappedIngest(supabase, companyId, {
+      ...entities,
+      revenueSource: source,
+    });
 
     await supabase.from("documents").insert({
       company_id: companyId,
@@ -179,7 +183,10 @@ async function ingestPdfBuffer(
   const source = `pdf:${filename}`;
   const { engine, entities } = await extractEntities(text, { title, source });
   const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);
-  const applied = await applyMappedIngest(supabase, companyId, entities);
+  const applied = await applyMappedIngest(supabase, companyId, {
+    ...entities,
+    revenueSource: source,
+  });
 
   await supabase.from("documents").insert({
     company_id: companyId,

@@ -50,6 +50,9 @@ export type CompanyRow = {
   realized_proceeds: number;
   carry_pct: number | null;
   mgmt_fee_pct: number | null;
+  revenue: number | null;
+  revenue_source: string | null;
+  revenue_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +71,9 @@ type CompanyInsert = {
   realized_proceeds?: number;
   carry_pct?: number | null;
   mgmt_fee_pct?: number | null;
+  revenue?: number | null;
+  revenue_source?: string | null;
+  revenue_date?: string | null;
 }
 
 // --- ingestion_runs ---

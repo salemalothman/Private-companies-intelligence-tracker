@@ -10,6 +10,7 @@ import { extractDeal } from "@/lib/connectors/exa-parse";
 import {
   classifyEvent,
   parseEventDate,
+  parseRevenue,
   parseSharePrice,
 } from "@/lib/connectors/exa-events-parse";
 
@@ -148,6 +149,60 @@ export async function exaValuationFor(
   } catch (e) {
     console.error("exaValuationFor:", (e as Error).message);
     return null;
+  }
+}
+
+export interface ConnectorFinancials {
+  revenue?: number;
+  valuation?: number;
+  valuationDate?: string;
+  secondaryPrice?: number;
+  secondaryUrl?: string;
+}
+
+/**
+ * Targeted financials sweep for the manual Sync: the company's most recent
+ * reported revenue / ARR, its current private valuation, and any secondary-
+ * market share price. Best-effort extraction from search highlights; gated on
+ * EXA_API_KEY.
+ */
+export async function exaFinancialsFor(query: string): Promise<ConnectorFinancials> {
+  const exa = client();
+  if (!exa) return {};
+  const out: ConnectorFinancials = {};
+  try {
+    const hits = await search(
+      exa,
+      `${query} annual revenue ARR current valuation secondary market share price 2026`,
+      8,
+    );
+    for (const h of hits) {
+      const text = `${h.title ?? ""}. ${(h.highlights ?? []).join(" ")}`;
+      if (out.revenue == null) {
+        const r = parseRevenue(text);
+        if (r != null) out.revenue = r;
+      }
+      if (out.valuation == null) {
+        const d = extractDeal(text);
+        if (d.valuation != null) {
+          out.valuation = d.valuation;
+          out.valuationDate = isoDate(h.publishedDate);
+        }
+      }
+      if (out.secondaryPrice == null) {
+        const s = parseSharePrice(text);
+        if (s != null) {
+          out.secondaryPrice = s;
+          out.secondaryUrl = h.url;
+        }
+      }
+      if (out.revenue != null && out.valuation != null && out.secondaryPrice != null)
+        break;
+    }
+    return out;
+  } catch (e) {
+    console.error("exaFinancialsFor:", (e as Error).message);
+    return out;
   }
 }
 

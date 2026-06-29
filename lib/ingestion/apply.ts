@@ -11,6 +11,7 @@ export interface ApplyResult {
   valuationsAdded: number;
   newsAdded: number;
   competitorsAdded: number;
+  revenueUpdated: boolean;
 }
 
 /** Competitor entities extracted from a document, routed to the Competitors tab. */
@@ -32,6 +33,9 @@ export async function applyMappedIngest(
   companyId: string,
   mapped: Pick<MappedIngest, "fundingRounds" | "valuations" | "news"> & {
     competitors?: ExtractedCompetitorInput[];
+    /** The subject company's own revenue / ARR (financial profile). */
+    revenue?: number;
+    revenueSource?: string;
   },
 ): Promise<ApplyResult> {
   const [
@@ -148,6 +152,20 @@ export async function applyMappedIngest(
     );
   }
 
+  // Map the subject company's own revenue onto its durable financial profile.
+  let revenueUpdated = false;
+  if (mapped.revenue != null && mapped.revenue > 0) {
+    const { error: revErr } = await supabase
+      .from("companies")
+      .update({
+        revenue: mapped.revenue,
+        revenue_source: mapped.revenueSource ?? "document",
+        revenue_date: new Date().toISOString().slice(0, 10),
+      })
+      .eq("id", companyId);
+    revenueUpdated = !revErr;
+  }
+
   // Record material changes to the portfolio activity feed (deduped against
   // both prior events and the table's unique index, so daily re-runs are safe).
   const userId = company?.user_id;
@@ -206,5 +224,6 @@ export async function applyMappedIngest(
     valuationsAdded: newVals.length,
     newsAdded: newNews.length,
     competitorsAdded: newComps.length,
+    revenueUpdated,
   };
 }

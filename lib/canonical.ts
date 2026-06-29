@@ -95,6 +95,15 @@ export function buildCanonicalRecord(
     .map((v) => ({ source: v.source ?? "manual", value: v.post_money, date: v.date }));
   const revenueObs: SourceObservation[] = [];
 
+  // The company's own durable revenue (from document/Exa financial-profile sync).
+  if (company.revenue != null) {
+    revenueObs.push({
+      source: company.revenue_source ?? "manual",
+      value: company.revenue,
+      date: company.revenue_date,
+    });
+  }
+
   if (inputs.market) {
     const m = inputs.market;
     if (m.valuation != null)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyEvent,
   parseEventDate,
+  parseRevenue,
   parseSharePrice,
 } from "@/lib/connectors/exa-events-parse";
 
@@ -25,6 +26,17 @@ describe("parseSharePrice", () => {
   });
   it("returns undefined without a per-share figure", () => {
     expect(parseSharePrice("$2B valuation")).toBeUndefined();
+  });
+});
+
+describe("parseRevenue", () => {
+  it("extracts revenue / ARR in either phrasing", () => {
+    expect(parseRevenue("reported revenue of $4.2B last year")).toBe(4.2e9);
+    expect(parseRevenue("now at $300M in ARR")).toBe(300e6);
+    expect(parseRevenue("annual recurring revenue of $50 million")).toBe(50e6);
+  });
+  it("returns undefined when no revenue figure is present", () => {
+    expect(parseRevenue("valued at $2B")).toBeUndefined();
   });
 });
 

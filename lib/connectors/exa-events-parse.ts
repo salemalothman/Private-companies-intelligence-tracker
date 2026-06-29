@@ -35,6 +35,23 @@ export function parseEventDate(text: string): string | null {
   return null;
 }
 
+const SCALE: Record<string, number> = {
+  k: 1e3, thousand: 1e3, m: 1e6, million: 1e6,
+  b: 1e9, billion: 1e9, t: 1e12, trillion: 1e12,
+};
+const MONEY_RE = "\\$\\s?([\\d][\\d.,]*)\\s*(billion|million|trillion|thousand|b|m|t|k)";
+
+/** The subject company's revenue / ARR, e.g. "revenue of $4B" / "$4B in ARR". */
+export function parseRevenue(text: string): number | undefined {
+  const t = text.replace(/\s+/g, " ");
+  const m =
+    t.match(new RegExp(`(?:revenue|arr|annual recurring revenue)\\s+of\\s+${MONEY_RE}`, "i")) ||
+    t.match(new RegExp(`${MONEY_RE}\\s+(?:in\\s+)?(?:annual\\s+)?(?:revenue|arr|recurring revenue)`, "i"));
+  if (!m) return undefined;
+  const n = Number(m[1].replace(/,/g, "")) * (SCALE[m[2].toLowerCase()] ?? 1);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Secondary-market price per share, e.g. "$58.50 per share" -> 58.5. */
 export function parseSharePrice(text: string): number | undefined {
   const m = text.match(/\$\s?([\d][\d.,]*)\s*(?:per share|\/\s*share|a share)/i);

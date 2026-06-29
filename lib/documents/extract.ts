@@ -24,8 +24,8 @@ async function llmExtract(
   const key = process.env.ANTHROPIC_API_KEY!;
   const prompt = `You are a financial analyst extracting structured data from a document about a private company.
 Return ONLY minified JSON matching this TypeScript type (no prose, no code fences):
-{"fundingRounds":[{"round":string,"date":string|null,"amountRaised":number|null,"valuation":number|null,"leadInvestor":string|null,"investors":string[]|null}],"valuations":[{"date":string,"post_money":number,"round":string|null}],"news":[{"title":string,"date":string|null,"summary":string,"sentiment":"positive"|"neutral"|"negative"}],"competitors":[{"name":string,"valuation":number|null,"revenue":number|null,"note":string|null}]}
-Rules: amounts in absolute USD (e.g. "$1.2B" -> 1200000000); dates as YYYY-MM-DD or null; only include a valuation when both an amount and a date are present; always include exactly one news item summarizing the document. For "competitors", list every market competitor / rival company the document names (e.g. a "Competitive Landscape" or "Competitors" section), with their stated valuation or revenue when given; never include the subject company itself.
+{"fundingRounds":[{"round":string,"date":string|null,"amountRaised":number|null,"valuation":number|null,"leadInvestor":string|null,"investors":string[]|null}],"valuations":[{"date":string,"post_money":number,"round":string|null}],"news":[{"title":string,"date":string|null,"summary":string,"sentiment":"positive"|"neutral"|"negative"}],"competitors":[{"name":string,"valuation":number|null,"revenue":number|null,"note":string|null}],"revenue":number|null}
+Rules: amounts in absolute USD (e.g. "$1.2B" -> 1200000000); dates as YYYY-MM-DD or null; only include a valuation when both an amount and a date are present; always include exactly one news item summarizing the document. For "competitors", list every market competitor / rival company the document names (e.g. a "Competitive Landscape" or "Competitors" section), with their stated valuation or revenue when given; never include the subject company itself. For "revenue", give THE SUBJECT COMPANY's own most recent annual revenue or ARR in absolute USD (null if not stated) — not a competitor's.
 Document title: ${opts.title}
 Document text:
 ${text.slice(0, 12000)}`;
@@ -62,6 +62,7 @@ ${text.slice(0, 12000)}`;
       revenue: number | null;
       note: string | null;
     }[];
+    revenue?: number | null;
   };
 
   return {
@@ -89,6 +90,7 @@ ${text.slice(0, 12000)}`;
         revenue: c.revenue ?? undefined,
         note: c.note ?? undefined,
       })),
+    revenue: parsed.revenue ?? undefined,
   };
 }
 

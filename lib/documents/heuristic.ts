@@ -23,6 +23,8 @@ export interface ExtractedEntities {
   }[];
   news: ConnectorNewsItem[];
   competitors: ExtractedCompetitor[];
+  /** The subject company's own current revenue / ARR in USD, if stated. */
+  revenue?: number;
 }
 
 export interface ExtractOptions {
@@ -200,6 +202,17 @@ export function heuristicExtract(
     valuations.push({ date, post_money: valuation, round, source: opts.source });
   }
 
+  // The subject company's own revenue / ARR ("revenue of $X", "$X in ARR", …).
+  const MONEY = "\\$\\s?([\\d.,]+)\\s*(billion|million|bn|mn|m|b|k)";
+  const revMatch =
+    clean.match(
+      new RegExp(`(?:revenue|arr|annual recurring revenue)\\s+of\\s+${MONEY}`, "i"),
+    ) ||
+    clean.match(
+      new RegExp(`${MONEY}\\s+(?:in\\s+)?(?:annual\\s+)?(?:revenue|arr|recurring revenue)`, "i"),
+    );
+  const revenue = revMatch ? parseAmount(revMatch[1], revMatch[2]) : null;
+
   const news: ConnectorNewsItem[] = [
     {
       title: opts.title,
@@ -211,5 +224,11 @@ export function heuristicExtract(
     },
   ];
 
-  return { fundingRounds, valuations, news, competitors: extractCompetitors(clean) };
+  return {
+    fundingRounds,
+    valuations,
+    news,
+    competitors: extractCompetitors(clean),
+    revenue: revenue ?? undefined,
+  };
 }
