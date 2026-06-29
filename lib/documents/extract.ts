@@ -134,29 +134,27 @@ async function renderPdfPages(buf: Uint8Array): Promise<Uint8Array[]> {
 }
 
 /**
- * Primary OCR path for image-based PDFs: render the pages to images, then have
- * Claude (claude-haiku-4-5) read them and return the same structured entities.
- * Rendering (rather than sending the raw PDF) keeps the request within limits
- * for large slide decks. Gated on ANTHROPIC_API_KEY.
+ * Primary OCR path for image-based PDFs: send the PDF straight to Claude
+ * (claude-haiku-4-5) as a native document block — Claude renders and reads the
+ * pages server-side, so there's no local pdfjs/canvas rendering (which fails in
+ * the Next.js server runtime). Gated on ANTHROPIC_API_KEY.
  */
 export async function extractEntitiesFromPdf(
   buf: Uint8Array,
   opts: ExtractOptions,
 ): Promise<ExtractionResult> {
-  const images = await renderPdfPages(buf);
-  if (images.length === 0) throw new Error("could not render PDF pages");
   const raw = await callAnthropic([
-    ...images.map((data) => ({
-      type: "image",
+    {
+      type: "document",
       source: {
         type: "base64",
-        media_type: "image/png",
-        data: Buffer.from(data).toString("base64"),
+        media_type: "application/pdf",
+        data: Buffer.from(buf).toString("base64"),
       },
-    })),
+    },
     {
       type: "text",
-      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nThe document is a slide deck supplied as page images. Extract from all pages.`,
+      text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nExtract from the attached PDF (it may be a slide deck — read the pages).`,
     },
   ]);
   return { engine: "llm-vision", entities: parseEntities(raw, opts) };

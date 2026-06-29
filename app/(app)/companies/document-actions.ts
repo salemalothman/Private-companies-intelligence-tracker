@@ -159,6 +159,11 @@ async function ingestPdfBuffer(
   filename: string,
   filePath: string,
 ): Promise<DocResult> {
+  // pdf-parse transfers (neuters) the underlying ArrayBuffer to its worker
+  // during getText(), leaving `buf` empty. Keep an independent copy for the OCR
+  // fallback, which needs the original bytes after text extraction has run.
+  const ocrBytes = new Uint8Array(buf);
+
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buf });
   let raw = "";
@@ -189,8 +194,8 @@ async function ingestPdfBuffer(
     // over rendered page images.
     try {
       ({ engine, entities } = process.env.ANTHROPIC_API_KEY
-        ? await extractEntitiesFromPdf(buf, { title, source })
-        : await extractEntitiesViaGrokOcr(buf, { title, source }));
+        ? await extractEntitiesFromPdf(ocrBytes, { title, source })
+        : await extractEntitiesViaGrokOcr(ocrBytes, { title, source }));
     } catch (e) {
       return {
         error: `Couldn't read this PDF — it's image-based and OCR failed (${(e as Error).message}). Try a smaller file or paste the source URL.`,

@@ -92,7 +92,14 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
               <div className="text-sm">
                 <p className="font-medium">
-                  Extracted via {result.engine === "llm" ? "LLM" : "heuristic"}{" "}
+                  Extracted via{" "}
+                  {result.engine === "llm"
+                    ? "LLM"
+                    : result.engine === "llm-vision"
+                      ? "Claude vision (OCR)"
+                      : result.engine === "grok-vision"
+                        ? "Grok vision (OCR)"
+                        : "heuristic"}{" "}
                   engine
                 </p>
                 <p className="mt-1 text-muted-foreground">
