@@ -3,11 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  extractEntities,
-  extractEntitiesFromPdf,
-  extractEntitiesViaGrokOcr,
-} from "@/lib/documents/extract";
+import { extractEntities, extractEntitiesFromPdf } from "@/lib/documents/extract";
 import { cleanPdfText, hasReadableText } from "@/lib/documents/clean";
 import { fetchUrlContent, urlSource } from "@/lib/documents/fetch-url";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
@@ -19,7 +15,7 @@ const DOC_BUCKET = "documents";
 export interface DocResult {
   ok?: boolean;
   error?: string;
-  engine?: "llm" | "llm-vision" | "grok-vision" | "heuristic";
+  engine?: "llm" | "llm-vision" | "heuristic";
   roundsAdded?: number;
   valuationsAdded?: number;
   newsAdded?: number;
@@ -184,18 +180,15 @@ async function ingestPdfBuffer(
   const title = filename.replace(/\.pdf$/i, "");
   const source = `pdf:${filename}`;
 
-  let engine: "llm" | "llm-vision" | "grok-vision" | "heuristic";
+  let engine: "llm" | "llm-vision" | "heuristic";
   let entities;
   if (hasReadableText(text)) {
     ({ engine, entities } = await extractEntities(text, { title, source }));
-  } else if (process.env.ANTHROPIC_API_KEY || process.env.XAI_API_KEY) {
-    // Image-based deck (no extractable text) → OCR. Prefer Claude
-    // (claude-haiku-4-5) which reads the PDF natively; fall back to Grok vision
-    // over rendered page images.
+  } else if (process.env.ANTHROPIC_API_KEY) {
+    // Image-based deck (no extractable text) → OCR via Claude (claude-haiku-4-5),
+    // which reads the PDF pages natively.
     try {
-      ({ engine, entities } = process.env.ANTHROPIC_API_KEY
-        ? await extractEntitiesFromPdf(ocrBytes, { title, source })
-        : await extractEntitiesViaGrokOcr(ocrBytes, { title, source }));
+      ({ engine, entities } = await extractEntitiesFromPdf(ocrBytes, { title, source }));
     } catch (e) {
       return {
         error: `Couldn't read this PDF — it's image-based and OCR failed (${(e as Error).message}). Try a smaller file or paste the source URL.`,
@@ -204,7 +197,7 @@ async function ingestPdfBuffer(
   } else {
     return {
       error:
-        "This PDF is image-based (e.g. a slide deck) with no extractable text. OCR needs ANTHROPIC_API_KEY (or XAI_API_KEY) configured. See ARCHITECTURE.md.",
+        "This PDF is image-based (e.g. a slide deck) with no extractable text. OCR needs ANTHROPIC_API_KEY configured. See ARCHITECTURE.md.",
     };
   }
   const { diff, diffVs } = await priorDocDiff(supabase, companyId, entities);

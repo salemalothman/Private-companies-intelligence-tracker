@@ -97,9 +97,7 @@ export function AddDocumentDialog({ companyId }: { companyId: string }) {
                     ? "LLM"
                     : result.engine === "llm-vision"
                       ? "Claude vision (OCR)"
-                      : result.engine === "grok-vision"
-                        ? "Grok vision (OCR)"
-                        : "heuristic"}{" "}
+                      : "heuristic"}{" "}
                   engine
                 </p>
                 <p className="mt-1 text-muted-foreground">

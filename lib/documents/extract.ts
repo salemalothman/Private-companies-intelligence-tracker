@@ -1,6 +1,4 @@
 import "server-only";
-import { xai } from "@ai-sdk/xai";
-import { generateText } from "ai";
 import {
   heuristicExtract,
   type ExtractOptions,
@@ -10,13 +8,11 @@ import {
 export type { ExtractedEntities, ExtractOptions };
 
 export interface ExtractionResult {
-  engine: "llm" | "llm-vision" | "grok-vision" | "heuristic";
+  engine: "llm" | "llm-vision" | "heuristic";
   entities: ExtractedEntities;
 }
 
 const MODEL = "claude-haiku-4-5-20251001";
-const GROK_VISION_MODEL = "grok-4.3";
-const MAX_OCR_PAGES = 12; // cap rendered pages to bound vision token cost
 
 /** Shared extraction instructions (schema + rules) for the LLM engines. */
 const INSTRUCTIONS = `You are a financial analyst extracting structured data from a document about a private company.
@@ -114,27 +110,7 @@ async function llmExtract(
 }
 
 /**
- * Render the first N pages of a PDF to downscaled PNGs (pdf-parse / pdfjs +
- * @napi-rs/canvas, all bundled). Bounding page count and width keeps the vision
- * request small — large/many-page decks blow past the native-PDF input limits.
- */
-async function renderPdfPages(buf: Uint8Array): Promise<Uint8Array[]> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buf });
-  try {
-    const shot = await parser.getScreenshot({
-      first: MAX_OCR_PAGES,
-      desiredWidth: 1280,
-      imageDataUrl: false,
-    });
-    return shot.pages.map((p) => p.data).filter(Boolean);
-  } finally {
-    await parser.destroy?.();
-  }
-}
-
-/**
- * Primary OCR path for image-based PDFs: send the PDF straight to Claude
+ * OCR path for image-based PDFs: send the PDF straight to Claude
  * (claude-haiku-4-5) as a native document block — Claude renders and reads the
  * pages server-side, so there's no local pdfjs/canvas rendering (which fails in
  * the Next.js server runtime). Gated on ANTHROPIC_API_KEY.
@@ -158,38 +134,6 @@ export async function extractEntitiesFromPdf(
     },
   ]);
   return { engine: "llm-vision", entities: parseEntities(raw, opts) };
-}
-
-/**
- * Fallback OCR for image-based PDFs when only Grok is available: render each
- * page to a PNG, then have Grok's vision model read the page images and return
- * the same structured entities. Gated on XAI_API_KEY.
- */
-export async function extractEntitiesViaGrokOcr(
-  buf: Uint8Array,
-  opts: ExtractOptions,
-): Promise<ExtractionResult> {
-  const images = await renderPdfPages(buf);
-  if (images.length === 0) throw new Error("could not render PDF pages");
-
-  const { text } = await generateText({
-    model: xai(GROK_VISION_MODEL),
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...images.map(
-            (data) => ({ type: "image" as const, image: data, mediaType: "image/png" }),
-          ),
-          {
-            type: "text" as const,
-            text: `${INSTRUCTIONS}\nDocument title: ${opts.title}\nThe document is a slide deck supplied as page images. Extract from all pages.`,
-          },
-        ],
-      },
-    ],
-  });
-  return { engine: "grok-vision", entities: parseEntities(text, opts) };
 }
 
 /**
