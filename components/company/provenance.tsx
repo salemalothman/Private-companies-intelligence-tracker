@@ -9,6 +9,8 @@ const PROVIDER_LABEL: Record<string, string> = {
   exa: "Exa",
   agdillon: "AG Dillon",
   "sec-edgar": "SEC EDGAR",
+  aggregate: "Private-market aggregate",
+  unverified: "Unverified",
   document: "Document",
   web: "Web",
   manual: "Manual",

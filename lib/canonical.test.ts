@@ -20,6 +20,14 @@ describe("provider", () => {
     expect(provider("Manual entry")).toBe("manual");
     expect(provider("exa")).toBe("exa");
   });
+  it("cleanly maps multi-word and domain source labels", () => {
+    expect(provider("AG Dillon")).toBe("agdillon");
+    expect(provider("SEC EDGAR (Form D)")).toBe("sec-edgar");
+    expect(provider("private-market aggregate (unverified)")).toBe("aggregate");
+    expect(provider("unverified — primary source pending")).toBe("unverified");
+    expect(provider("techcrunch.com")).toBe("techcrunch.com");
+    expect(provider("bloomberg.com")).toBe("bloomberg.com");
+  });
 });
 
 describe("buildCanonicalRecord", () => {
