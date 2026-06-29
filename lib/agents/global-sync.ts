@@ -10,6 +10,10 @@ import {
   sanitizeAllSources,
   type SanitizeSummary,
 } from "@/lib/enrichment/sanitize-sources";
+import {
+  validateAllTimelines,
+  type TimelineValidationSummary,
+} from "@/lib/enrichment/timeline-validation";
 import { formatCurrency } from "@/lib/utils";
 
 type DB = SupabaseClient<Database>;
@@ -22,6 +26,7 @@ export interface GlobalSyncSummary {
   enriched: number;
   competitorsAdded: number;
   signalsBlocked: number;
+  timeline: TimelineValidationSummary;
   sanitized: SanitizeSummary;
   status: "success" | "partial";
   detail?: string;
@@ -50,8 +55,9 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     .from("companies")
     .select(FIELDS);
   const empty: SanitizeSummary = { scanned: 0, rewritten: 0, flagged: 0 };
+  const emptyTimeline: TimelineValidationSummary = { scanned: 0, stripped: 0, flagged: 0 };
   if (error)
-    return { companies: 0, enriched: 0, competitorsAdded: 0, signalsBlocked: 0, sanitized: empty, status: "partial", detail: error.message };
+    return { companies: 0, enriched: 0, competitorsAdded: 0, signalsBlocked: 0, timeline: emptyTimeline, sanitized: empty, status: "partial", detail: error.message };
 
   let enriched = 0, competitorsAdded = 0, signalsBlocked = 0;
   const errors: string[] = [];
@@ -107,13 +113,17 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     }
   }
 
-  // 5. Global source-citation sanitization (after enrichment may have written
+  // 5. Timeline validation — strip backdated/hallucinated valuations that break
+  //    monotonic growth or lack a trusted primary source (re-leaked by enrichment).
+  const timeline = await validateAllTimelines(supabase);
+
+  // 6. Global source-citation sanitization (after enrichment may have written
   //    fresh generic labels — resolves them to primary publishers).
   const sanitized = await sanitizeAllSources(supabase);
 
   return {
     companies: companies?.length ?? 0,
-    enriched, competitorsAdded, signalsBlocked, sanitized,
+    enriched, competitorsAdded, signalsBlocked, timeline, sanitized,
     status: errors.length ? "partial" : "success",
     detail: errors.length ? errors.slice(0, 3).join("; ") : undefined,
   };

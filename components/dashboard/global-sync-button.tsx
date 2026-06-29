@@ -26,7 +26,8 @@ export function GlobalSyncButton() {
       } else {
         setMsg(
           `Synced ${r.enriched}/${r.companies} companies · +${r.competitorsAdded} competitors · ` +
-            `${r.sanitized.rewritten} citations cleaned · ${r.signalsBlocked} wrong-entity signals blocked` +
+            `${r.sanitized.rewritten} citations cleaned · ${r.timeline.stripped} timeline anomalies stripped · ` +
+            `${r.signalsBlocked} wrong-entity signals blocked` +
             (r.status === "partial" ? " (partial)" : ""),
         );
       }
