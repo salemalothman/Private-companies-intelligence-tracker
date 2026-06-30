@@ -20,7 +20,7 @@ export default async function FundPage() {
         subtitle="Deal-by-deal performance — MOIC, IRR, holding period, and ownership. Fees are set per company."
       />
 
-      <FundTable deals={deals} fund={fund} />
+      <FundTable deals={deals} fund={fund} companies={companies} />
     </div>
   );
 }

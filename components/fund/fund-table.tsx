@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { EditOverviewDialog } from "@/components/company/overview-form";
 import {
   cn,
   formatCurrency,
@@ -17,7 +18,8 @@ import {
   formatPercent,
   formatTinyPercent,
 } from "@/lib/utils";
-import type { DealAnalytics, FundAnalytics } from "@/lib/metrics";
+import { DEFAULT_FUND_FEES, type DealAnalytics, type FundAnalytics } from "@/lib/metrics";
+import type { Company } from "@/lib/types";
 
 const full = (v: number | null | undefined) =>
   formatCurrency(v, { compact: false });
@@ -31,10 +33,14 @@ function gainClass(v: number) {
 export function FundTable({
   deals,
   fund,
+  companies = [],
 }: {
   deals: DealAnalytics[];
   fund: FundAnalytics;
+  /** Full company records, so each deal row gets an inline Edit dialog. */
+  companies?: Company[];
 }) {
+  const byId = new Map(companies.map((c) => [c.id, c]));
   if (deals.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
@@ -77,9 +83,21 @@ export function FundTable({
           {deals.map((d) => (
             <TableRow key={d.id}>
               <TableCell className="sticky left-0 bg-card font-medium">
-                <Link href={`/companies/${d.id}`} className="hover:text-primary">
-                  {d.name}
-                </Link>
+                <span className="flex items-center gap-1">
+                  <Link href={`/companies/${d.id}`} className="hover:text-primary">
+                    {d.name}
+                  </Link>
+                  {byId.has(d.id) && (
+                    <EditOverviewDialog
+                      company={byId.get(d.id)!}
+                      defaults={{
+                        carry_pct: DEFAULT_FUND_FEES.carryPct,
+                        mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
+                      }}
+                      iconOnly
+                    />
+                  )}
+                </span>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {d.sector ?? "—"}

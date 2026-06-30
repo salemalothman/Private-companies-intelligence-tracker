@@ -8,17 +8,27 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { EditOverviewDialog } from "@/components/company/overview-form";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
-import type { PortfolioSummary, ValuationChange } from "@/lib/metrics";
+import {
+  DEFAULT_FUND_FEES,
+  type PortfolioSummary,
+  type ValuationChange,
+} from "@/lib/metrics";
+import type { Company } from "@/lib/types";
 
 export function SummaryCards({
   summary,
   changes,
+  companies = [],
 }: {
   summary: PortfolioSummary;
   changes: ValuationChange[];
+  /** Full company records, so each change row gets an inline Edit dialog. */
+  companies?: Company[];
 }) {
   const gainPositive = summary.unrealizedGain >= 0;
+  const byId = new Map(companies.map((c) => [c.id, c]));
 
   const stats = [
     {
@@ -76,32 +86,47 @@ export function SummaryCards({
           ) : (
             changes.map((c) => {
               const up = c.changePct >= 0;
+              const company = byId.get(c.id);
               return (
-                <Link
+                <div
                   key={c.id}
-                  href={`/companies/${c.id}`}
                   className="flex items-center justify-between px-5 py-3 text-sm transition-colors hover:bg-muted/40"
                 >
-                  <span className="flex items-baseline gap-2">
+                  <Link
+                    href={`/companies/${c.id}`}
+                    className="flex items-baseline gap-2 hover:text-primary"
+                  >
                     <span className="font-medium">{c.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {formatDate(c.date)}
                     </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 tabular-nums",
-                      up ? "text-success" : "text-destructive",
+                  </Link>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 tabular-nums",
+                        up ? "text-success" : "text-destructive",
+                      )}
+                    >
+                      {up ? (
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowDownRight className="h-3.5 w-3.5" />
+                      )}
+                      {formatPercent(c.changePct, { signed: true })}
+                    </span>
+                    {company && (
+                      <EditOverviewDialog
+                        company={company}
+                        defaults={{
+                          carry_pct: DEFAULT_FUND_FEES.carryPct,
+                          mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
+                        }}
+                        iconOnly
+                      />
                     )}
-                  >
-                    {up ? (
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowDownRight className="h-3.5 w-3.5" />
-                    )}
-                    {formatPercent(c.changePct, { signed: true })}
                   </span>
-                </Link>
+                </div>
               );
             })
           )}

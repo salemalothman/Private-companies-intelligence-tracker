@@ -54,7 +54,7 @@ export default async function DashboardPage() {
         }
       />
 
-      <SummaryCards summary={summary} changes={changes} />
+      <SummaryCards summary={summary} changes={changes} companies={companies} />
 
       <EventsCalendar upcoming={upcoming} past={past} />
 
