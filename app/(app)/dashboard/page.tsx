@@ -6,7 +6,6 @@ import {
   getUnseenEventCount,
 } from "@/lib/queries";
 import {
-  companyTableRow,
   latestValuationChanges,
   portfolioSummary,
   portfolioValueSeries,
@@ -18,7 +17,6 @@ import { PageHeader } from "@/components/app/page-header";
 import { AddCompanyDialog } from "@/components/company/add-company-dialog";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
-import { CompanyTable } from "@/components/dashboard/company-table";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { EventsCalendar } from "@/components/dashboard/events-calendar";
 import { GlobalSyncButton } from "@/components/dashboard/global-sync-button";
@@ -34,7 +32,6 @@ export default async function DashboardPage() {
 
   const summary = portfolioSummary(companies);
   const changes = latestValuationChanges(companies);
-  const rows = companies.map(companyTableRow);
 
   // Strict chronological split: only true future-dated events are "upcoming";
   // historical and undated records route to the timeline view.
@@ -65,11 +62,6 @@ export default async function DashboardPage() {
         allocation={sectorAllocation(companies)}
         performers={topPerformers(companies)}
       />
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Portfolio companies</h2>
-        <CompanyTable rows={rows} companies={companies} />
-      </section>
     </div>
   );
 }
