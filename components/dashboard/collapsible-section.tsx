@@ -25,6 +25,8 @@ export function CollapsibleSection({
   children,
 }: {
   title: string;
+  /** Consumers passing an icon must be client components (a lucide `forwardRef`
+   * can't cross the server→client boundary). */
   icon?: LucideIcon;
   count?: number;
   defaultOpen?: boolean;
