@@ -90,26 +90,29 @@ export async function purgeWrongEntitySignals(
 ): Promise<DisambiguationSummary> {
   let eventsBlocked = 0, newsBlocked = 0;
 
+  // Collect the wrong-entity ids, then delete each table in one round-trip.
   const { data: events } = await supabase
     .from("company_events")
     .select("id, title, detail, url")
     .eq("company_id", company.id);
-  for (const e of events ?? []) {
-    if (wrongEntitySignal(company.name, signalText(e)).blocked) {
-      await supabase.from("company_events").delete().eq("id", e.id);
-      eventsBlocked++;
-    }
+  const eventIds = (events ?? [])
+    .filter((e) => wrongEntitySignal(company.name, signalText(e)).blocked)
+    .map((e) => e.id);
+  if (eventIds.length) {
+    await supabase.from("company_events").delete().in("id", eventIds);
+    eventsBlocked = eventIds.length;
   }
 
   const { data: news } = await supabase
     .from("news")
     .select("id, title, summary, url")
     .eq("company_id", company.id);
-  for (const n of news ?? []) {
-    if (wrongEntitySignal(company.name, signalText(n)).blocked) {
-      await supabase.from("news").delete().eq("id", n.id);
-      newsBlocked++;
-    }
+  const newsIds = (news ?? [])
+    .filter((n) => wrongEntitySignal(company.name, signalText(n)).blocked)
+    .map((n) => n.id);
+  if (newsIds.length) {
+    await supabase.from("news").delete().in("id", newsIds);
+    newsBlocked = newsIds.length;
   }
 
   return { eventsBlocked, newsBlocked };

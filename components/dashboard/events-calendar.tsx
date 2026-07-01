@@ -7,11 +7,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  CollapsibleSection,
+  SectionEmpty,
+} from "@/components/dashboard/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import type { CalendarEvent } from "@/lib/queries";
@@ -82,66 +80,38 @@ export function EventsCalendar({
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium">Events &amp; market signals</CardTitle>
       </CardHeader>
-      <CardContent>
-        {/* Upcoming defaults open; the longer historical timeline starts collapsed. */}
-        <Accordion type="multiple" defaultValue={["upcoming"]} className="space-y-3">
-          <Section value="upcoming" title="Upcoming" icon={CalendarClock} count={upcoming.length}>
-            {upcoming.length === 0 ? (
-              <Empty>
-                No upcoming events yet — press Sync to refresh scheduled events,
-                fresh valuations, and secondary prices from the web.
-              </Empty>
-            ) : (
-              <div className="divide-y divide-border/70">
-                {upcoming.map((e) => (
-                  <Row key={e.id} e={e} />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {past.length > 0 && (
-            <Section value="historical" title="Historical timeline" icon={History} count={past.length}>
-              <div className="divide-y divide-border/70">
-                {past.slice(0, 12).map((e) => (
-                  <Row key={e.id} e={e} muted />
-                ))}
-              </div>
-            </Section>
+      {/* Upcoming defaults open; the longer historical timeline starts collapsed. */}
+      <CardContent className="space-y-3">
+        <CollapsibleSection
+          title="Upcoming"
+          icon={CalendarClock}
+          count={upcoming.length}
+          defaultOpen
+        >
+          {upcoming.length === 0 ? (
+            <SectionEmpty>
+              No upcoming events yet — press Sync to refresh scheduled events,
+              fresh valuations, and secondary prices from the web.
+            </SectionEmpty>
+          ) : (
+            <div className="divide-y divide-border/70">
+              {upcoming.map((e) => (
+                <Row key={e.id} e={e} />
+              ))}
+            </div>
           )}
-        </Accordion>
+        </CollapsibleSection>
+
+        {past.length > 0 && (
+          <CollapsibleSection title="Historical timeline" icon={History} count={past.length}>
+            <div className="divide-y divide-border/70">
+              {past.slice(0, 12).map((e) => (
+                <Row key={e.id} e={e} muted />
+              ))}
+            </div>
+          </CollapsibleSection>
+        )}
       </CardContent>
     </Card>
   );
-}
-
-function Section({
-  value,
-  title,
-  icon: Icon,
-  count,
-  children,
-}: {
-  value: string;
-  title: string;
-  icon: LucideIcon;
-  count: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <AccordionItem value={value} className="overflow-hidden rounded-lg border border-border">
-      <AccordionTrigger className="label-eyebrow px-5 py-2.5 hover:bg-muted/40 data-[state=open]:border-b data-[state=open]:border-border">
-        <span className="flex items-center gap-2">
-          <Icon className="h-3.5 w-3.5" />
-          {title}
-          <span className="text-muted-foreground">({count})</span>
-        </span>
-      </AccordionTrigger>
-      <AccordionContent>{children}</AccordionContent>
-    </AccordionItem>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="px-5 py-4 text-sm text-muted-foreground">{children}</p>;
 }

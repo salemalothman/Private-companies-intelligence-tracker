@@ -16,6 +16,7 @@ import {
   getMarketValuation,
 } from "@/lib/queries";
 import { buildCanonicalRecord } from "@/lib/canonical";
+import { isPublisherDomain } from "@/lib/enrichment/sanitize-sources";
 import { Provenance } from "@/components/company/provenance";
 import { DataRoom } from "@/components/company/data-room";
 import {
@@ -24,7 +25,6 @@ import {
   currentOwnershipPct,
   currentValue,
   dealFees,
-  DEFAULT_FUND_FEES,
   investmentEntryPoint,
   latestValuation,
   valuationAmount,
@@ -213,13 +213,7 @@ export default async function CompanyDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <AddDocumentDialog companyId={company.id} />
           <SyncButton companyId={company.id} />
-          <EditOverviewDialog
-            company={company}
-            defaults={{
-              carry_pct: DEFAULT_FUND_FEES.carryPct,
-              mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
-            }}
-          />
+          <EditOverviewDialog company={company} />
           <DeleteCompanyButton
             companyId={company.id}
             companyName={company.name}
@@ -595,7 +589,7 @@ export default async function CompanyDetailPage({
                         <TableCell
                           className={cn("text-xs", !e.isTarget && "text-muted-foreground")}
                         >
-                          {e.source && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(e.source) ? (
+                          {isPublisherDomain(e.source) ? (
                             <a
                               href={`https://${e.source}`}
                               target="_blank"

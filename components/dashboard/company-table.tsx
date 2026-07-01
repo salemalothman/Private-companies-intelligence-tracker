@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
-import { DEFAULT_FUND_FEES, type CompanyTableRow } from "@/lib/metrics";
+import type { CompanyTableRow } from "@/lib/metrics";
 import type { Company } from "@/lib/types";
 
 type SortKey =
@@ -195,14 +195,7 @@ export function CompanyTable({
                   {byId.has(r.id) && (
                     // Stop row-navigation when interacting with the edit dialog.
                     <span onClick={(e) => e.stopPropagation()}>
-                      <EditOverviewDialog
-                        company={byId.get(r.id)!}
-                        defaults={{
-                          carry_pct: DEFAULT_FUND_FEES.carryPct,
-                          mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
-                        }}
-                        iconOnly
-                      />
+                      <EditOverviewDialog company={byId.get(r.id)!} iconOnly />
                     </span>
                   )}
                 </TableCell>

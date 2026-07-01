@@ -2,6 +2,7 @@
 
 import { Pencil } from "lucide-react";
 import { updateCompanyOverview } from "@/app/(app)/companies/actions";
+import { DEFAULT_FUND_FEES } from "@/lib/metrics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,11 +11,15 @@ import type { Company } from "@/lib/types";
 
 export function EditOverviewDialog({
   company,
-  defaults,
+  defaults = {
+    carry_pct: DEFAULT_FUND_FEES.carryPct,
+    mgmt_fee_pct: DEFAULT_FUND_FEES.mgmtFeePct,
+  },
   iconOnly = false,
 }: {
   company: Company;
-  defaults: { carry_pct: number; mgmt_fee_pct: number };
+  /** Fee placeholders; defaults to the standard fund fees when omitted. */
+  defaults?: { carry_pct: number; mgmt_fee_pct: number };
   /** Render a compact icon-only trigger (for dense lists). */
   iconOnly?: boolean;
 }) {

@@ -45,6 +45,27 @@ export function isGenericSource(source: string | null | undefined): boolean {
   return s === "" || GENERIC.test(s);
 }
 
+/**
+ * A bare, clickable publisher domain like "techcrunch.com" (no spaces, exact
+ * host + TLD). Shared by the provenance link-guard and the canonical provider
+ * label so they classify a source string identically.
+ */
+export function isPublisherDomain(source: string | null | undefined): boolean {
+  const s = (source ?? "").trim().toLowerCase();
+  return s !== "" && !s.includes(" ") && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s);
+}
+
+/** An SEC regulatory filing source ("SEC EDGAR (Form D)", "sec-edgar", sec.gov…). */
+export function isSecFiling(source: string | null | undefined): boolean {
+  const s = (source ?? "").trim().toLowerCase();
+  return (
+    s.includes("sec edgar") ||
+    s.includes("sec.gov") ||
+    s === "sec-edgar" ||
+    s.includes("form d")
+  );
+}
+
 export interface SourceInput {
   source: string | null | undefined;
   url?: string | null;
@@ -80,16 +101,24 @@ export interface SanitizeSummary {
   flagged: number;
 }
 
+/** Minimal query-builder surface used for dynamically-named tables. */
+interface DynTable {
+  select(cols: string): Promise<{ data: { id: string; source: string | null; url?: string | null }[] | null }>;
+  update(patch: { source: string }): { eq(col: string, val: string): Promise<unknown> };
+}
+
 /** Audit + rewrite every source field across the database. Idempotent. */
 export async function sanitizeAllSources(supabase: DB): Promise<SanitizeSummary> {
   let scanned = 0, rewritten = 0, flagged = 0;
 
-  // Dynamic table names aren't expressible in the typed client; cast locally.
-  const tbl = (name: string) => (supabase.from as (n: string) => any)(name);
+  // Dynamic table names aren't expressible in the typed client; narrow to the
+  // minimal builder surface this function actually uses instead of raw `any`.
+  const tbl = (name: string) =>
+    (supabase.from as unknown as (n: string) => DynTable)(name);
   const apply = async (table: string, hasUrl: boolean) => {
     const cols = hasUrl ? "id, source, url" : "id, source";
     const { data } = await tbl(table).select(cols);
-    for (const row of (data ?? []) as { id: string; source: string | null; url?: string | null }[]) {
+    for (const row of data ?? []) {
       scanned++;
       if (!isGenericSource(row.source)) continue;
       const resolved = resolvePrimarySource({ source: row.source, url: row.url });

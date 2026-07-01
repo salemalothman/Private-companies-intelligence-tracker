@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  CollapsibleSection,
+  SectionEmpty,
+} from "@/components/dashboard/collapsible-section";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 import type { PortfolioSummary, ValuationChange } from "@/lib/metrics";
 
@@ -70,77 +68,49 @@ export function SummaryCards({
       </div>
 
       <div className="grid gap-5">
-        <ListPanel title="Latest valuation changes" value="changes" defaultOpen>
+        <CollapsibleSection
+          title="Latest valuation changes"
+          defaultOpen
+          className="rounded-xl"
+        >
           {changes.length === 0 ? (
-            <Empty>No changes yet.</Empty>
+            <SectionEmpty>No changes yet.</SectionEmpty>
           ) : (
-            changes.map((c) => {
-              const up = c.changePct >= 0;
-              return (
-                <Link
-                  key={c.id}
-                  href={`/companies/${c.id}`}
-                  className="flex items-center justify-between px-5 py-3 text-sm transition-colors hover:bg-muted/40"
-                >
-                  <span className="flex items-baseline gap-2">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(c.date)}
-                    </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 tabular-nums",
-                      up ? "text-success" : "text-destructive",
-                    )}
+            <div className="divide-y divide-border/70">
+              {changes.map((c) => {
+                const up = c.changePct >= 0;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/companies/${c.id}`}
+                    className="flex items-center justify-between px-5 py-3 text-sm transition-colors hover:bg-muted/40"
                   >
-                    {up ? (
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowDownRight className="h-3.5 w-3.5" />
-                    )}
-                    {formatPercent(c.changePct, { signed: true })}
-                  </span>
-                </Link>
-              );
-            })
+                    <span className="flex items-baseline gap-2">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(c.date)}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 tabular-nums",
+                        up ? "text-success" : "text-destructive",
+                      )}
+                    >
+                      {up ? (
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowDownRight className="h-3.5 w-3.5" />
+                      )}
+                      {formatPercent(c.changePct, { signed: true })}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           )}
-        </ListPanel>
+        </CollapsibleSection>
       </div>
     </div>
-  );
-}
-
-function ListPanel({
-  title,
-  value,
-  defaultOpen,
-  children,
-}: {
-  title: string;
-  value: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Accordion type="single" collapsible defaultValue={defaultOpen ? value : undefined}>
-      <AccordionItem
-        value={value}
-        className="overflow-hidden rounded-xl border border-border"
-      >
-        <AccordionTrigger className="label-eyebrow px-5 py-3 hover:bg-muted/40 data-[state=open]:border-b data-[state=open]:border-border">
-          {title}
-        </AccordionTrigger>
-        <AccordionContent>
-          <div className="divide-y divide-border/70">{children}</div>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="px-5 py-4 text-sm text-muted-foreground">{children}</p>
   );
 }

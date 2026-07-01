@@ -1,6 +1,10 @@
 import type { CompanyWithRelations } from "@/lib/types";
 import { valuationToRevenue } from "@/lib/competitors/rank";
 import { isTrustedSource } from "@/lib/enrichment/timeline-validation";
+import {
+  isPublisherDomain,
+  isSecFiling,
+} from "@/lib/enrichment/sanitize-sources";
 
 /**
  * Canonical company record with source lineage.
@@ -47,12 +51,10 @@ export function provider(source: string | null | undefined): string {
   if (s.startsWith("pdf:")) return "document";
   if (s.startsWith("url:")) return "web";
   if (s.includes("agdillon") || s.includes("ag dillon")) return "agdillon";
-  if (s.includes("sec edgar") || s === "sec-edgar" || s.includes("form d"))
-    return "sec-edgar";
+  if (isSecFiling(s)) return "sec-edgar";
   if (s.includes("private-market") || s.includes("aggregate")) return "aggregate";
   if (s.includes("unverified")) return "unverified";
-  // A real publisher domain (has a dot, no spaces) — keep it intact.
-  if (!s.includes(" ") && /^[a-z0-9.-]+\.[a-z]{2,}/.test(s)) return s.split("(")[0];
+  if (isPublisherDomain(s)) return s; // a real publisher domain — keep it intact
   return s.split(/[:\s(]/)[0] || "manual";
 }
 

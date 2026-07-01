@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
-import { isGenericSource } from "@/lib/enrichment/sanitize-sources";
+import { isGenericSource, isSecFiling } from "@/lib/enrichment/sanitize-sources";
 
 /**
  * Funding / valuation timeline validation.
@@ -75,9 +75,10 @@ export function isTrustedSource(source: string | null | undefined): boolean {
   if (!s || isGenericSource(s)) return false;
   if (s.startsWith("manual") || s.includes("aggregate") || s.includes("unverified"))
     return false;
-  if (s.includes("sec edgar") || s.includes("sec.gov") || s.includes("form d"))
-    return true;
-  return /[a-z0-9-]+\.[a-z]{2,}/.test(s); // a real domain (techcrunch.com, replit.com, df.com…)
+  if (isSecFiling(s)) return true;
+  // Lenient: any embedded domain-like token, so document sources (pdf:deck.pdf)
+  // and bare publisher domains both count as primary-verified.
+  return /[a-z0-9-]+\.[a-z]{2,}/.test(s);
 }
 
 /**
@@ -179,13 +180,14 @@ export async function validateAllTimelines(
       .eq("company_id", c.id);
     scanned += (vals ?? []).length;
     const { anomalies } = validateTimeline((vals ?? []) as TimelineEntry[]);
-    for (const a of anomalies) {
-      if (a.action === "strip" && a.entry.id) {
-        await supabase.from("valuations").delete().eq("id", a.entry.id);
-        stripped++;
-      } else {
-        flagged++;
-      }
+    // Batch the strip-deletes into one round-trip per company instead of N.
+    const stripIds = anomalies
+      .filter((a) => a.action === "strip" && a.entry.id)
+      .map((a) => a.entry.id as string);
+    flagged += anomalies.length - stripIds.length;
+    if (stripIds.length) {
+      await supabase.from("valuations").delete().in("id", stripIds);
+      stripped += stripIds.length;
     }
   }
   return { scanned, stripped, flagged };
