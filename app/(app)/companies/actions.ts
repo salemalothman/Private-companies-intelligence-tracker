@@ -3,9 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
-import { applyMappedIngest } from "@/lib/ingestion/apply";
-import { exaFinancialsFor } from "@/lib/connectors/exa";
-import { formatCurrency } from "@/lib/utils";
+import { verifyFinancialsFor } from "@/lib/agents/financials";
 import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
 import { hasLiveConnectors } from "@/lib/connectors/registry";
 import { classifyNews } from "@/lib/news/classify";
@@ -174,43 +172,13 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
 
     // Targeted Exa financials sweep: latest reported revenue, current private
     // valuation, and secondary-market share price. Best-effort — never fails
-    // the sync. Revenue + valuation map onto the financial profile; the
-    // secondary price is recorded as a market-signal event.
+    // the sync. Shared with the global sync via verifyFinancialsFor.
     try {
-      const fin = await exaFinancialsFor(data.name);
-      const today = new Date().toISOString().slice(0, 10);
-      const valuations =
-        fin.valuation != null
-          ? [
-              {
-                date: fin.valuationDate ?? today,
-                post_money: fin.valuation,
-                round: null,
-                source: "exa",
-              },
-            ]
-          : [];
-      if (fin.revenue != null || valuations.length) {
-        await applyMappedIngest(supabase, data.id, {
-          fundingRounds: [],
-          valuations,
-          news: [],
-          revenue: fin.revenue,
-          revenueSource: "exa",
-        });
-      }
-      if (fin.secondaryPrice != null) {
-        await supabase.from("company_events").insert({
-          company_id: data.id,
-          user_id: user.id,
-          type: "secondary",
-          title: `Secondary trading at ${formatCurrency(fin.secondaryPrice)}/share`,
-          value: fin.secondaryPrice,
-          source: "exa",
-          url: fin.secondaryUrl ?? null,
-          event_date: today,
-        });
-      }
+      await verifyFinancialsFor(supabase, {
+        id: data.id,
+        user_id: user.id,
+        name: data.name,
+      });
     } catch (e) {
       console.error("sync financials:", (e as Error).message);
     }

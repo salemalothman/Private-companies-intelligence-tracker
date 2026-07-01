@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, ChevronsUpDown } from "lucide-react";
 import {
   Table,
@@ -124,7 +125,17 @@ export function CompanyTable({
                 className="cursor-pointer"
                 onClick={() => router.push(`/companies/${r.id}`)}
               >
-                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="font-medium">
+                  {/* Real link so the row is reachable/operable by keyboard + AT;
+                      the row onClick stays as a mouse convenience. */}
+                  <Link
+                    href={`/companies/${r.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:text-primary focus-visible:underline focus-visible:outline-none"
+                  >
+                    {r.name}
+                  </Link>
+                </TableCell>
                 <TableCell>
                   {r.sector ? (
                     <Badge variant="secondary">{r.sector}</Badge>

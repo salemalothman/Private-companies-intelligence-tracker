@@ -2,9 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
-import { applyMappedIngest } from "@/lib/ingestion/apply";
-import { exaFinancialsFor } from "@/lib/connectors/exa";
 import { runExaEventsSync } from "@/lib/agents/exa-events";
+import { verifyFinancialsFor } from "@/lib/agents/financials";
 import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
 import { purgeWrongEntitySignals } from "@/lib/enrichment/disambiguation";
 import {
@@ -15,7 +14,6 @@ import {
   validateAllTimelines,
   type TimelineValidationSummary,
 } from "@/lib/enrichment/timeline-validation";
-import { formatCurrency } from "@/lib/utils";
 
 type DB = SupabaseClient<Database>;
 
@@ -62,15 +60,22 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
 
   let enriched = 0, competitorsAdded = 0, signalsBlocked = 0;
   const errors: string[] = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const list = (companies ?? []) as Array<{
+    id: string;
+    user_id: string;
+    name: string;
+    website: string | null;
+    sector: string | null;
+    country: string | null;
+    founded_year: number | null;
+    founders: string[] | null;
+    description: string | null;
+  }>;
 
-  for (const c of (companies ?? []) as Array<{
-    id: string; user_id: string; name: string; description: string | null; sector: string | null;
-  }>) {
+  const processCompany = async (c: (typeof list)[number]) => {
     try {
       // 1. Data enrichment
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await ingestCompany(supabase, c as any);
+      await ingestCompany(supabase, c);
 
       // 2. Competitive landscape modernization (additive — never overwrites verified)
       try {
@@ -81,25 +86,9 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
         errors.push(`competitors ${c.name}: ${(e as Error).message}`);
       }
 
-      // 3. Temporal financial verification
+      // 3. Temporal financial verification (shared with the per-company sync)
       try {
-        const fin = await exaFinancialsFor(c.name);
-        const valuations =
-          fin.valuation != null
-            ? [{ date: fin.valuationDate ?? today, post_money: fin.valuation, round: null, source: "exa" }]
-            : [];
-        if (fin.revenue != null || valuations.length) {
-          await applyMappedIngest(supabase, c.id, {
-            fundingRounds: [], valuations, news: [], revenue: fin.revenue, revenueSource: "exa",
-          });
-        }
-        if (fin.secondaryPrice != null) {
-          await supabase.from("company_events").insert({
-            company_id: c.id, user_id: c.user_id, type: "secondary",
-            title: `Secondary trading at ${formatCurrency(fin.secondaryPrice)}/share`,
-            value: fin.secondaryPrice, source: "exa", url: fin.secondaryUrl ?? null, event_date: today,
-          });
-        }
+        await verifyFinancialsFor(supabase, c);
       } catch (e) {
         errors.push(`financials ${c.name}: ${(e as Error).message}`);
       }
@@ -112,6 +101,14 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     } catch (e) {
       errors.push(`${c.name}: ${(e as Error).message}`);
     }
+  };
+
+  // Companies are independent (keyed by company_id) and the per-company work is
+  // I/O-bound on external APIs, so process in small parallel batches to bound
+  // total wall-time (and stay within the cron's maxDuration).
+  const CONCURRENCY = 4;
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    await Promise.all(list.slice(i, i + CONCURRENCY).map(processCompany));
   }
 
   // 4b. Events sweep — scheduled corporate events, fresh valuations, and

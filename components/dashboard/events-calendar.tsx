@@ -88,8 +88,8 @@ export function EventsCalendar({
           <Section value="upcoming" title="Upcoming" icon={CalendarClock} count={upcoming.length}>
             {upcoming.length === 0 ? (
               <Empty>
-                No upcoming events. Run a scan to fetch scheduled events, fresh
-                valuations, and secondary prices from the web.
+                No upcoming events yet — press Sync to refresh scheduled events,
+                fresh valuations, and secondary prices from the web.
               </Empty>
             ) : (
               <div className="divide-y divide-border/70">

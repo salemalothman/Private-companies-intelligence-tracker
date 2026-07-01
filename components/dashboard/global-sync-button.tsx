@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { syncAllCompanies } from "@/app/(app)/dashboard/actions";
@@ -27,6 +27,7 @@ export function GlobalSyncButton() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState(0);
 
@@ -46,11 +47,14 @@ export function GlobalSyncButton() {
 
   function sync() {
     setMsg(null);
+    setIsError(false);
     start(async () => {
       const r = await syncAllCompanies();
       if ("error" in r) {
+        setIsError(true);
         setMsg(r.error);
       } else {
+        setIsError(false);
         setMsg(
           `Synced ${r.enriched}/${r.companies} companies · +${r.competitorsAdded} competitors · ` +
             `${r.sanitized.rewritten} citations cleaned · ${r.timeline.stripped} timeline anomalies stripped · ` +
@@ -70,7 +74,11 @@ export function GlobalSyncButton() {
       </Button>
 
       {pending && (
-        <div className="w-72 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div
+          className="w-72 rounded-lg border border-border bg-card p-3 shadow-sm"
+          role="status"
+          aria-live="polite"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 text-xs font-medium text-foreground">
               <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
@@ -80,7 +88,14 @@ export function GlobalSyncButton() {
               {Math.round(progress)}%
             </span>
           </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label="Sync progress"
+            aria-valuenow={Math.round(progress)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
               style={{ width: `${progress}%` }}
@@ -90,7 +105,16 @@ export function GlobalSyncButton() {
       )}
 
       {!pending && msg && (
-        <p className="max-w-xs text-right text-xs text-muted-foreground">{msg}</p>
+        <p
+          role={isError ? "alert" : "status"}
+          className={cn(
+            "flex max-w-xs items-start gap-1 text-right text-xs",
+            isError ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {isError && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+          <span>{msg}</span>
+        </p>
       )}
     </div>
   );

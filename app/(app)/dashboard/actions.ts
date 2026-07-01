@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { runExaEventsSync, type ExaEventsSummary } from "@/lib/agents/exa-events";
 import { runGlobalSync, type GlobalSyncSummary } from "@/lib/agents/global-sync";
 import type { AlertPrefsView } from "@/lib/queries";
 
@@ -60,19 +59,5 @@ export async function syncAllCompanies(): Promise<
   revalidatePath("/dashboard");
   revalidatePath("/companies");
   revalidatePath("/companies/[id]", "page"); // refresh every company detail page
-  return summary;
-}
-
-/** Manually run the Exa events sweep for the current user's companies. */
-export async function scanCompanyEvents(): Promise<
-  ExaEventsSummary | { error: string }
-> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in" };
-  const summary = await runExaEventsSync(supabase, { userId: user.id });
-  revalidatePath("/dashboard");
   return summary;
 }
