@@ -31,8 +31,7 @@ export async function runDailyRefresh(supabase: DB): Promise<RefreshRunSummary> 
   const errors: string[] = [];
   for (const c of companies ?? []) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await ingestCompany(supabase, c as any);
+      await ingestCompany(supabase, c);
       refreshed += 1;
     } catch (e) {
       errors.push(`${c.name}: ${(e as Error).message}`);
