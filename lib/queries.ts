@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { nameKey } from "@/lib/market-cache/parse";
 import type {
   AlertPrefsRow,
+  CompanyAnalysisRow,
   CompanyEventRow,
   CompanyWithRelations,
   CompetitorRow,
@@ -152,6 +153,24 @@ export async function getCompany(
     return null;
   }
   return (data as unknown as CompanyWithRelations) ?? null;
+}
+
+/** A company's stored deep-dive analysis (one row per company), or null. */
+export async function getCompanyAnalysis(
+  companyId: string,
+): Promise<CompanyAnalysisRow | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("company_analysis")
+    .select("*")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("getCompanyAnalysis:", error.message);
+    return null;
+  }
+  return data ?? null;
 }
 
 /** A company's discovered competitors, highest valuation first (nulls last). */
