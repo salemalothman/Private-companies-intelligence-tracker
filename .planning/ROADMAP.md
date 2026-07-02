@@ -64,7 +64,7 @@ Plans:
   5. All added Overview sections render via the existing `CollapsibleSection`/`SectionEmpty`, showing the "Run deep-dive" empty state before first generation.
 **Plans**: 2 plans
 Plans:
-- [ ] 02-01-PLAN.md — Tighten AnalysisSections per-section shapes + extend runDeepDive prompt/zod to emit the full OVR section set; regen script + unit tests; spec §3 (OVR-01..04 data side)
+- [x] 02-01-PLAN.md — Tighten AnalysisSections per-section shapes + extend runDeepDive prompt/zod to emit the full OVR section set; regen script + unit tests; spec §3 (OVR-01..04 data side)
 - [ ] 02-02-PLAN.md — Overview rendering: RatingIndicator + OverviewAnalysis (pinned Exec Summary/IC Conclusion, collapsibles, ConfidenceChips, 1-10 ratings) wired into the Overview tab (OVR-01..05)
 **UI hint**: yes
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
-| 2. Overview Enrichment | 0/2 | Not started | - |
+| 2. Overview Enrichment | 1/2 | In progress | - |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
 | 4. External Grounding Ingestion | 0/6 | Not started | - |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |
