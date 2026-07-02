@@ -159,6 +159,21 @@ export function normalizeSections(
   // outlook_and_exit — narrative ONLY; toLabelled strips probability/price keys.
   put(out, "outlook_and_exit", toLabelled(raw.outlook_and_exit));
 
+  // historical_financials — gross_margin/burn_rate/runway/acv as labelled fields
+  // ONLY. toLabelled keeps just {text,basis,confidence,source}, stripping any
+  // stray numeric P&L / probability keys the model attaches — THIS is the
+  // no-fabricated-financials guardrail (threat T-05-04). Absent fields degrade
+  // (not zeroed); an all-empty object drops the whole key.
+  if (isObject(raw.historical_financials)) {
+    const hf = raw.historical_financials;
+    const fin: NonNullable<OverviewSections["historical_financials"]> = {};
+    put(fin, "gross_margin", toLabelled(hf.gross_margin));
+    put(fin, "burn_rate", toLabelled(hf.burn_rate));
+    put(fin, "runway", toLabelled(hf.runway));
+    put(fin, "acv", toLabelled(hf.acv));
+    if (Object.keys(fin).length) out.historical_financials = fin;
+  }
+
   // market_opportunity — tam/sam/som directional labelled ranges
   if (isObject(raw.market_opportunity)) {
     const m = raw.market_opportunity;
@@ -357,6 +372,8 @@ const ANALYSIS_SHAPE =
   `"technology":{"narrative":${LABELLED},"moat_rating":integer 1-10},` +
   `"product_portfolio":${LABELLED},"vertical_customer":${LABELLED},` +
   `"business_model":${LABELLED},"unit_economics":${LABELLED},` +
+  `"historical_financials":{"gross_margin":${LABELLED},"burn_rate":${LABELLED},` +
+  `"runway":${LABELLED},"acv":${LABELLED}},` +
   `"market_opportunity":{"tam":${LABELLED},"sam":${LABELLED},"som":${LABELLED}},` +
   '"strategic_moat":{"switching_costs":integer 1-10,"network_flywheel":integer 1-10,' +
   '"distribution_regulatory":integer 1-10,"ip":integer 1-10,' +
@@ -393,6 +410,10 @@ function buildPrompt(grounding: string): string {
     `   - product_portfolio, vertical_customer, business_model, unit_economics: ` +
     `each a single labelled field (qualitative/directional — NO fabricated ` +
     `revenue $ per product).\n` +
+    `   - historical_financials: {gross_margin, burn_rate, runway, acv} each a ` +
+    `single labelled field expressing a QUALITATIVE / DIRECTIONAL financial ` +
+    `picture (e.g. "high software gross margins", "burning ~18mo runway"), NEVER ` +
+    `a fabricated exact P&L number; label anything not grounded as an estimate.\n` +
     `   - market_opportunity: {tam, sam, som} each a labelled field expressing a ` +
     `DIRECTIONAL range with confidence — never an asserted exact figure.\n` +
     `   - strategic_moat: {switching_costs, network_flywheel, ` +
@@ -424,7 +445,9 @@ function buildPrompt(grounding: string): string {
     `HARD RULES — you MUST NOT: invent probabilities or probability tables ` +
     `(no IPO-by-year %, no acquisition %, no scenario % splits); assert price ` +
     `targets or exact valuation figures; fabricate revenue, margins, or P&L as ` +
-    `fact. Do not output any numeric valuation forecast — the comps math is done ` +
+    `fact. historical_financials MUST contain NO fabricated exact revenue/margin/` +
+    `P&L figures — text + basis/confidence only. Do not output any numeric ` +
+    `valuation forecast — the comps math is done ` +
     `in code from real peer multiples, not by you. The ONLY numbers you emit are: ` +
     `the growth RATES inside "growth", and the 1-10 integer rating indicators ` +
     `(technology.moat_rating and the four strategic_moat dimensions), which are ` +
