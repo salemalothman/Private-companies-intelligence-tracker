@@ -77,14 +77,14 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 - [x] **VAL-01**: The Valuation tab gains factual financial detail
   (margins/burn/runway/ACV) where retrievable, each tagged fact/estimate +
   confidence.
-- [ ] **VAL-02**: A new "Valuation Targets" tab renders a comps model for
+- [x] **VAL-02**: A new "Valuation Targets" tab renders a comps model for
   2026–2030: `implied valuation = projected revenue × applied V/R multiple`.
-- [ ] **VAL-03**: Three scenarios (Bear/Base/Bull) driven by growth rate and peer
+- [x] **VAL-03**: Three scenarios (Bear/Base/Bull) driven by growth rate and peer
   multiple percentile (p25/median/p75), with agent-proposed base growth +
   confidence + rationale.
-- [ ] **VAL-04**: The user can override growth % and multiple percentile; the
+- [x] **VAL-04**: The user can override growth % and multiple percentile; the
   table and chart recompute live (client-side).
-- [ ] **VAL-05**: Every valuation cell exposes its inputs on hover, peer multiples
+- [x] **VAL-05**: Every valuation cell exposes its inputs on hover, peer multiples
   carry source + SEC-verified badge, and an explicit "implied by comps, not a
   forecast" disclaimer is shown.
 
@@ -133,10 +133,10 @@ Updated during roadmap creation (2026-07-02).
 | ING-05 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-06 | Phase 4 — External Grounding Ingestion | Complete |
 | VAL-01 | Phase 5 — Valuation Targets Tab | Complete |
-| VAL-02 | Phase 5 — Valuation Targets Tab | Pending |
-| VAL-03 | Phase 5 — Valuation Targets Tab | Pending |
-| VAL-04 | Phase 5 — Valuation Targets Tab | Pending |
-| VAL-05 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-02 | Phase 5 — Valuation Targets Tab | Complete |
+| VAL-03 | Phase 5 — Valuation Targets Tab | Complete |
+| VAL-04 | Phase 5 — Valuation Targets Tab | Complete |
+| VAL-05 | Phase 5 — Valuation Targets Tab | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total
