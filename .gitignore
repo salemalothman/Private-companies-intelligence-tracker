@@ -35,3 +35,6 @@ yarn-error.log*
 
 # locally-installed agent skills (third-party tooling)
 /.agents
+
+# Supabase CLI scratch
+supabase/.temp/
