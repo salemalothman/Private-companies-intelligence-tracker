@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md (pure comps math module — buildCompsTable + clampGrowth, 16 Vitest cases green; VAL-02/03/04 math substrate)
-last_updated: "2026-07-02T17:22:43.000Z"
-last_activity: 2026-07-02 -- Completed 05-01 (pure comps module)
+stopped_at: Completed 05-02-PLAN.md (historical_financials agent extension — types + prompt/zod/normalizeSections + tests + regen print, VAL-01; 34 deep-dive tests green)
+last_updated: "2026-07-02T17:34:16.924Z"
+last_activity: 2026-07-02 -- Completed 05-02 (historical_financials agent extension)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 05 (Valuation Targets Tab) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 05
-Last activity: 2026-07-02 -- Completed 05-01 (pure comps module)
+Plan: 3 of 3
+Status: Ready to execute
+Last activity: 2026-07-02 -- Completed 05-02 (historical_financials agent extension)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | Phase 04 P05 | 6min | 2 tasks | 3 files |
 | Phase 04 P06 | ~15min | 2 tasks | 2 files |
 | Phase 05 P01 | ~2min | 2 tasks | 2 files |
+| Phase 05 P02 | 6min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,7 @@ Recent decisions affecting current work:
 - [Phase ?]: x-twitter SourceModule: read-only via type-level subcommand allowlist, opt-in on X_BEARER_TOKEN, doctor app-only lane gate, idempotent x_posts upsert on (company_id, post_id)
 - [Phase 04]: runDeepDive grounds on the three caches (form_d_rounds/x_posts by company_id under RLS; peer_financials by peer entity_name — no cik/ticker on CompetitorRow); facts source-tagged into the prompt, capped at 8/source; da325a4 retry+no-clobber guard and code-computed comps preserved
 - [Phase 05]: buildCompsTable is the ONLY $ source in Phase 5 — pure/isomorphic (no use client/server-only); CompsInputs = Pick<AnalysisValuation> so callers pass the stored row directly; null base_revenue/multiple → null cell (never 0); clampGrowth bounds overrides to [-0.5, 3.0] and returns null for non-finite; growth override = single lever over all 3 scenarios, multiplePercentile override collapses all 3 multiples
+- [Phase ?]: [Phase 05]: 05-02 historical_financials is LabelledFields-only (gross_margin/burn_rate/runway/acv) — the type has no numeric members so the no-fabricated-financials guardrail holds by construction; toLabelled strips stray numeric/probability keys; da325a4 retry+no-clobber hardening preserved byte-for-byte (additive change only)
 
 ### Pending Todos
 
@@ -109,6 +111,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-02T17:22:43.000Z
-Stopped at: Completed 05-01-PLAN.md (pure comps math module — buildCompsTable + clampGrowth, 16 Vitest cases green)
+Last session: 2026-07-02T17:34:05.878Z
+Stopped at: Completed 05-02-PLAN.md (historical_financials agent extension — types + prompt/zod/normalizeSections + tests + regen print, VAL-01; 34 deep-dive tests green)
 Resume file: None

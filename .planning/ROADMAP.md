@@ -118,7 +118,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 05-01-PLAN.md — Pure comps math module + unit tests (projected revenue × applied multiple, Bear/Base/Bull, null propagation, override clamping) (VAL-02, VAL-03, VAL-04)
-- [ ] 05-02-PLAN.md — historical_financials agent extension (types + prompt/zod/normalizeSections) + tests + regen print (VAL-01)
+- [x] 05-02-PLAN.md — historical_financials agent extension (types + prompt/zod/normalizeSections) + tests + regen print (VAL-01)
 - [ ] 05-03-PLAN.md — Interactive Valuation Targets client tab (live table + chart, inputs panel, disclaimer, empty/insufficient states) + VAL-01 render block, wired into page.tsx; human-verify checkpoint (VAL-01..05)
 **UI hint**: yes
 
@@ -133,4 +133,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Overview Enrichment | 2/2 | Complete   | 2026-07-02 |
 | 3. Competitors Enrichment | 2/2 | Complete   | 2026-07-02 |
 | 4. External Grounding Ingestion | 6/6 | Complete   | 2026-07-02 |
-| 5. Valuation Targets Tab | 0/3 | Not started | - |
+| 5. Valuation Targets Tab | 2/3 | In Progress|  |

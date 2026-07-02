@@ -74,7 +74,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 ### Valuation Targets tab
 
-- [ ] **VAL-01**: The Valuation tab gains factual financial detail
+- [x] **VAL-01**: The Valuation tab gains factual financial detail
   (margins/burn/runway/ACV) where retrievable, each tagged fact/estimate +
   confidence.
 - [ ] **VAL-02**: A new "Valuation Targets" tab renders a comps model for
@@ -132,7 +132,7 @@ Updated during roadmap creation (2026-07-02).
 | ING-04 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-05 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-06 | Phase 4 — External Grounding Ingestion | Complete |
-| VAL-01 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-01 | Phase 5 — Valuation Targets Tab | Complete |
 | VAL-02 | Phase 5 — Valuation Targets Tab | Pending |
 | VAL-03 | Phase 5 — Valuation Targets Tab | Pending |
 | VAL-04 | Phase 5 — Valuation Targets Tab | Pending |
