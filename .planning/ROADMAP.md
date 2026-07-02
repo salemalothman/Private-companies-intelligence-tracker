@@ -96,8 +96,8 @@ Plans:
   5. All secrets (`X_BEARER_TOKEN`, `COMPANY_PP_CONTACT_EMAIL`) are env-only; ingestion is idempotent and re-runnable.
 **Plans**: 6 plans
 Plans:
-- [ ] 04-01-PLAN.md — grounding cache schema (0021) + lib/types.ts + [BLOCKING] supabase db push (ING-01, ING-06)
-- [ ] 04-02-PLAN.md — ingestion script skeleton + envelope/CIK parser + unit tests (ING-01, ING-06)
+- [x] 04-01-PLAN.md — grounding cache schema (0021) + lib/types.ts + [BLOCKING] supabase db push (ING-01, ING-06)
+- [x] 04-02-PLAN.md — ingestion script skeleton + envelope/CIK parser + unit tests (ING-01, ING-06)
 - [ ] 04-03-PLAN.md — company-goat module: Form D rounds + signals with CIK disambiguation (ING-03, ING-06)
 - [ ] 04-04-PLAN.md — sec-edgar module: peer CIK resolution + XBRL income facts + cross-section (ING-02, ING-06)
 - [ ] 04-05-PLAN.md — x-twitter module: doctor preflight + read-only tweets sync, opt-in on X_BEARER_TOKEN (ING-04, ING-06)
@@ -128,5 +128,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 2/2 | Complete   | 2026-07-02 |
 | 3. Competitors Enrichment | 2/2 | Complete   | 2026-07-02 |
-| 4. External Grounding Ingestion | 0/6 | Not started | - |
+| 4. External Grounding Ingestion | 2/6 | In Progress|  |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |

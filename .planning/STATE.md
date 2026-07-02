@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 03-01-PLAN.md (typed competitors block + normalizeSections + prompt)
-last_updated: "2026-07-02T09:04:14.887Z"
+last_updated: "2026-07-02T11:19:12.319Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 7
-  percent: 40
+  completed_plans: 10
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** Every generated insight is grounded and honestly labelled — real facts vs. confidence-tagged estimates vs. transparent comps math — never fabricated financials or invented probabilities.
-**Current focus:** Phase 03 — Competitors Enrichment
+**Current focus:** Phase 04 — External Grounding Ingestion
 
 ## Current Position
 
-Phase: 03 (Competitors Enrichment) — EXECUTING
-Plan: 2 of 2
+Phase: 04 (External Grounding Ingestion) — EXECUTING
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-02
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01-foundation P03 | 10 | 2 tasks | 4 files |
 | Phase 01 P04 | ~15min | 2 tasks | 3 files |
 | Phase 03 P01 | ~7 min | 2 tasks | 3 files |
+| Phase 04 P02 | 20m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 02]: no-probabilities/price-targets guardrail enforced in three layers — type (LabelledField), prompt hard-rules, and normalizeSections stripping stray keys
 - [Phase 03]: normalizeSections gains allowedNames (default []): empty list = no name filtering (back-compat for the 6 single-arg call sites) but tiers still enum-coerced + scores still clamped
 - [Phase 03]: Competitor allow-list name-filter is case-insensitive on trimmed names; kept key preserves the model's original casing (join to ranking rows done case-insensitively downstream)
+- [Phase ?]: 04-02: pp-cli --agent envelope parsed defensively (parseEnvelope never throws); CIK disambiguated via resolveCik before trusting amounts
+- [Phase ?]: 04-02: ingestion off-Vercel (scripts/ingest-grounding.ts); execFile array args no shell for DB-derived CLI values; secrets env-only; x-twitter opt-in via X_BEARER_TOKEN
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-02T09:04:01.954Z
+Last session: 2026-07-02T11:17:04.694Z
 Stopped at: Completed 03-01-PLAN.md (typed competitors block + normalizeSections + prompt)
 Resume file: None
