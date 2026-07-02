@@ -1,7 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { computePeerMultiple, deriveBaseRevenue } from "@/lib/agents/deep-dive";
+import { clampRating } from "@/lib/agents/deep-dive-types";
 import type { RankedEntity } from "@/lib/competitors/rank";
 import type { CanonicalRecord } from "@/lib/canonical";
+
+describe("clampRating", () => {
+  it("passes a valid in-domain integer through unchanged", () => {
+    expect(clampRating(5)).toBe(5);
+    expect(clampRating(1)).toBe(1);
+    expect(clampRating(10)).toBe(10);
+  });
+
+  it("rejects out-of-domain values as null (never fabricated beyond 1-10)", () => {
+    expect(clampRating(0)).toBeNull();
+    expect(clampRating(11)).toBeNull();
+    expect(clampRating(-3)).toBeNull();
+    expect(clampRating(12)).toBeNull();
+  });
+
+  it("floors fractional ratings to an integer within domain", () => {
+    expect(clampRating(7.8)).toBe(7);
+    expect(clampRating(1.9)).toBe(1);
+  });
+
+  it("returns null for non-finite / missing input", () => {
+    expect(clampRating(null)).toBeNull();
+    expect(clampRating(undefined)).toBeNull();
+    expect(clampRating(NaN)).toBeNull();
+    expect(clampRating(Infinity)).toBeNull();
+  });
+});
 
 function peer(p: Partial<RankedEntity>): RankedEntity {
   return {
