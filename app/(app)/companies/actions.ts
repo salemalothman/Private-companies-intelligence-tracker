@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCompany } from "@/lib/queries";
+import { runDeepDive } from "@/lib/agents/deep-dive";
 import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { verifyFinancialsFor } from "@/lib/agents/financials";
 import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
@@ -189,6 +191,35 @@ export async function syncCompany(companyId: string): Promise<ActionResult> {
     return {};
   } catch (e) {
     return { error: `Sync failed: ${(e as Error).message}` };
+  }
+}
+
+/**
+ * On-demand deep-dive generation, triggered by the "Run deep-dive" header button
+ * (separate from Sync). Runs `runDeepDive` under the RLS user client — never the
+ * service-role admin client — so a user can only generate for a company they own
+ * (RLS blocks cross-owner reads/writes). The agent upserts one `company_analysis`
+ * row keyed on `company_id`, so a re-run overwrites the prior row with a fresh
+ * `generated_at`. Degrades gracefully (returns `{ error }` rather than throwing).
+ */
+export async function runDeepDiveAction(
+  companyId: string,
+): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Load the company with relations via the RLS user client — ownership is
+  // enforced by RLS, so a non-owner sees `null` here rather than another user's row.
+  const company = await getCompany(companyId);
+  if (!company) return { error: "Company not found." };
+
+  try {
+    const res = await runDeepDive(supabase, company);
+    if (res.error) return { error: `Deep-dive failed: ${res.error}` };
+    revalidatePath(`/companies/${companyId}`);
+    return { id: companyId };
+  } catch (e) {
+    return { error: `Deep-dive failed: ${(e as Error).message}` };
   }
 }
 
