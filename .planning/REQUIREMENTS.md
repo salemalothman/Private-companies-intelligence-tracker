@@ -11,7 +11,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 ### Foundation
 
-- [ ] **FND-01**: A `company_analysis` table stores one JSONB analysis row per
+- [x] **FND-01**: A `company_analysis` table stores one JSONB analysis row per
   company (upserted, RLS via company ownership), with `generated_at` and `model`.
 - [x] **FND-02**: A single Grok deep-dive agent (`runDeepDive`) generates one
   structured `sections` object per company from existing in-app grounding context
@@ -51,6 +51,26 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
   sync data (no re-discovery).
 - [ ] **CMP-02**: A Capability Matrix rates the company vs. top 3 threats (1–10)
   across IP Depth, GTM Velocity, Capital Efficiency, and Workflow Retention.
+
+### External grounding ingestion
+
+- [ ] **ING-01**: A local/cron ingestion script (mirroring the market-cache
+  pattern) runs the Printing Press CLIs in `--agent` JSON mode and upserts
+  source-tagged results into Supabase; it does NOT run in the Vercel serverless
+  runtime.
+- [ ] **ING-02**: `sec-edgar` — resolve public peers to CIK (`companies lookup`)
+  and cache XBRL income facts (`facts statement`) + peer-revenue cross-sections
+  into Supabase, feeding real peer revenue/multiples and factual financials.
+- [ ] **ING-03**: `company-goat` — cache SEC Form D rounds + startup signals
+  (`snapshot`/`funding`) per portfolio company + competitor, with CIK
+  disambiguation (no ambiguous name-fragment amounts).
+- [ ] **ING-04**: `x-twitter` — sync company + competitor posts via an app-only
+  bearer token into Supabase for news/sentiment.
+- [ ] **ING-05**: `runDeepDive` reads the cached ingested facts as additional
+  grounding, so generated fields cite real Form D / XBRL / X sources.
+- [ ] **ING-06**: Ingestion is idempotent and source-tagged, preserves the
+  no-fabrication guardrail (fact + source labelling), and keeps all secrets
+  (`X_BEARER_TOKEN`, `COMPANY_PP_CONTACT_EMAIL`) in env only.
 
 ### Valuation Targets tab
 
@@ -106,15 +126,21 @@ Updated during roadmap creation (2026-07-02).
 | OVR-05 | Phase 2 — Overview Enrichment | Pending |
 | CMP-01 | Phase 3 — Competitors Enrichment | Pending |
 | CMP-02 | Phase 3 — Competitors Enrichment | Pending |
-| VAL-01 | Phase 4 — Valuation Targets Tab | Pending |
-| VAL-02 | Phase 4 — Valuation Targets Tab | Pending |
-| VAL-03 | Phase 4 — Valuation Targets Tab | Pending |
-| VAL-04 | Phase 4 — Valuation Targets Tab | Pending |
-| VAL-05 | Phase 4 — Valuation Targets Tab | Pending |
+| ING-01 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-02 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-03 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-04 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-05 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-06 | Phase 4 — External Grounding Ingestion | Pending |
+| VAL-01 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-02 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-03 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-04 | Phase 5 — Valuation Targets Tab | Pending |
+| VAL-05 | Phase 5 — Valuation Targets Tab | Pending |
 
 **Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 18 ✓
+- v1 requirements: 24 total
+- Mapped to phases: 24 ✓
 - Unmapped: 0 ✓
 
 ---

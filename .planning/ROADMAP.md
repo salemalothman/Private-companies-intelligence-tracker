@@ -6,12 +6,15 @@ This feature adds a grounded, per-company "analyst layer" to the existing Next.j
 15 / Supabase portfolio tracker. Phase 1 lays the shared substrate — a
 `company_analysis` JSONB table, the `runDeepDive` Grok agent, an on-demand "Run
 deep-dive" header button, and a reusable Fact/Estimate + confidence chip — that
-Phases 2–4 all read from. Phases 2 and 3 distribute the narrative thesis into the
-existing Overview and Competitors tabs. Phase 4 delivers the new comps-based
-Valuation Targets (2026–2030) tab plus factual financial detail on the Valuation
-tab. Every generated insight is honestly labelled (fact vs. confidence-tagged
-estimate vs. transparent comps math) — no fabricated financials, no invented
-probabilities.
+later phases all read from. Phases 2 and 3 distribute the narrative thesis into
+the existing Overview and Competitors tabs. Phase 4 stands up an external
+grounding-ingestion pipeline (Printing Press CLIs — company-goat Form D,
+sec-edgar XBRL, x-twitter news — synced into Supabase via a local/cron script)
+so the analysis is backed by verifiable real sources. Phase 5 delivers the new
+comps-based Valuation Targets (2026–2030) tab plus factual financial detail on
+the Valuation tab, consuming the ingested peer XBRL + Form D. Every generated
+insight is honestly labelled (fact vs. confidence-tagged estimate vs. transparent
+comps math) — no fabricated financials, no invented probabilities.
 
 ## Phases
 
@@ -24,7 +27,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Analysis storage, the Grok deep-dive agent, on-demand trigger, and shared confidence chip (completed 2026-07-02)
 - [ ] **Phase 2: Overview Enrichment** - Distribute the thesis sections into the Overview tab as collapsible content
 - [ ] **Phase 3: Competitors Enrichment** - Threat tiers and a Capability Matrix layered on the existing ranking table
-- [ ] **Phase 4: Valuation Targets Tab** - Comps model (2026–2030) with interactive controls, plus factual financial detail on Valuation
+- [ ] **Phase 4: External Grounding Ingestion** - Sync company-goat (Form D) + sec-edgar (peer XBRL) + x-twitter (news) into Supabase via a local/cron script; runDeepDive reads the cached facts
+- [ ] **Phase 5: Valuation Targets Tab** - Comps model (2026–2030) with interactive controls, plus factual financial detail on Valuation
 
 ## Phase Details
 
@@ -73,10 +77,24 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 4: Valuation Targets Tab
-**Goal**: A user can explore a transparent comps-based valuation model for 2026–2030 with adjustable growth and multiple assumptions, and sees factual financial detail on the Valuation tab — all clearly labelled as comps math, not a forecast.
+### Phase 4: External Grounding Ingestion
+**Goal**: A local/cron ingestion pipeline syncs real external grounding — company-goat SEC Form D rounds, sec-edgar public-peer XBRL financials, and x-twitter company+competitor news — into Supabase, and `runDeepDive` reads these cached facts so the analysis is backed by verifiable sources rather than the LLM alone.
 **Mode:** mvp
 **Depends on**: Phase 1
+**Requirements**: ING-01, ING-02, ING-03, ING-04, ING-05, ING-06
+**Success Criteria** (what must be TRUE):
+  1. A local/cron ingestion script upserts source-tagged rows into Supabase from company-goat, sec-edgar, and x-twitter in `--agent` JSON mode; it does not run in the Vercel serverless runtime.
+  2. sec-edgar public-peer XBRL income facts and company-goat Form D rounds are cached per company/peer, with CIK disambiguation applied (no ambiguous name-fragment amounts).
+  3. x-twitter company + competitor posts are synced via an app-only bearer token into Supabase for news/sentiment.
+  4. `runDeepDive` reads the cached facts as additional grounding; generated fields cite real Form D / XBRL / X sources and the no-fabrication guardrail is preserved.
+  5. All secrets (`X_BEARER_TOKEN`, `COMPANY_PP_CONTACT_EMAIL`) are env-only; ingestion is idempotent and re-runnable.
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 5: Valuation Targets Tab
+**Goal**: A user can explore a transparent comps-based valuation model for 2026–2030 with adjustable growth and multiple assumptions, and sees factual financial detail on the Valuation tab — all clearly labelled as comps math, not a forecast.
+**Mode:** mvp
+**Depends on**: Phase 1, Phase 4
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05
 **Success Criteria** (what must be TRUE):
   1. A new "Valuation Targets" tab renders a 2026–2030 comps model where implied valuation = projected revenue × applied V/R multiple, across Bear/Base/Bull scenarios (growth × p25/median/p75 peer multiple) with the agent-proposed base growth + confidence + rationale.
@@ -90,11 +108,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 0/TBD | Not started | - |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
-| 4. Valuation Targets Tab | 0/TBD | Not started | - |
+| 4. External Grounding Ingestion | 0/TBD | Not started | - |
+| 5. Valuation Targets Tab | 0/TBD | Not started | - |
