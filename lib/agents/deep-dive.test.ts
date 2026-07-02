@@ -27,10 +27,11 @@ describe("computePeerMultiple", () => {
       peer({ name: "D", multiple: 8, secVerified: true }),
     ];
     const pm = computePeerMultiple(ranked);
-    // Linear-interpolation percentiles over [2,4,6,8]: median=5, p25=3, p75=7.
+    // R-7 (Excel PERCENTILE.INC) linear-interpolation over [2,4,6,8]:
+    // median=5, p25=3.5, p75=6.5.
     expect(pm.median).toBeCloseTo(5);
-    expect(pm.p25).toBeCloseTo(3);
-    expect(pm.p75).toBeCloseTo(7);
+    expect(pm.p25).toBeCloseTo(3.5);
+    expect(pm.p75).toBeCloseTo(6.5);
     expect(pm.n_sec_verified).toBe(4);
     expect(pm.n_peers).toBe(4); // 4 non-target ranked peers
   });

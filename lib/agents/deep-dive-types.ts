@@ -56,7 +56,8 @@ export type AnalysisSectionValue =
  */
 export interface AnalysisValuation {
   base_revenue: {
-    value: number;
+    /** null when no credible revenue exists — never fabricated to 0. */
+    value: number | null;
     source: string | null;
   };
   current_valuation: number | null;
