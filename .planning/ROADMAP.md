@@ -43,7 +43,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md — company_analysis table + RLS + types + [BLOCKING] schema push + getCompanyAnalysis reader (FND-01)
 - [x] 01-02-PLAN.md — runDeepDive Grok agent: grounding gather, one structured call, code-computed comps, upsert (FND-02, FND-03)
-- [ ] 01-03-PLAN.md — shared Fact/Estimate + confidence chip, empty-state primitive, staleness helper (FND-05, FND-06)
+- [x] 01-03-PLAN.md — shared Fact/Estimate + confidence chip, empty-state primitive, staleness helper (FND-05, FND-06)
 - [ ] 01-04-PLAN.md — Run deep-dive header button + server action + empty/stale wiring (FND-04, FND-06)
 **UI hint**: yes
 
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/4 | In Progress|  |
+| 1. Foundation | 3/4 | In Progress|  |
 | 2. Overview Enrichment | 0/TBD | Not started | - |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
 | 4. Valuation Targets Tab | 0/TBD | Not started | - |
