@@ -60,6 +60,7 @@ import { DeleteCompanyButton } from "@/components/company/delete-company-button"
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
 import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
+import { OverviewAnalysis } from "@/components/company/overview-sections";
 import { isContractWin } from "@/lib/news/classify";
 import { dedupeFundingRows, dedupeValuationRows } from "@/lib/ingestion/dedupe";
 import {
@@ -371,6 +372,19 @@ export default async function CompanyDetailPage({
               <BusinessModelAnalysis company={company} />
             </CardContent>
           </Card>
+
+          {/* Full deep-dive investment thesis (Phase 2): Executive Summary
+              pinned top, analytical sections as collapsibles, IC Conclusion
+              pinned bottom. Shows the empty-state CTA before the first run. */}
+          <div className="mt-4 space-y-4">
+            {analysis ? (
+              <OverviewAnalysis sections={analysis.sections} />
+            ) : (
+              <DeepDiveEmpty
+                action={<DeepDiveButton companyId={company.id} />}
+              />
+            )}
+          </div>
         </TabsContent>
 
         {/* Provenance — canonical record across sources */}
