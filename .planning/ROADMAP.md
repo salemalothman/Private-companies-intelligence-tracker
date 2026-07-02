@@ -100,7 +100,7 @@ Plans:
 - [x] 04-02-PLAN.md — ingestion script skeleton + envelope/CIK parser + unit tests (ING-01, ING-06)
 - [x] 04-03-PLAN.md — company-goat module: Form D rounds + signals with CIK disambiguation (ING-03, ING-06)
 - [x] 04-04-PLAN.md — sec-edgar module: peer CIK resolution + XBRL income facts + cross-section (ING-02, ING-06)
-- [ ] 04-05-PLAN.md — x-twitter module: doctor preflight + read-only tweets sync, opt-in on X_BEARER_TOKEN (ING-04, ING-06)
+- [x] 04-05-PLAN.md — x-twitter module: doctor preflight + read-only tweets sync, opt-in on X_BEARER_TOKEN (ING-04, ING-06)
 - [ ] 04-06-PLAN.md — runDeepDive grounding extended to read the three caches with source attribution (ING-05, ING-06)
 **UI hint**: no
 
@@ -128,5 +128,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 2/2 | Complete   | 2026-07-02 |
 | 3. Competitors Enrichment | 2/2 | Complete   | 2026-07-02 |
-| 4. External Grounding Ingestion | 4/6 | In Progress|  |
+| 4. External Grounding Ingestion | 5/6 | In Progress|  |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |

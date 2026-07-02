@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md (typed competitors block + normalizeSections + prompt)
-last_updated: "2026-07-02T14:44:21.988Z"
+stopped_at: Completed 04-04-PLAN.md (sec-edgar source module — XBRL income facts + peer-revenue cache)
+last_updated: "2026-07-02T14:56:06.139Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 60
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 04 (External Grounding Ingestion) — EXECUTING
-Plan: 4 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-02
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [█████████░] 86%
 | Phase 03 P01 | ~7 min | 2 tasks | 3 files |
 | Phase 04 P02 | 20m | 3 tasks | 5 files |
 | Phase 04 P04 | ~15min | 2 tasks | 2 files |
+| Phase 04 P05 | 6min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-02: ingestion off-Vercel (scripts/ingest-grounding.ts); execFile array args no shell for DB-derived CLI values; secrets env-only; x-twitter opt-in via X_BEARER_TOKEN
 - [Phase ?]: sec-edgar: competitors are candidate public peers; private portfolio companies (no XBRL) skipped+counted, not errors
 - [Phase ?]: peer_financials upsert on (cik, fiscal_period); real XBRL figures nullable (never zeroed); canonical us-gaap:Revenues preferred, tags never summed
+- [Phase ?]: x-twitter SourceModule: read-only via type-level subcommand allowlist, opt-in on X_BEARER_TOKEN, doctor app-only lane gate, idempotent x_posts upsert on (company_id, post_id)
 
 ### Pending Todos
 
@@ -103,6 +105,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-02T14:43:24.773Z
+Last session: 2026-07-02T14:54:47.807Z
 Stopped at: Completed 04-04-PLAN.md (sec-edgar source module — XBRL income facts + peer-revenue cache)
 Resume file: None

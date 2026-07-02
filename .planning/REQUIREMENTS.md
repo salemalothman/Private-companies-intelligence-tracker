@@ -64,7 +64,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 - [ ] **ING-03**: `company-goat` — cache SEC Form D rounds + startup signals
   (`snapshot`/`funding`) per portfolio company + competitor, with CIK
   disambiguation (no ambiguous name-fragment amounts).
-- [ ] **ING-04**: `x-twitter` — sync company + competitor posts via an app-only
+- [x] **ING-04**: `x-twitter` — sync company + competitor posts via an app-only
   bearer token into Supabase for news/sentiment.
 - [ ] **ING-05**: `runDeepDive` reads the cached ingested facts as additional
   grounding, so generated fields cite real Form D / XBRL / X sources.
@@ -129,7 +129,7 @@ Updated during roadmap creation (2026-07-02).
 | ING-01 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-02 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-03 | Phase 4 — External Grounding Ingestion | Pending |
-| ING-04 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-04 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-05 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-06 | Phase 4 — External Grounding Ingestion | Complete |
 | VAL-01 | Phase 5 — Valuation Targets Tab | Pending |
