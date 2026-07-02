@@ -8,13 +8,16 @@ import {
   Globe,
   Handshake,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import {
   getCompany,
+  getCompanyAnalysis,
   getCompetitors,
   getDocuments,
   getMarketValuation,
 } from "@/lib/queries";
+import { isStale } from "@/lib/analysis/staleness";
 import { buildCanonicalRecord } from "@/lib/canonical";
 import { isPublisherDomain } from "@/lib/enrichment/sanitize-sources";
 import { Provenance } from "@/components/company/provenance";
@@ -50,6 +53,8 @@ import {
 } from "@/components/ui/table";
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { SyncButton } from "@/components/company/sync-button";
+import { DeepDiveButton } from "@/components/company/deep-dive-button";
+import { DeepDiveEmpty } from "@/components/company/confidence-chip";
 import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { DeleteCompanyButton } from "@/components/company/delete-company-button";
 import { ValuationTimeline } from "@/components/company/valuation-timeline";
@@ -92,11 +97,27 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const company = await getCompany(id);
   if (!company) notFound();
-  const [competitors, marketRow, documents] = await Promise.all([
+  const [competitors, marketRow, documents, analysis] = await Promise.all([
     getCompetitors(id),
     getMarketValuation(company.name),
     getDocuments(id),
+    getCompanyAnalysis(id),
   ]);
+
+  // Deep-dive staleness (FND-06): the hint shows when the underlying data the
+  // stored analysis was generated from — valuations / competitors — changed
+  // strictly after `generated_at`. `isStale` errs toward NOT-stale on missing
+  // inputs, so a company with no analysis simply gets the empty state below.
+  const latestDataChange = [
+    ...company.valuations.map((v) => v.created_at),
+    ...competitors.map((c) => c.updated_at ?? c.created_at),
+  ]
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .at(-1);
+  const analysisStale = analysis
+    ? isStale(analysis.generated_at, latestDataChange)
+    : false;
 
   const invested = companyInvested(company);
   const value = currentValue(company);
@@ -213,6 +234,7 @@ export default async function CompanyDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <AddDocumentDialog companyId={company.id} />
           <SyncButton companyId={company.id} />
+          <DeepDiveButton companyId={company.id} />
           <EditOverviewDialog company={company} />
           <DeleteCompanyButton
             companyId={company.id}
@@ -220,6 +242,24 @@ export default async function CompanyDetailPage({
           />
         </div>
       </div>
+
+      {/* Deep-dive analysis status (FND-06): empty-state CTA before the first
+          run; a generated_at line + "may be stale" hint once a row exists. The
+          full narrative renders into the tabs in Phase 2 — this is additive and
+          leaves existing tab content unchanged. */}
+      {analysis ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Deep-dive generated {formatDate(analysis.generated_at)}</span>
+          {analysisStale && (
+            <Badge variant="muted" title="Underlying data changed after this analysis was generated — re-run to refresh.">
+              May be stale
+            </Badge>
+          )}
+        </div>
+      ) : (
+        <DeepDiveEmpty action={<DeepDiveButton companyId={company.id} />} />
+      )}
 
       {/* Key stats */}
       <Card>
