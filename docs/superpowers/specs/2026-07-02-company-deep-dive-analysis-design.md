@@ -103,10 +103,37 @@ per-company tables).
 | `sections` | jsonb | narrative object (see field shape) |
 | `valuation` | jsonb | comps inputs (see §4) |
 
-**Field shape** for every forward-looking narrative field:
+**Field shape** for every forward-looking narrative field (a `LabelledField`):
 ```jsonc
 { "text": "…", "basis": "fact" | "estimate", "confidence": "low" | "med" | "high", "source": "…?" }
 ```
+
+**`sections` per-section shape** (Phase 2 tightened this into typed per-section
+shapes — `OverviewSections`). Every key and field is optional so an older/partial
+row still validates; the renderer degrades absence via `SectionEmpty`:
+
+| Section key | Shape |
+|---|---|
+| `executive_summary` | `{ thesis, value_prop, positioning, most_likely_outcome: LabelledField; strengths[], weaknesses[]: LabelledField[] }` |
+| `technology` | `{ narrative: LabelledField; moat_rating: integer 1–10 \| null }` |
+| `product_portfolio` | `LabelledField` |
+| `vertical_customer` | `LabelledField` |
+| `business_model` | `LabelledField` |
+| `unit_economics` | `LabelledField` |
+| `market_opportunity` | `{ tam, sam, som: LabelledField }` — directional ranges, never asserted exact $ |
+| `strategic_moat` | `{ switching_costs, network_flywheel, distribution_regulatory, ip: integer 1–10 \| null; narrative?: LabelledField }` |
+| `historical_analogue` | `LabelledField` |
+| `outlook_and_exit` | `LabelledField` — narrative ONLY; **no probability, no price-target fields** |
+| `ic_conclusion` | `{ rating: "strong_buy" \| "buy" \| "hold" \| "sell"; bull, bear, recommendation: LabelledField }` |
+
+The only numbers the analysis layer emits are the growth RATES (§4) and the
+bounded 1–10 rating indicators above (qualitative judgement, not fabricated
+financials). `runDeepDive` runs a pure `normalizeSections` that clamps ratings to
+1–10, coerces the IC rating to the enum (or drops it), and strips any stray
+probability/price-target keys before persistence.
+
+> **Types in `lib/agents/deep-dive-types.ts` are the source of truth** for these
+> shapes; this table mirrors them. Change the types + this spec together.
 
 ### Agent `lib/agents/deep-dive.ts` — `runDeepDive(supabase, company)`
 1. **Gather grounding context already in-app:** canonical record, competitor
