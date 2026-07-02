@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Globe,
   Handshake,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import {
@@ -19,7 +18,6 @@ import {
 } from "@/lib/queries";
 import { isStale } from "@/lib/analysis/staleness";
 import { buildCanonicalRecord } from "@/lib/canonical";
-import { isPublisherDomain } from "@/lib/enrichment/sanitize-sources";
 import { Provenance } from "@/components/company/provenance";
 import { DataRoom } from "@/components/company/data-room";
 import {
@@ -61,6 +59,8 @@ import { ValuationTimeline } from "@/components/company/valuation-timeline";
 import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
 import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
 import { OverviewAnalysis } from "@/components/company/overview-sections";
+import { CompetitorsAnalysis } from "@/components/company/competitors-analysis";
+import type { OverviewSections } from "@/lib/agents/deep-dive-types";
 import { isContractWin } from "@/lib/news/classify";
 import { dedupeFundingRows, dedupeValuationRows } from "@/lib/ingestion/dedupe";
 import {
@@ -586,100 +586,22 @@ export default async function CompanyDetailPage({
             {peers.length === 0 ? (
               <EmptyRow text="No competitors discovered yet. Click “Sync data” (or “Find competitors”) to scan X and SEC filings." />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10 text-right">#</TableHead>
-                      <TableHead>Company</TableHead>
-                      <TableHead className="text-right">Latest valuation</TableHead>
-                      <TableHead className="text-right">Revenue / ARR</TableHead>
-                      <TableHead className="text-right">V / R multiple</TableHead>
-                      <TableHead>As of</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Basis</TableHead>
-                      <TableHead className="text-right">Verified</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {competitorRanking.map((e, i) => (
-                      <TableRow
-                        key={`${e.name}-${i}`}
-                        className={cn(
-                          e.isTarget &&
-                            "bg-primary/[0.07] font-bold hover:bg-primary/[0.07]",
-                        )}
-                      >
-                        <TableCell
-                          className={cn(
-                            "text-right tabular-nums text-muted-foreground",
-                            e.isTarget &&
-                              "border-l-2 border-primary font-bold text-foreground",
-                          )}
-                        >
-                          {i + 1}
-                        </TableCell>
-                        <TableCell
-                          className={cn(e.isTarget ? "font-bold" : "font-medium")}
-                        >
-                          <span className="flex items-center gap-2">
-                            {e.name}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {e.valuation != null ? formatCurrency(e.valuation) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {e.revenue != null ? formatCurrency(e.revenue) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMultiple(e.multiple)}
-                        </TableCell>
-                        <TableCell
-                          className={cn(!e.isTarget && "text-muted-foreground")}
-                        >
-                          {formatDate(e.valuationDate)}
-                        </TableCell>
-                        <TableCell
-                          className={cn("text-xs", !e.isTarget && "text-muted-foreground")}
-                        >
-                          {isPublisherDomain(e.source) ? (
-                            <a
-                              href={`https://${e.source}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline-offset-2 hover:underline"
-                            >
-                              {e.source}
-                            </a>
-                          ) : (
-                            (e.source ?? "—")
-                          )}
-                        </TableCell>
-                        <TableCell
-                          className={cn("max-w-xs truncate text-xs", !e.isTarget && "text-muted-foreground")}
-                          title={e.basis ?? undefined}
-                        >
-                          {e.basis ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {e.isTarget ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : e.secVerified ? (
-                            <span
-                              className="inline-flex items-center gap-1 text-success"
-                              title="A matching SEC Form D filing was found"
-                            >
-                              <ShieldCheck className="h-3.5 w-3.5" /> SEC
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                {/* Before the first deep-dive run the enrichment shows the CTA
+                    while the flat ranking still renders below (mirrors the
+                    Overview tab gate). */}
+                {!analysis && (
+                  <DeepDiveEmpty
+                    action={<DeepDiveButton companyId={company.id} />}
+                  />
+                )}
+                <CompetitorsAnalysis
+                  ranking={competitorRanking}
+                  competitors={
+                    (analysis?.sections as OverviewSections | undefined)
+                      ?.competitors
+                  }
+                />
               </div>
             )}
           </div>

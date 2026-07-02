@@ -62,8 +62,22 @@ async function main() {
 
   const sections = (analysis?.sections ?? {}) as Record<string, unknown>;
   const ic = sections.ic_conclusion as { rating?: string } | undefined;
+  const competitors = sections.competitors as
+    | {
+        threat_tiers?: Record<string, string>;
+        capability_matrix?: { threats?: unknown[] };
+      }
+    | undefined;
   console.log("\nProduced section keys:", Object.keys(sections).sort().join(", ") || "(none)");
   console.log("ic_conclusion.rating:", ic?.rating ?? "(none)");
+  console.log(
+    "competitors.threat_tiers count:",
+    Object.keys(competitors?.threat_tiers ?? {}).length,
+  );
+  console.log(
+    "competitors.capability_matrix threats:",
+    competitors?.capability_matrix?.threats?.length ?? 0,
+  );
   console.log("generated_at:", analysis?.generated_at ?? "(none)");
   console.log("\n✅ done.");
 }
