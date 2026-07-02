@@ -68,6 +68,9 @@ async function main() {
         capability_matrix?: { threats?: unknown[] };
       }
     | undefined;
+  const hf = sections.historical_financials as
+    | Record<string, unknown>
+    | undefined;
   console.log("\nProduced section keys:", Object.keys(sections).sort().join(", ") || "(none)");
   console.log("ic_conclusion.rating:", ic?.rating ?? "(none)");
   console.log(
@@ -77,6 +80,12 @@ async function main() {
   console.log(
     "competitors.capability_matrix threats:",
     competitors?.capability_matrix?.threats?.length ?? 0,
+  );
+  console.log(
+    "historical_financials:",
+    Object.keys(hf ?? {}).length
+      ? Object.keys(hf as Record<string, unknown>).sort().join("/")
+      : "(none)",
   );
   console.log("generated_at:", analysis?.generated_at ?? "(none)");
   console.log("\n✅ done.");

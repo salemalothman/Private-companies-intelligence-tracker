@@ -152,6 +152,75 @@ describe("normalizeSections", () => {
   });
 });
 
+describe("normalizeSections — historical_financials", () => {
+  it("shapes valid fields as LabelledFields and omits absent ones (absence degrades)", () => {
+    const raw = {
+      historical_financials: {
+        gross_margin: { text: "~80% software margin", basis: "estimate", confidence: "med" },
+        runway: { text: "~18mo", basis: "fact", confidence: "high", source: "Form D" },
+      },
+    };
+    const s = normalizeSections(raw);
+    expect(s.historical_financials?.gross_margin).toEqual({
+      text: "~80% software margin",
+      basis: "estimate",
+      confidence: "med",
+    });
+    expect(s.historical_financials?.runway).toEqual({
+      text: "~18mo",
+      basis: "fact",
+      confidence: "high",
+      source: "Form D",
+    });
+    // Absent fields are omitted, never zeroed.
+    expect(s.historical_financials?.burn_rate).toBeUndefined();
+    expect(s.historical_financials?.acv).toBeUndefined();
+  });
+
+  it("strips stray fabricated-number / probability keys (guardrail)", () => {
+    const raw = {
+      historical_financials: {
+        gross_margin: {
+          text: "high margin",
+          basis: "estimate",
+          confidence: "med",
+          gross_margin_pct: 82,
+          probability: 0.4,
+        },
+      },
+    };
+    const s = normalizeSections(raw);
+    const gm = s.historical_financials?.gross_margin as unknown as Record<string, unknown>;
+    expect(gm).toEqual({ text: "high margin", basis: "estimate", confidence: "med" });
+    expect(gm).not.toHaveProperty("gross_margin_pct");
+    expect(gm).not.toHaveProperty("probability");
+  });
+
+  it("drops the whole key when no field has usable text (empty object dropped)", () => {
+    const raw = {
+      historical_financials: {
+        gross_margin: { basis: "estimate", confidence: "med" },
+        burn_rate: { text: "" },
+        runway: 42,
+        acv: null,
+      },
+    };
+    const s = normalizeSections(raw);
+    expect(s.historical_financials).toBeUndefined();
+  });
+
+  it("ignores a non-object historical_financials without affecting other sections", () => {
+    expect(normalizeSections({ historical_financials: "n/a" }).historical_financials).toBeUndefined();
+    expect(normalizeSections({ historical_financials: null }).historical_financials).toBeUndefined();
+    const s = normalizeSections({
+      historical_financials: "n/a",
+      product_portfolio: { text: "products", basis: "estimate", confidence: "med" },
+    });
+    expect(s.historical_financials).toBeUndefined();
+    expect(s.product_portfolio?.text).toBe("products");
+  });
+});
+
 describe("normalizeSections competitors", () => {
   const lf = (text: string) => ({
     text,
