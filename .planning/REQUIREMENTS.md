@@ -89,20 +89,34 @@ Deferred to future release.
 
 ## Traceability
 
-Updated during roadmap creation.
+Updated during roadmap creation (2026-07-02).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01..06 | TBD | Pending |
-| OVR-01..05 | TBD | Pending |
-| CMP-01..02 | TBD | Pending |
-| VAL-01..05 | TBD | Pending |
+| FND-01 | Phase 1 — Foundation | Pending |
+| FND-02 | Phase 1 — Foundation | Pending |
+| FND-03 | Phase 1 — Foundation | Pending |
+| FND-04 | Phase 1 — Foundation | Pending |
+| FND-05 | Phase 1 — Foundation | Pending |
+| FND-06 | Phase 1 — Foundation | Pending |
+| OVR-01 | Phase 2 — Overview Enrichment | Pending |
+| OVR-02 | Phase 2 — Overview Enrichment | Pending |
+| OVR-03 | Phase 2 — Overview Enrichment | Pending |
+| OVR-04 | Phase 2 — Overview Enrichment | Pending |
+| OVR-05 | Phase 2 — Overview Enrichment | Pending |
+| CMP-01 | Phase 3 — Competitors Enrichment | Pending |
+| CMP-02 | Phase 3 — Competitors Enrichment | Pending |
+| VAL-01 | Phase 4 — Valuation Targets Tab | Pending |
+| VAL-02 | Phase 4 — Valuation Targets Tab | Pending |
+| VAL-03 | Phase 4 — Valuation Targets Tab | Pending |
+| VAL-04 | Phase 4 — Valuation Targets Tab | Pending |
+| VAL-05 | Phase 4 — Valuation Targets Tab | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 18 ⚠️
+- Mapped to phases: 18 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-02 after initialization*
+*Last updated: 2026-07-02 after roadmap creation*
