@@ -60,7 +60,12 @@ import { RefreshCompetitorsButton } from "@/components/company/refresh-competito
 import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
 import { OverviewAnalysis } from "@/components/company/overview-sections";
 import { CompetitorsAnalysis } from "@/components/company/competitors-analysis";
-import type { OverviewSections } from "@/lib/agents/deep-dive-types";
+import { ValuationTargets } from "@/components/company/valuation-targets";
+import { HistoricalFinancials } from "@/components/company/historical-financials";
+import type {
+  AnalysisValuation,
+  OverviewSections,
+} from "@/lib/agents/deep-dive-types";
 import { isContractWin } from "@/lib/news/classify";
 import { dedupeFundingRows, dedupeValuationRows } from "@/lib/ingestion/dedupe";
 import {
@@ -329,6 +334,7 @@ export default async function CompanyDetailPage({
           <TabsTrigger value="dataroom">Data room</TabsTrigger>
           <TabsTrigger value="investment">Investment</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
+          <TabsTrigger value="valuation-targets">Valuation Targets</TabsTrigger>
           <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
           <TabsTrigger value="competitors">Competitors</TabsTrigger>
           <TabsTrigger value="news">News</TabsTrigger>
@@ -458,6 +464,18 @@ export default async function CompanyDetailPage({
         {/* Valuation */}
         <TabsContent value="valuation">
           <div className="space-y-4">
+            {analysis ? (
+              <HistoricalFinancials
+                financials={
+                  (analysis.sections as OverviewSections | undefined)
+                    ?.historical_financials
+                }
+              />
+            ) : (
+              <DeepDiveEmpty
+                action={<DeepDiveButton companyId={company.id} />}
+              />
+            )}
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Valuation timeline</h3>
               <AddValuationDialog companyId={company.id} />
@@ -513,6 +531,15 @@ export default async function CompanyDetailPage({
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="valuation-targets">
+          <ValuationTargets
+            valuation={
+              (analysis?.valuation as AnalysisValuation | null) ?? null
+            }
+            deepDiveAction={<DeepDiveButton companyId={company.id} />}
+          />
         </TabsContent>
 
         {/* Funding rounds */}
