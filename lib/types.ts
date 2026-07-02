@@ -420,6 +420,115 @@ type CompanyAnalysisInsert = {
   updated_at?: string;
 };
 
+// --- peer_financials (sec-edgar public-peer XBRL income facts; shared reference) ---
+export type PeerFinancialRow = {
+  id: string;
+  cik: string;
+  ticker: string | null;
+  entity_name: string | null;
+  fiscal_period: string;
+  revenue: number | null;
+  net_income: number | null;
+  gross_profit: number | null;
+  operating_income: number | null;
+  currency: string | null;
+  source: string;
+  source_url: string | null;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+};
+type PeerFinancialInsert = {
+  id?: string;
+  cik: string;
+  ticker?: string | null;
+  entity_name?: string | null;
+  fiscal_period: string;
+  revenue?: number | null;
+  net_income?: number | null;
+  gross_profit?: number | null;
+  operating_income?: number | null;
+  currency?: string | null;
+  source?: string;
+  source_url?: string | null;
+  fetched_at?: string;
+  updated_at?: string;
+};
+
+// --- form_d_rounds (company-goat Form D rounds + startup signals; per-owner) ---
+export type FormDRoundRow = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  subject: string;
+  cik: string | null;
+  accession: string | null;
+  offering_amount: number | null;
+  amount_sold: number | null;
+  filing_date: string | null;
+  exemption: string | null;
+  related_persons: unknown[];
+  signals: Record<string, unknown>;
+  source: string;
+  source_url: string | null;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+};
+type FormDRoundInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  subject: string;
+  cik?: string | null;
+  accession: string;
+  offering_amount?: number | null;
+  amount_sold?: number | null;
+  filing_date?: string | null;
+  exemption?: string | null;
+  related_persons?: unknown[];
+  signals?: Record<string, unknown>;
+  source?: string;
+  source_url?: string | null;
+  fetched_at?: string;
+  updated_at?: string;
+};
+
+// --- x_posts (x-twitter posts; per-owner) ---
+export type XPostRow = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  subject: string;
+  handle: string | null;
+  post_id: string;
+  text: string | null;
+  author: string | null;
+  posted_at: string | null;
+  url: string | null;
+  metrics: Record<string, unknown>;
+  source: string;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+};
+type XPostInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  subject: string;
+  handle?: string | null;
+  post_id: string;
+  text?: string | null;
+  author?: string | null;
+  posted_at?: string | null;
+  url?: string | null;
+  metrics?: Record<string, unknown>;
+  source?: string;
+  fetched_at?: string;
+  updated_at?: string;
+};
+
 // --- alert preferences ---
 export type AlertPrefsRow = {
   user_id: string;
@@ -538,6 +647,24 @@ export interface Database {
         Row: CompanyAnalysisRow;
         Insert: CompanyAnalysisInsert;
         Update: Partial<CompanyAnalysisInsert>;
+        Relationships: [];
+      };
+      peer_financials: {
+        Row: PeerFinancialRow;
+        Insert: PeerFinancialInsert;
+        Update: Partial<PeerFinancialInsert>;
+        Relationships: [];
+      };
+      form_d_rounds: {
+        Row: FormDRoundRow;
+        Insert: FormDRoundInsert;
+        Update: Partial<FormDRoundInsert>;
+        Relationships: [];
+      };
+      x_posts: {
+        Row: XPostRow;
+        Insert: XPostInsert;
+        Update: Partial<XPostInsert>;
         Relationships: [];
       };
     };
