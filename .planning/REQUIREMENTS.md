@@ -58,7 +58,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
   pattern) runs the Printing Press CLIs in `--agent` JSON mode and upserts
   source-tagged results into Supabase; it does NOT run in the Vercel serverless
   runtime.
-- [ ] **ING-02**: `sec-edgar` — resolve public peers to CIK (`companies lookup`)
+- [x] **ING-02**: `sec-edgar` — resolve public peers to CIK (`companies lookup`)
   and cache XBRL income facts (`facts statement`) + peer-revenue cross-sections
   into Supabase, feeding real peer revenue/multiples and factual financials.
 - [ ] **ING-03**: `company-goat` — cache SEC Form D rounds + startup signals
@@ -68,7 +68,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
   bearer token into Supabase for news/sentiment.
 - [ ] **ING-05**: `runDeepDive` reads the cached ingested facts as additional
   grounding, so generated fields cite real Form D / XBRL / X sources.
-- [ ] **ING-06**: Ingestion is idempotent and source-tagged, preserves the
+- [x] **ING-06**: Ingestion is idempotent and source-tagged, preserves the
   no-fabrication guardrail (fact + source labelling), and keeps all secrets
   (`X_BEARER_TOKEN`, `COMPANY_PP_CONTACT_EMAIL`) in env only.
 
@@ -127,11 +127,11 @@ Updated during roadmap creation (2026-07-02).
 | CMP-01 | Phase 3 — Competitors Enrichment | Complete |
 | CMP-02 | Phase 3 — Competitors Enrichment | Complete |
 | ING-01 | Phase 4 — External Grounding Ingestion | Pending |
-| ING-02 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-02 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-03 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-04 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-05 | Phase 4 — External Grounding Ingestion | Pending |
-| ING-06 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-06 | Phase 4 — External Grounding Ingestion | Complete |
 | VAL-01 | Phase 5 — Valuation Targets Tab | Pending |
 | VAL-02 | Phase 5 — Valuation Targets Tab | Pending |
 | VAL-03 | Phase 5 — Valuation Targets Tab | Pending |
