@@ -119,7 +119,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Pure comps math module + unit tests (projected revenue × applied multiple, Bear/Base/Bull, null propagation, override clamping) (VAL-02, VAL-03, VAL-04)
 - [x] 05-02-PLAN.md — historical_financials agent extension (types + prompt/zod/normalizeSections) + tests + regen print (VAL-01)
-- [ ] 05-03-PLAN.md — Interactive Valuation Targets client tab (live table + chart, inputs panel, disclaimer, empty/insufficient states) + VAL-01 render block, wired into page.tsx; human-verify checkpoint (VAL-01..05)
+- [ ] 05-03-PLAN.md — Interactive Valuation Targets client tab (live table + chart, inputs panel, disclaimer, empty/insufficient states) + VAL-01 render block, wired into page.tsx; human-verify checkpoint (VAL-01..05) — code landed (532d14c/a51e3b1/2e2af44), tsc/eslint/build/comps-tests clean; awaiting live-verify checkpoint
 **UI hint**: yes
 
 ## Progress

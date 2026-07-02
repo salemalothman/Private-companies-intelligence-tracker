@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-02-PLAN.md (historical_financials agent extension — types + prompt/zod/normalizeSections + tests + regen print, VAL-01; 34 deep-dive tests green)
-last_updated: "2026-07-02T17:34:16.924Z"
-last_activity: 2026-07-02 -- Completed 05-02 (historical_financials agent extension)
+stopped_at: 05-03 code tasks 1-3 complete (Valuation Targets client tab + VAL-01 render block + page wiring; tsc/eslint/next build clean, comps tests green) — BLOCKED on Task 4 human-verify checkpoint (regen Replit + live browser check, orchestrator-run)
+last_updated: "2026-07-02T17:46:36Z"
+last_activity: 2026-07-02 -- 05-03 code landed (532d14c/a51e3b1/2e2af44); awaiting live-verify checkpoint
 progress:
   total_phases: 5
   completed_phases: 4
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-07-02 -- Completed 05-02 (historical_financials agent extension)
+Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
+Last activity: 2026-07-02 -- 05-03 code landed; awaiting live-verify checkpoint
 
 Progress: [█████████░] 94%
 
