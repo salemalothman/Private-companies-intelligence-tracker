@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-04-PLAN.md (sec-edgar source module — XBRL income facts + peer-revenue cache)
-last_updated: "2026-07-02T14:56:06.139Z"
+stopped_at: Completed 04-06-PLAN.md (runDeepDive grounding extended to read the three caches with source attribution — ING-05)
+last_updated: "2026-07-02T16:40:00.000Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
-  percent: 60
+  completed_plans: 14
+  percent: 67
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 ## Current Position
 
-Phase: 04 (External Grounding Ingestion) — EXECUTING
+Phase: 04 (External Grounding Ingestion) — COMPLETE
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete
 Last activity: 2026-07-02
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 93%
 | Phase 04 P02 | 20m | 3 tasks | 5 files |
 | Phase 04 P04 | ~15min | 2 tasks | 2 files |
 | Phase 04 P05 | 6min | 2 tasks | 3 files |
+| Phase 04 P06 | ~15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,7 @@ Recent decisions affecting current work:
 - [Phase ?]: sec-edgar: competitors are candidate public peers; private portfolio companies (no XBRL) skipped+counted, not errors
 - [Phase ?]: peer_financials upsert on (cik, fiscal_period); real XBRL figures nullable (never zeroed); canonical us-gaap:Revenues preferred, tags never summed
 - [Phase ?]: x-twitter SourceModule: read-only via type-level subcommand allowlist, opt-in on X_BEARER_TOKEN, doctor app-only lane gate, idempotent x_posts upsert on (company_id, post_id)
+- [Phase 04]: runDeepDive grounds on the three caches (form_d_rounds/x_posts by company_id under RLS; peer_financials by peer entity_name — no cik/ticker on CompetitorRow); facts source-tagged into the prompt, capped at 8/source; da325a4 retry+no-clobber guard and code-computed comps preserved
 
 ### Pending Todos
 
@@ -105,6 +107,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-02T14:54:47.807Z
-Stopped at: Completed 04-04-PLAN.md (sec-edgar source module — XBRL income facts + peer-revenue cache)
+Last session: 2026-07-02T16:40:00.000Z
+Stopped at: Completed 04-06-PLAN.md (runDeepDive grounding extended to read the three caches with source attribution — ING-05); Phase 04 complete
 Resume file: None

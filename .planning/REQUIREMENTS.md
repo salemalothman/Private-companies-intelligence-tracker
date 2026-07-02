@@ -66,7 +66,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
   disambiguation (no ambiguous name-fragment amounts).
 - [x] **ING-04**: `x-twitter` — sync company + competitor posts via an app-only
   bearer token into Supabase for news/sentiment.
-- [ ] **ING-05**: `runDeepDive` reads the cached ingested facts as additional
+- [x] **ING-05**: `runDeepDive` reads the cached ingested facts as additional
   grounding, so generated fields cite real Form D / XBRL / X sources.
 - [x] **ING-06**: Ingestion is idempotent and source-tagged, preserves the
   no-fabrication guardrail (fact + source labelling), and keeps all secrets
@@ -130,7 +130,7 @@ Updated during roadmap creation (2026-07-02).
 | ING-02 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-03 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-04 | Phase 4 — External Grounding Ingestion | Complete |
-| ING-05 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-05 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-06 | Phase 4 — External Grounding Ingestion | Complete |
 | VAL-01 | Phase 5 — Valuation Targets Tab | Pending |
 | VAL-02 | Phase 5 — Valuation Targets Tab | Pending |
