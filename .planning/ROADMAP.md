@@ -39,7 +39,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The stored analysis is grounded in existing in-app context (canonical record, competitor ranking + multiples, funding/valuation history, news, docs) — no fabricated financials and no invented probabilities appear.
   4. Comps inputs (peer-multiple percentiles, base revenue) are computed in code; the LLM supplies only a growth proposal with rationale + confidence.
   5. A shared Fact/Estimate + Low/Med/High confidence chip renders on labelled fields, and before the first run enriched areas show a compact "Run deep-dive" empty state (with a "may be stale" hint when underlying data changed after `generated_at`).
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 01-01-PLAN.md — company_analysis table + RLS + types + [BLOCKING] schema push + getCompanyAnalysis reader (FND-01)
+- [ ] 01-02-PLAN.md — runDeepDive Grok agent: grounding gather, one structured call, code-computed comps, upsert (FND-02, FND-03)
+- [ ] 01-03-PLAN.md — shared Fact/Estimate + confidence chip, empty-state primitive, staleness helper (FND-05, FND-06)
+- [ ] 01-04-PLAN.md — Run deep-dive header button + server action + empty/stale wiring (FND-04, FND-06)
 **UI hint**: yes
 
 ### Phase 2: Overview Enrichment
