@@ -428,7 +428,12 @@ function buildPrompt(grounding: string): string {
     `in code from real peer multiples, not by you. The ONLY numbers you emit are: ` +
     `the growth RATES inside "growth", and the 1-10 integer rating indicators ` +
     `(technology.moat_rating and the four strategic_moat dimensions), which are ` +
-    `qualitative judgement scores — NOT fabricated financials.`
+    `qualitative judgement scores — NOT fabricated financials.\n\n` +
+    `SOURCE ATTRIBUTION: some grounding lines are prefixed with a real source ` +
+    `tag — "Form D (SEC, source: company-goat)", "Peer XBRL (SEC, source: ` +
+    `sec-edgar)", or "X post (source: x-twitter)". When you use such a fact, set ` +
+    `that field's basis to "fact" and put the tag in its "source". Treat anything ` +
+    `NOT backed by a tagged grounding fact as an "estimate".`
   );
 }
 
@@ -634,6 +639,36 @@ export async function runDeepDive(
   const selfMetric = comps.find((c) => c.is_self) ?? null;
   const peers = comps.filter((c) => !c.is_self);
 
+  // Step 1b — read the three ingested caches (ING-05). form_d_rounds + x_posts are
+  // owner-scoped by company_id (RLS enforces per-user); peer_financials is shared
+  // reference data matched to the ranked peers by entity_name (CompetitorRow carries
+  // no cik/ticker). All reads degrade to [] on null/error (never throw — matches the
+  // existing degrade-not-throw convention); empty caches simply add no grounding.
+  const peerNames = Array.from(
+    new Set(peers.map((p) => p.name).filter((n): n is string => !!n)),
+  );
+  const [{ data: formDData }, { data: postsData }, peerFinResult] =
+    await Promise.all([
+      supabase.from("form_d_rounds").select("*").eq("company_id", company.id),
+      supabase
+        .from("x_posts")
+        .select("*")
+        .eq("company_id", company.id)
+        .order("posted_at", { ascending: false })
+        .limit(10),
+      peerNames.length
+        ? supabase
+            .from("peer_financials")
+            .select("*")
+            .in("entity_name", peerNames)
+        : Promise.resolve({ data: [] as PeerFinancialRow[] }),
+    ]);
+  const cachedGrounding = summarizeCachedGrounding({
+    formD: (formDData as FormDRoundRow[] | null) ?? [],
+    peerFin: (peerFinResult.data as PeerFinancialRow[] | null) ?? [],
+    posts: (postsData as XPostRow[] | null) ?? [],
+  });
+
   const canonical = buildCanonicalRecord(company, {
     market: market
       ? {
@@ -667,8 +702,12 @@ export async function runDeepDive(
   // Step 2 — structured Grok call for the narrative + growth-rate proposal,
   // retried once. Each attempt returns null (never throws) on a soft parse/schema
   // failure; a thrown error is a hard network/model failure we log and retry.
+  const inAppGrounding = summarizeGrounding(company, canonical, ranking);
+  const grounding = cachedGrounding
+    ? `${inAppGrounding}\n\nCACHED SOURCE-TAGGED FACTS:\n${cachedGrounding}`
+    : inAppGrounding;
   const prompt =
-    `${buildPrompt(summarizeGrounding(company, canonical, ranking))}\n\n` +
+    `${buildPrompt(grounding)}\n\n` +
     `Respond with ONLY minified JSON matching this shape — no prose, no ` +
     `markdown fences, no citations:\n${ANALYSIS_SHAPE}`;
   let data: z.infer<typeof analysisSchema> | null = null;

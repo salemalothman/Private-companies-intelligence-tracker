@@ -573,10 +573,12 @@ describe("runDeepDive persistence guard", () => {
   });
 
   /**
-   * Hand-rolled Supabase fake. The competitors read is awaited directly after
-   * `.eq()` (the builder is thenable); the market read ends in `.maybeSingle()`.
-   * Every `company_analysis.upsert` is recorded so tests can assert it did — or
-   * critically, did NOT — happen.
+   * Hand-rolled Supabase fake. The competitors + cache reads are awaited directly
+   * off the (thenable) builder after chaining `.eq()/.in()/.order()/.limit()`; the
+   * market read ends in `.maybeSingle()`. Every `company_analysis.upsert` is
+   * recorded so tests can assert it did — or critically, did NOT — happen. The
+   * builder resolves every read to an empty result so the cache reads (ING-05)
+   * contribute no grounding, exercising the empty-cache degrade path.
    */
   function makeSupabase() {
     const upsertCalls: Array<{ row: Record<string, unknown>; opts: unknown }> = [];
@@ -584,6 +586,9 @@ describe("runDeepDive persistence guard", () => {
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        in: () => builder,
+        order: () => builder,
+        limit: () => builder,
         maybeSingle: () => Promise.resolve({ data: null }),
         upsert: (row: Record<string, unknown>, opts: unknown) => {
           upsertCalls.push({ row, opts });
