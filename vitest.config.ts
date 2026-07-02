@@ -1,10 +1,14 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import { resolve } from "node:path";
 
 export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
+    // Keep vitest's defaults, and also ignore GSD git worktrees under .claude/ —
+    // their stale duplicate *.test.ts copies otherwise leak into the glob and run
+    // (and hang) alongside the main tree's suite.
+    exclude: [...configDefaults.exclude, "**/.claude/**"],
   },
   resolve: {
     alias: {
