@@ -130,6 +130,23 @@ export interface CompetitorsSection {
   narrative?: LabelledField;
 }
 
+/**
+ * Historical Financials (design spec §8): margins / burn / runway / ACV as
+ * QUALITATIVE, DIRECTIONAL labelled fields ONLY — margins/burn/runway/ACV where
+ * factually retrievable (basis "fact" + source), otherwise an honestly-labelled
+ * estimate. There are NO numeric P&L members here BY DESIGN: this mirrors the
+ * no-fabricated-financials guardrail, so the section can never carry an invented
+ * exact revenue/margin/P&L figure — only a `LabelledField`'s text + basis +
+ * confidence + optional source. Every field is optional so a partial/older stored
+ * row still type-checks.
+ */
+export interface HistoricalFinancialsSection {
+  gross_margin?: LabelledField;
+  burn_rate?: LabelledField;
+  runway?: LabelledField;
+  acv?: LabelledField;
+}
+
 /** The IC rating enum — Strong Buy … Sell. */
 export type IcRating = "strong_buy" | "buy" | "hold" | "sell";
 
@@ -163,6 +180,11 @@ export interface OverviewSections {
   vertical_customer?: LabelledField;
   business_model?: LabelledField;
   unit_economics?: LabelledField;
+  /**
+   * Margins / burn / runway / ACV as qualitative labelled fields ONLY — no
+   * fabricated numeric P&L (see `HistoricalFinancialsSection`).
+   */
+  historical_financials?: HistoricalFinancialsSection;
   market_opportunity?: MarketOpportunitySection;
   strategic_moat?: StrategicMoatSection;
   historical_analogue?: LabelledField;
