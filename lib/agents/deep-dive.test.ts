@@ -131,6 +131,163 @@ describe("normalizeSections", () => {
   });
 });
 
+describe("normalizeSections competitors", () => {
+  const lf = (text: string) => ({
+    text,
+    basis: "estimate" as const,
+    confidence: "med" as const,
+  });
+
+  const allowed = ["Target Co", "Cursor", "Cognition", "Lovable"];
+
+  it("preserves a full competitors object with in-list threats + valid tiers", () => {
+    const raw = {
+      competitors: {
+        threat_tiers: {
+          Cursor: "direct",
+          Cognition: "indirect",
+          Lovable: "emerging",
+        },
+        capability_matrix: {
+          target: "Target Co",
+          threats: [
+            {
+              name: "Cursor",
+              ip_depth: 8,
+              gtm_velocity: 9,
+              capital_efficiency: 6,
+              workflow_retention: 7,
+            },
+            {
+              name: "Cognition",
+              ip_depth: 5,
+              gtm_velocity: 4,
+              capital_efficiency: 3,
+              workflow_retention: 6,
+            },
+            {
+              name: "Lovable",
+              ip_depth: 2,
+              gtm_velocity: 3,
+              capital_efficiency: 4,
+              workflow_retention: 5,
+            },
+          ],
+        },
+        narrative: lf("competitive picture"),
+      },
+    };
+    const s = normalizeSections(raw, allowed);
+    expect(s.competitors?.threat_tiers).toEqual({
+      Cursor: "direct",
+      Cognition: "indirect",
+      Lovable: "emerging",
+    });
+    expect(s.competitors?.capability_matrix?.target).toBe("Target Co");
+    expect(s.competitors?.capability_matrix?.threats).toHaveLength(3);
+    expect(s.competitors?.capability_matrix?.threats[0]).toEqual({
+      name: "Cursor",
+      ip_depth: 8,
+      gtm_velocity: 9,
+      capital_efficiency: 6,
+      workflow_retention: 7,
+    });
+    expect(s.competitors?.narrative?.text).toBe("competitive picture");
+  });
+
+  it("drops an unknown tier value and keeps a valid one", () => {
+    const s = normalizeSections(
+      { competitors: { threat_tiers: { Cursor: "unknown", Cognition: "direct" } } },
+      allowed,
+    );
+    expect(s.competitors?.threat_tiers).toEqual({ Cognition: "direct" });
+  });
+
+  it("drops a tier name that is not in the allow-list (case-insensitive match kept)", () => {
+    const s = normalizeSections(
+      { competitors: { threat_tiers: { NotRanked: "direct", cursor: "indirect" } } },
+      allowed,
+    );
+    // "cursor" matches "Cursor" case-insensitively; "NotRanked" is dropped.
+    expect(s.competitors?.threat_tiers).toEqual({ cursor: "indirect" });
+  });
+
+  it("drops a matrix threat whose name is not in the allow-list", () => {
+    const s = normalizeSections(
+      {
+        competitors: {
+          capability_matrix: {
+            target: "Target Co",
+            threats: [
+              { name: "Cursor", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+              { name: "Ghost", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+            ],
+          },
+        },
+      },
+      allowed,
+    );
+    const threats = s.competitors?.capability_matrix?.threats ?? [];
+    expect(threats).toHaveLength(1);
+    expect(threats[0].name).toBe("Cursor");
+  });
+
+  it("caps matrix threats at the first 3 after filtering", () => {
+    const s = normalizeSections(
+      {
+        competitors: {
+          capability_matrix: {
+            target: "Target Co",
+            threats: [
+              { name: "Cursor", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+              { name: "Cognition", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+              { name: "Lovable", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+              { name: "Target Co", ip_depth: 5, gtm_velocity: 5, capital_efficiency: 5, workflow_retention: 5 },
+            ],
+          },
+        },
+      },
+      allowed,
+    );
+    expect(s.competitors?.capability_matrix?.threats).toHaveLength(3);
+  });
+
+  it("clamps out-of-domain matrix scores (0 or 12) to null", () => {
+    const s = normalizeSections(
+      {
+        competitors: {
+          capability_matrix: {
+            target: "Target Co",
+            threats: [
+              { name: "Cursor", ip_depth: 0, gtm_velocity: 12, capital_efficiency: 5, workflow_retention: 8 },
+            ],
+          },
+        },
+      },
+      allowed,
+    );
+    const t = s.competitors?.capability_matrix?.threats[0];
+    expect(t?.ip_depth).toBeNull();
+    expect(t?.gtm_velocity).toBeNull();
+    expect(t?.capital_efficiency).toBe(5);
+    expect(t?.workflow_retention).toBe(8);
+  });
+
+  it("yields no competitors key for empty / absent competitors input", () => {
+    expect(normalizeSections({}, allowed).competitors).toBeUndefined();
+    expect(normalizeSections({ competitors: {} }, allowed).competitors).toBeUndefined();
+    expect(normalizeSections({ competitors: 42 }, allowed).competitors).toBeUndefined();
+  });
+
+  it("enum-coerces tiers with an empty allow-list (back-compat, no name filtering)", () => {
+    const s = normalizeSections({
+      competitors: { threat_tiers: { AnyName: "direct", Bogus: "sideways" } },
+    });
+    // Empty allow-list: names are not filtered, but tier still enum-coerced.
+    expect(s.competitors?.threat_tiers).toEqual({ AnyName: "direct" });
+  });
+});
+
 describe("computePeerMultiple", () => {
   it("computes median/p25/p75 across SEC-verified peers with finite multiples", () => {
     const ranked = [

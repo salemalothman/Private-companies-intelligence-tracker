@@ -11,9 +11,12 @@ import { clampRating } from "@/lib/agents/deep-dive-types";
 import type {
   AnalysisSections,
   AnalysisValuation,
+  CapabilityThreat,
+  CompetitorsSection,
   IcRating,
   LabelledField,
   OverviewSections,
+  ThreatTier,
 } from "@/lib/agents/deep-dive-types";
 import type {
   CompanyWithRelations,
@@ -44,6 +47,8 @@ function percentile(sortedAsc: number[], q: number): number | null {
 }
 
 const IC_RATINGS: readonly IcRating[] = ["strong_buy", "buy", "hold", "sell"];
+
+const THREAT_TIERS: readonly ThreatTier[] = ["direct", "indirect", "emerging"];
 
 /** True for a plain (non-array, non-null) object. */
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -95,10 +100,28 @@ function put<T extends object, K extends keyof T>(
  * drops it; and drops unknown/missing keys. Returns `{}` for any non-object
  * input. This runs before persistence so a hostile or malformed model response
  * can never write fabricated numbers or unexpected keys into storage.
+ *
+ * `allowedNames` is the classification allow-list — the ranked competitor +
+ * target names (from buildCompetitorRanking). For the `competitors` block it
+ * enforces threat T-03-02: any tier/matrix name NOT in this list (matched
+ * case-insensitively) is dropped, so the model cannot inject a competitor it was
+ * never given. An empty list means "no name-filtering context" (back-compat for
+ * the existing single-arg callers/tests): names pass through un-filtered but tiers
+ * are still enum-coerced and scores still clamped.
  */
-export function normalizeSections(raw: unknown): OverviewSections {
+export function normalizeSections(
+  raw: unknown,
+  allowedNames: string[] = [],
+): OverviewSections {
   const out: OverviewSections = {};
   if (!isObject(raw)) return out;
+
+  // Case-insensitive allow-list of ranked names (empty => no name filtering).
+  const allow = new Set(
+    allowedNames.map((n) => n.trim().toLowerCase()).filter(Boolean),
+  );
+  const isAllowed = (name: string): boolean =>
+    allow.size === 0 || allow.has(name.trim().toLowerCase());
 
   // executive_summary — thesis/value_prop/positioning/most_likely_outcome + arrays
   if (isObject(raw.executive_summary)) {
@@ -171,6 +194,59 @@ export function normalizeSections(raw: unknown): OverviewSections {
     put(conc, "bear", toLabelled(ic.bear));
     put(conc, "recommendation", toLabelled(ic.recommendation));
     if (Object.keys(conc).length) out.ic_conclusion = conc;
+  }
+
+  // competitors — CLASSIFY the already-ranked names only (threat T-03-01/02):
+  // tiers enum-coerced + name-filtered; matrix scores clamped 1-10, threats
+  // name-filtered and capped at 3; narrative stripped to a labelled field.
+  if (isObject(raw.competitors)) {
+    const c = raw.competitors;
+    const cmp: CompetitorsSection = {};
+
+    // threat_tiers — keep [name, tier] only when tier is a valid enum value AND
+    // the name is in the allow-list (case-insensitive; unfiltered if list empty).
+    if (isObject(c.threat_tiers)) {
+      const tiers: Record<string, ThreatTier> = {};
+      for (const [name, tier] of Object.entries(c.threat_tiers)) {
+        if (
+          THREAT_TIERS.includes(tier as ThreatTier) &&
+          isAllowed(name)
+        ) {
+          tiers[name] = tier as ThreatTier;
+        }
+      }
+      if (Object.keys(tiers).length) cmp.threat_tiers = tiers;
+    }
+
+    // capability_matrix — coerce target, clamp each score, drop out-of-list /
+    // empty-name threats, then cap the surviving threats at the first 3.
+    if (isObject(c.capability_matrix)) {
+      const m = c.capability_matrix;
+      const rawThreats = Array.isArray(m.threats) ? m.threats : [];
+      const threats: CapabilityThreat[] = rawThreats
+        .filter(isObject)
+        .map((t): CapabilityThreat => ({
+          name: typeof t.name === "string" ? t.name : "",
+          ip_depth: clampRating(t.ip_depth as number | null | undefined),
+          gtm_velocity: clampRating(t.gtm_velocity as number | null | undefined),
+          capital_efficiency: clampRating(
+            t.capital_efficiency as number | null | undefined,
+          ),
+          workflow_retention: clampRating(
+            t.workflow_retention as number | null | undefined,
+          ),
+        }))
+        .filter((t) => t.name !== "" && isAllowed(t.name))
+        .slice(0, 3);
+      const target = typeof m.target === "string" ? m.target : "";
+      if (target || threats.length) {
+        cmp.capability_matrix = { target, threats };
+      }
+    }
+
+    put(cmp, "narrative", toLabelled(c.narrative));
+
+    if (Object.keys(cmp).length) out.competitors = cmp;
   }
 
   return out;
@@ -284,7 +360,12 @@ const ANALYSIS_SHAPE =
   `"narrative":${LABELLED}},` +
   `"historical_analogue":${LABELLED},"outlook_and_exit":${LABELLED},` +
   `"ic_conclusion":{"rating":"strong_buy"|"buy"|"hold"|"sell","bull":${LABELLED},` +
-  `"bear":${LABELLED},"recommendation":${LABELLED}}},` +
+  `"bear":${LABELLED},"recommendation":${LABELLED}},` +
+  '"competitors":{"threat_tiers":{"<competitor name>":"direct"|"indirect"|"emerging"},' +
+  '"capability_matrix":{"target":string,"threats":[{"name":string,' +
+  '"ip_depth":integer 1-10,"gtm_velocity":integer 1-10,' +
+  '"capital_efficiency":integer 1-10,"workflow_retention":integer 1-10}]},' +
+  `"narrative":${LABELLED}}},` +
   '"growth":{"base":number,"bear":number,"bull":number,' +
   '"confidence":"low"|"med"|"high","rationale":string}}';
 
@@ -320,6 +401,17 @@ function buildPrompt(grounding: string): string {
     `probability fields, NO price targets.\n` +
     `   - ic_conclusion: {rating:"strong_buy"|"buy"|"hold"|"sell", bull, bear, ` +
     `recommendation} (bull/bear/recommendation each a labelled field).\n` +
+    `   - competitors: {threat_tiers, capability_matrix, narrative}. Using ONLY ` +
+    `the competitors listed in the grounding's "Competitor landscape", assign each ` +
+    `a threat_tier — "direct" (head-on same-market rival), "indirect" ` +
+    `(asymmetric/adjacent threat), or "emerging" (stealth/early-stage entrant). ` +
+    `Then build a capability_matrix: {target: this company's name, threats: an ` +
+    `array of the TOP 3 threats (prefer direct-tier)} where each threat is ` +
+    `{name, ip_depth, gtm_velocity, capital_efficiency, workflow_retention} scored ` +
+    `as integers 1-10. Add an optional narrative labelled field. HARD RULE: you ` +
+    `MUST NOT invent competitor names not in the grounding's landscape list; only ` +
+    `classify names you were given. The 1-10 scores are qualitative judgement, ` +
+    `NOT fabricated financials.\n` +
     `   Every forward-looking narrative field MUST be an object {text, ` +
     `basis:"fact"|"estimate", confidence:"low"|"med"|"high", source?}. Label ` +
     `anything not directly attributable to the grounding as an "estimate".\n` +
@@ -462,7 +554,12 @@ export async function runDeepDive(
     const json = extractJson(text ?? "");
     const parsed = json ? analysisSchema.safeParse(JSON.parse(json)) : null;
     if (parsed?.success) {
-      sections = normalizeSections(parsed.data.sections);
+      // Ranked names (target + all peers) are the classification allow-list so
+      // the model cannot inject a competitor it was never given (threat T-03-02).
+      sections = normalizeSections(
+        parsed.data.sections,
+        ranking.map((r) => r.name),
+      );
       const g = parsed.data.growth;
       if (g) {
         growth = {
