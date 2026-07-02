@@ -68,10 +68,11 @@ const PERCENTILES: { key: MultiplePercentile; label: string }[] = [
   { key: "p75", label: "P75" },
 ];
 
-/** The peer multiple applied to a given scenario under the current percentile. */
+/** The peer multiple applied to a given scenario under the current percentile.
+ * `percentile: null` = the scenario defaults (bear→p25, base→median, bull→p75). */
 function appliedMultiple(
   valuation: AnalysisValuation,
-  percentile: MultiplePercentile,
+  percentile: MultiplePercentile | null,
   scenario: "bear" | "base" | "bull",
 ): number | null {
   const pm = valuation.peer_multiple;
@@ -82,15 +83,26 @@ function appliedMultiple(
   return scenario === "bear" ? pm.p25 : scenario === "bull" ? pm.p75 : pm.median;
 }
 
+/** The growth rate applied to a given scenario: the user override when set,
+ * otherwise the scenario's own agent-proposed rate (null = no proposal). */
+function scenarioGrowth(
+  valuation: AnalysisValuation,
+  growthOverride: number | null,
+  scenario: "bear" | "base" | "bull",
+): number | null {
+  if (growthOverride != null) return clampGrowth(growthOverride);
+  return valuation.growth[scenario];
+}
+
 /** Human tooltip exposing a cell's inputs: revenue × (1+g)^n × multiple = value. */
 function cellTooltip(
   baseRevenue: number | null,
-  growth: number,
+  growth: number | null,
   multiple: number | null,
   n: number,
   value: number | null,
 ): string {
-  if (value == null || baseRevenue == null || multiple == null) {
+  if (value == null || baseRevenue == null || growth == null || multiple == null) {
     return "Insufficient comps inputs";
   }
   return `${formatCurrency(baseRevenue)} × (1${
@@ -126,24 +138,24 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
   const hasBaseRevenue = valuation.base_revenue.value != null;
   const hasMultiple = pm.p25 != null || pm.median != null || pm.p75 != null;
 
-  // Interactive state — growth stored as a FRACTION (default = agent base rate).
-  const [growthOverride, setGrowthOverride] = React.useState<number>(
-    valuation.growth.base,
+  // Interactive state — null = no override, so each scenario uses its own
+  // agent-proposed growth (bear/base/bull) and its own percentile (p25/median/
+  // p75). A user edit collapses all three onto the single chosen lever (VAL-04).
+  const [growthOverride, setGrowthOverride] = React.useState<number | null>(
+    null,
   );
   const [percentile, setPercentile] =
-    React.useState<MultiplePercentile>("median");
+    React.useState<MultiplePercentile | null>(null);
 
   // The LIVE recompute (VAL-04): rows depend only on stored inputs + overrides.
   const rows = React.useMemo<CompsRow[]>(
     () =>
       buildCompsTable(valuation, {
         growth: growthOverride,
-        multiplePercentile: percentile,
+        multiplePercentile: percentile ?? undefined,
       }),
     [valuation, growthOverride, percentile],
   );
-
-  const appliedGrowth = clampGrowth(growthOverride) ?? 0;
 
   // (B) INSUFFICIENT STATE — null base revenue OR no peer multiples at all.
   if (!hasBaseRevenue || !hasMultiple) {
@@ -169,8 +181,14 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
     );
   }
 
-  // (C) INTERACTIVE STATE.
-  const growthPctValue = Math.round(appliedGrowth * 1000) / 10; // fraction → %
+  // (C) INTERACTIVE STATE. The input shows the override when set, else the
+  // agent-proposed base rate; empty when the model made no proposal (never 0).
+  const displayedGrowth =
+    growthOverride != null
+      ? clampGrowth(growthOverride)
+      : valuation.growth.base;
+  const growthPctValue =
+    displayedGrowth == null ? "" : Math.round(displayedGrowth * 1000) / 10;
 
   const chartData = rows.map((r) => ({
     year: r.year,
@@ -200,7 +218,12 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
               max={GROWTH_MAX * 100}
               value={growthPctValue}
               onChange={(e) => {
-                const pct = Number(e.target.value);
+                const raw = e.target.value;
+                if (raw === "") {
+                  setGrowthOverride(null); // back to scenario presets
+                  return;
+                }
+                const pct = Number(raw);
                 if (Number.isFinite(pct)) setGrowthOverride(pct / 100);
               }}
               className="h-9 w-24 rounded-md border border-border bg-background px-2 text-sm tabular-nums"
@@ -217,6 +240,21 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
             role="group"
             aria-label="Peer multiple percentile"
           >
+            {/* Auto = the scenario defaults (Bear p25 · Base median · Bull p75). */}
+            <button
+              type="button"
+              onClick={() => setPercentile(null)}
+              aria-pressed={percentile === null}
+              title="Scenario defaults: Bear p25 · Base median · Bull p75"
+              className={cn(
+                "rounded px-3 py-1 text-xs font-medium tabular-nums transition-colors",
+                percentile === null
+                  ? "bg-foreground/[0.08] text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Auto
+            </button>
             {PERCENTILES.map((p) => (
               <button
                 key={p.key}
@@ -325,13 +363,14 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
                   {SCENARIOS.map((s) => {
                     const value = row[s.key];
                     const multiple = appliedMultiple(valuation, percentile, s.key);
+                    const growth = scenarioGrowth(valuation, growthOverride, s.key);
                     return (
                       <TableCell
                         key={s.key}
                         className="text-right tabular-nums"
                         title={cellTooltip(
                           valuation.base_revenue.value,
-                          appliedGrowth,
+                          growth,
                           multiple,
                           n,
                           value,
@@ -399,18 +438,42 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
             </div>
           </div>
 
-          {/* Agent growth proposal. */}
+          {/* Agent growth proposal — null rates render as "no proposal" (never 0). */}
           <div className="space-y-2">
             <div className="label-eyebrow">Growth proposal (agent)</div>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm tabular-nums">
-              <span>Bear {formatPercent(valuation.growth.bear)}</span>
-              <span>Base {formatPercent(valuation.growth.base)}</span>
-              <span>Bull {formatPercent(valuation.growth.bull)}</span>
-              <ConfidenceChip
-                basis="estimate"
-                confidence={valuation.growth.confidence}
-              />
-            </div>
+            {valuation.growth.base == null &&
+            valuation.growth.bear == null &&
+            valuation.growth.bull == null ? (
+              <p className="text-sm text-muted-foreground">
+                No growth proposal from the model — re-run the deep-dive, or set
+                a growth rate above.
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm tabular-nums">
+                <span>
+                  Bear{" "}
+                  {valuation.growth.bear != null
+                    ? formatPercent(valuation.growth.bear)
+                    : "—"}
+                </span>
+                <span>
+                  Base{" "}
+                  {valuation.growth.base != null
+                    ? formatPercent(valuation.growth.base)
+                    : "—"}
+                </span>
+                <span>
+                  Bull{" "}
+                  {valuation.growth.bull != null
+                    ? formatPercent(valuation.growth.bull)
+                    : "—"}
+                </span>
+                <ConfidenceChip
+                  basis="estimate"
+                  confidence={valuation.growth.confidence}
+                />
+              </div>
+            )}
             {valuation.growth.rationale ? (
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {valuation.growth.rationale}

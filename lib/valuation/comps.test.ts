@@ -157,6 +157,45 @@ describe("buildCompsTable — null propagation (never fabricate 0)", () => {
     expect(y2026.bear).toBeNull();
     expect(y2026.bear).not.toBe(0);
   });
+
+  it("null growth rates ('no proposal') → null cells, never a flat 0%-growth table", () => {
+    // Regression: the agent once persisted growth {base:0,bear:0,bull:0} when the
+    // model omitted the proposal, rendering a fabricated flat table. Nulls must
+    // propagate to null cells instead.
+    const rows = buildCompsTable(
+      makeInputs({
+        growth: {
+          base: null,
+          bear: null,
+          bull: null,
+          confidence: "low",
+          rationale: "",
+        },
+      }),
+    );
+    for (const row of rows) {
+      expect(row.bear).toBeNull();
+      expect(row.base).toBeNull();
+      expect(row.bull).toBeNull();
+    }
+  });
+
+  it("null growth + a user growth override still computes (the override fills the gap)", () => {
+    const rows = buildCompsTable(
+      makeInputs({
+        growth: {
+          base: null,
+          bear: null,
+          bull: null,
+          confidence: "low",
+          rationale: "",
+        },
+      }),
+      { growth: 0.45 },
+    );
+    const y2026 = rows.find((r) => r.year === 2026)!;
+    expect(y2026.base).toBe(240_000_000 * 14.5);
+  });
 });
 
 describe("clampGrowth", () => {

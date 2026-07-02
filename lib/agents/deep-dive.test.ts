@@ -725,4 +725,49 @@ describe("runDeepDive persistence guard", () => {
     expect(result.error).toBeUndefined();
     expect(upsertCalls).toHaveLength(1);
   });
+
+  // Valid sections but NO growth object — the shape observed live when a large
+  // 13-section response dropped the top-level growth proposal.
+  const NO_GROWTH_JSON = JSON.stringify({
+    sections: {
+      technology: {
+        narrative: { text: "solid tech", basis: "estimate", confidence: "med" },
+        moat_rating: 7,
+      },
+    },
+  });
+
+  it("retries when a parsed response omits growth, then keeps the retry's proposal", async () => {
+    mockGrok
+      .mockResolvedValueOnce({ text: NO_GROWTH_JSON } as never)
+      .mockResolvedValueOnce({ text: VALID_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(mockGrok).toHaveBeenCalledTimes(2);
+    expect(result.error).toBeUndefined();
+    const valuation = upsertCalls[0].row.valuation as {
+      growth: { base: number | null };
+    };
+    expect(valuation.growth.base).toBe(0.3);
+  });
+
+  it("persists NULL growth (never fabricated zeros) when every attempt omits it", async () => {
+    // Regression: this once persisted {base:0,bear:0,bull:0}, flattening the
+    // Valuation Targets table to a fabricated 0%-growth projection.
+    mockGrok.mockResolvedValue({ text: NO_GROWTH_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(result.error).toBeUndefined(); // sections are good — analysis persists
+    expect(upsertCalls).toHaveLength(1);
+    const valuation = upsertCalls[0].row.valuation as {
+      growth: { base: number | null; bear: number | null; bull: number | null };
+    };
+    expect(valuation.growth.base).toBeNull();
+    expect(valuation.growth.bear).toBeNull();
+    expect(valuation.growth.bull).toBeNull();
+  });
 });

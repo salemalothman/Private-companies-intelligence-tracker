@@ -77,16 +77,16 @@ export function clampGrowth(g: number | null | undefined): number | null {
 }
 
 /**
- * A single implied-valuation cell. Null base revenue OR null multiple → null
- * (honest "insufficient inputs" cell); never coerced to 0.
+ * A single implied-valuation cell. Null base revenue OR null growth OR null
+ * multiple → null (honest "insufficient inputs" cell); never coerced to 0.
  */
 function impliedValuation(
   baseRevenue: number | null,
-  growth: number,
+  growth: number | null,
   multiple: number | null,
   n: number,
 ): number | null {
-  if (baseRevenue == null || multiple == null) return null;
+  if (baseRevenue == null || growth == null || multiple == null) return null;
   return baseRevenue * (1 + growth) ** n * multiple;
 }
 
@@ -107,9 +107,10 @@ export function buildCompsTable(
   const { p25, median, p75 } = inputs.peer_multiple;
 
   // Growth per scenario: a single override (clamped) collapses all three.
+  // Stored rates may be null ("no proposal") — nulls flow to null cells.
   const overrideGrowth =
     overrides?.growth == null ? null : clampGrowth(overrides.growth);
-  const growth: Record<ScenarioKey, number> =
+  const growth: Record<ScenarioKey, number | null> =
     overrideGrowth == null
       ? { bear: inputs.growth.bear, base: inputs.growth.base, bull: inputs.growth.bull }
       : { bear: overrideGrowth, base: overrideGrowth, bull: overrideGrowth };

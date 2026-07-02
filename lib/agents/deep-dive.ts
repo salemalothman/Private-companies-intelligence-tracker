@@ -574,10 +574,15 @@ export function summarizeCachedGrounding(cached: {
   return sections.join("\n\n");
 }
 
-const EMPTY_GROWTH: AnalysisValuation["growth"] = {
-  base: 0,
-  bear: 0,
-  bull: 0,
+/**
+ * The honest "no proposal" growth: nulls, never fabricated zeros (same rule as
+ * `base_revenue.value`). Persisted only when the model omitted the growth object
+ * on every attempt; the Valuation Targets tab renders null cells (—) for it.
+ */
+const NULL_GROWTH: AnalysisValuation["growth"] = {
+  base: null,
+  bear: null,
+  bull: null,
   confidence: "low",
   rationale: "",
 };
@@ -737,23 +742,31 @@ export async function runDeepDive(
   for (let attempt = 0; attempt < MAX_ATTEMPTS && !data; attempt++) {
     try {
       data = await grokAnalysisAttempt(prompt);
+      // A parsed response that omitted the growth proposal is a soft failure on
+      // non-final attempts too — retry rather than persist a growth-less analysis
+      // (observed: a large 13-section response dropped the top-level `growth`).
+      if (data && data.growth?.base == null && attempt < MAX_ATTEMPTS - 1) {
+        console.error("runDeepDive.grok: response omitted growth — retrying");
+        data = null;
+      }
     } catch (e) {
       console.error("runDeepDive.grok:", (e as Error).message);
     }
   }
 
   let sections: OverviewSections = {};
-  let growth: AnalysisValuation["growth"] = EMPTY_GROWTH;
+  let growth: AnalysisValuation["growth"] = NULL_GROWTH;
   if (data) {
     // Ranked names (target + all peers) are the classification allow-list so
     // the model cannot inject a competitor it was never given (threat T-03-02).
     sections = normalizeSections(data.sections, ranking.map((r) => r.name));
     const g = data.growth;
     if (g) {
+      // Nulls stay null — a missing rate is "no proposal", never a fabricated 0.
       growth = {
-        base: g.base ?? 0,
-        bear: g.bear ?? 0,
-        bull: g.bull ?? 0,
+        base: g.base ?? null,
+        bear: g.bear ?? null,
+        bull: g.bull ?? null,
         confidence: g.confidence ?? "low",
         rationale: g.rationale ?? "",
       };

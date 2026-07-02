@@ -239,9 +239,10 @@ export interface AnalysisValuation {
     n_sec_verified: number;
   };
   growth: {
-    base: number;
-    bear: number;
-    bull: number;
+    /** null when the model proposed no rate — never fabricated to 0. */
+    base: number | null;
+    bear: number | null;
+    bull: number | null;
     confidence: "low" | "med" | "high";
     rationale: string;
   };
