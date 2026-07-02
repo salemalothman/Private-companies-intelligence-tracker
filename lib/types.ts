@@ -475,7 +475,7 @@ export type FormDRoundRow = {
   created_at: string;
   updated_at: string;
 };
-type FormDRoundInsert = {
+export type FormDRoundInsert = {
   id?: string;
   company_id: string;
   user_id?: string;
