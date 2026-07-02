@@ -25,7 +25,7 @@ comps math) — no fabricated financials, no invented probabilities.
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Analysis storage, the Grok deep-dive agent, on-demand trigger, and shared confidence chip (completed 2026-07-02)
-- [ ] **Phase 2: Overview Enrichment** - Distribute the thesis sections into the Overview tab as collapsible content
+- [x] **Phase 2: Overview Enrichment** - Distribute the thesis sections into the Overview tab as collapsible content (completed 2026-07-02)
 - [ ] **Phase 3: Competitors Enrichment** - Threat tiers and a Capability Matrix layered on the existing ranking table
 - [ ] **Phase 4: External Grounding Ingestion** - Sync company-goat (Form D) + sec-edgar (peer XBRL) + x-twitter (news) into Supabase via a local/cron script; runDeepDive reads the cached facts
 - [ ] **Phase 5: Valuation Targets Tab** - Comps model (2026–2030) with interactive controls, plus factual financial detail on Valuation
@@ -65,7 +65,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 02-01-PLAN.md — Tighten AnalysisSections per-section shapes + extend runDeepDive prompt/zod to emit the full OVR section set; regen script + unit tests; spec §3 (OVR-01..04 data side)
-- [ ] 02-02-PLAN.md — Overview rendering: RatingIndicator + OverviewAnalysis (pinned Exec Summary/IC Conclusion, collapsibles, ConfidenceChips, 1-10 ratings) wired into the Overview tab (OVR-01..05)
+- [x] 02-02-PLAN.md — Overview rendering: RatingIndicator + OverviewAnalysis (pinned Exec Summary/IC Conclusion, collapsibles, ConfidenceChips, 1-10 ratings) wired into the Overview tab (OVR-01..05)
 **UI hint**: yes
 
 ### Phase 3: Competitors Enrichment
@@ -123,7 +123,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
-| 2. Overview Enrichment | 1/2 | In progress | - |
+| 2. Overview Enrichment | 2/2 | Complete   | 2026-07-02 |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
 | 4. External Grounding Ingestion | 0/6 | Not started | - |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |

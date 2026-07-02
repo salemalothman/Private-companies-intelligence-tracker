@@ -30,18 +30,18 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 ### Overview enrichment
 
-- [ ] **OVR-01**: Overview renders the Executive Summary (thesis, value prop,
+- [x] **OVR-01**: Overview renders the Executive Summary (thesis, value prop,
   strengths/weaknesses, positioning, most-likely-outcome) pinned at top.
-- [ ] **OVR-02**: Overview shows Core Technology & Differentiator with a moat
+- [x] **OVR-02**: Overview shows Core Technology & Differentiator with a moat
   rating (1–10), plus Product Portfolio, Vertical & Customer Segments, and
   enriched Business Model.
-- [ ] **OVR-03**: Overview shows Unit Economics, TAM/SAM/SOM (directional ranges +
+- [x] **OVR-03**: Overview shows Unit Economics, TAM/SAM/SOM (directional ranges +
   confidence), Strategic Moat (per-dimension 1–10), and Historical Analogue.
-- [ ] **OVR-04**: Overview shows an "Outlook & Exit" narrative (likely strategic
+- [x] **OVR-04**: Overview shows an "Outlook & Exit" narrative (likely strategic
   moves, IPO readiness, likely suitors, scenario narrative) with NO fabricated
   probabilities, and an IC Conclusion (rating + bull/bear + recommendation)
   pinned at bottom.
-- [ ] **OVR-05**: Added Overview sections render as collapsible sections reusing
+- [x] **OVR-05**: Added Overview sections render as collapsible sections reusing
   `CollapsibleSection`/`SectionEmpty`.
 
 ### Competitors enrichment
@@ -119,11 +119,11 @@ Updated during roadmap creation (2026-07-02).
 | FND-04 | Phase 1 — Foundation | Complete |
 | FND-05 | Phase 1 — Foundation | Complete |
 | FND-06 | Phase 1 — Foundation | Complete |
-| OVR-01 | Phase 2 — Overview Enrichment | Pending |
-| OVR-02 | Phase 2 — Overview Enrichment | Pending |
-| OVR-03 | Phase 2 — Overview Enrichment | Pending |
-| OVR-04 | Phase 2 — Overview Enrichment | Pending |
-| OVR-05 | Phase 2 — Overview Enrichment | Pending |
+| OVR-01 | Phase 2 — Overview Enrichment | Complete |
+| OVR-02 | Phase 2 — Overview Enrichment | Complete |
+| OVR-03 | Phase 2 — Overview Enrichment | Complete |
+| OVR-04 | Phase 2 — Overview Enrichment | Complete |
+| OVR-05 | Phase 2 — Overview Enrichment | Complete |
 | CMP-01 | Phase 3 — Competitors Enrichment | Pending |
 | CMP-02 | Phase 3 — Competitors Enrichment | Pending |
 | ING-01 | Phase 4 — External Grounding Ingestion | Pending |
