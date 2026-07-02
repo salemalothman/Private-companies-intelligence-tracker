@@ -88,7 +88,14 @@ Plans:
   3. x-twitter company + competitor posts are synced via an app-only bearer token into Supabase for news/sentiment.
   4. `runDeepDive` reads the cached facts as additional grounding; generated fields cite real Form D / XBRL / X sources and the no-fabrication guardrail is preserved.
   5. All secrets (`X_BEARER_TOKEN`, `COMPANY_PP_CONTACT_EMAIL`) are env-only; ingestion is idempotent and re-runnable.
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 04-01-PLAN.md — grounding cache schema (0021) + lib/types.ts + [BLOCKING] supabase db push (ING-01, ING-06)
+- [ ] 04-02-PLAN.md — ingestion script skeleton + envelope/CIK parser + unit tests (ING-01, ING-06)
+- [ ] 04-03-PLAN.md — company-goat module: Form D rounds + signals with CIK disambiguation (ING-03, ING-06)
+- [ ] 04-04-PLAN.md — sec-edgar module: peer CIK resolution + XBRL income facts + cross-section (ING-02, ING-06)
+- [ ] 04-05-PLAN.md — x-twitter module: doctor preflight + read-only tweets sync, opt-in on X_BEARER_TOKEN (ING-04, ING-06)
+- [ ] 04-06-PLAN.md — runDeepDive grounding extended to read the three caches with source attribution (ING-05, ING-06)
 **UI hint**: no
 
 ### Phase 5: Valuation Targets Tab
@@ -115,5 +122,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 0/TBD | Not started | - |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
-| 4. External Grounding Ingestion | 0/TBD | Not started | - |
+| 4. External Grounding Ingestion | 0/6 | Not started | - |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |
