@@ -512,7 +512,7 @@ export type XPostRow = {
   created_at: string;
   updated_at: string;
 };
-type XPostInsert = {
+export type XPostInsert = {
   id?: string;
   company_id: string;
   user_id?: string;
