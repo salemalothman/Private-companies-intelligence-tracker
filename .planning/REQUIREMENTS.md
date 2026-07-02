@@ -61,7 +61,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 - [x] **ING-02**: `sec-edgar` — resolve public peers to CIK (`companies lookup`)
   and cache XBRL income facts (`facts statement`) + peer-revenue cross-sections
   into Supabase, feeding real peer revenue/multiples and factual financials.
-- [ ] **ING-03**: `company-goat` — cache SEC Form D rounds + startup signals
+- [x] **ING-03**: `company-goat` — cache SEC Form D rounds + startup signals
   (`snapshot`/`funding`) per portfolio company + competitor, with CIK
   disambiguation (no ambiguous name-fragment amounts).
 - [x] **ING-04**: `x-twitter` — sync company + competitor posts via an app-only
@@ -128,7 +128,7 @@ Updated during roadmap creation (2026-07-02).
 | CMP-02 | Phase 3 — Competitors Enrichment | Complete |
 | ING-01 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-02 | Phase 4 — External Grounding Ingestion | Complete |
-| ING-03 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-03 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-04 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-05 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-06 | Phase 4 — External Grounding Ingestion | Complete |
