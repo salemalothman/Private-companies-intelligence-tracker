@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md (typed OverviewSections + full-set agent + normalizeSections)
-last_updated: "2026-07-02T11:07:00.000Z"
-last_activity: 2026-07-02 -- Completed 02-01 (Overview data layer)
+stopped_at: Completed 03-01-PLAN.md (typed competitors block + normalizeSections + prompt)
+last_updated: "2026-07-02T09:04:14.887Z"
+last_activity: 2026-07-02
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 12
-  completed_plans: 5
-  percent: 42
+  completed_phases: 2
+  total_plans: 14
+  completed_plans: 7
+  percent: 40
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** Every generated insight is grounded and honestly labelled — real facts vs. confidence-tagged estimates vs. transparent comps math — never fabricated financials or invented probabilities.
-**Current focus:** Phase 02 — Overview Enrichment
+**Current focus:** Phase 03 — Competitors Enrichment
 
 ## Current Position
 
-Phase: 02 (Overview Enrichment) — EXECUTING
+Phase: 03 (Competitors Enrichment) — EXECUTING
 Plan: 2 of 2
-Status: Executing Phase 02 (02-01 complete)
-Last activity: 2026-07-02 -- Completed 02-01 (Overview data layer)
+Status: Ready to execute
+Last activity: 2026-07-02
 
-Progress: [████░░░░░░] 42%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [████░░░░░░] 42%
 *Updated after each plan completion*
 | Phase 01-foundation P03 | 10 | 2 tasks | 4 files |
 | Phase 01 P04 | ~15min | 2 tasks | 3 files |
+| Phase 03 P01 | ~7 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 02]: OverviewSections is the tightened per-section source of truth; AnalysisSections = OverviewSections ∩ legacy open index (no migration, lib/types.ts unchanged)
 - [Phase 02]: clampRating returns null (not clamped 1/10) for out-of-domain input — out-of-range ratings are "no rating", never fabricated to a legal value
 - [Phase 02]: no-probabilities/price-targets guardrail enforced in three layers — type (LabelledField), prompt hard-rules, and normalizeSections stripping stray keys
+- [Phase 03]: normalizeSections gains allowedNames (default []): empty list = no name filtering (back-compat for the 6 single-arg call sites) but tiers still enum-coerced + scores still clamped
+- [Phase 03]: Competitor allow-list name-filter is case-insensitive on trimmed names; kept key preserves the model's original casing (join to ranking rows done case-insensitively downstream)
 
 ### Pending Todos
 
@@ -94,6 +97,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-02T11:07:00.000Z
-Stopped at: Completed 02-01-PLAN.md (typed OverviewSections + full-set agent + normalizeSections)
+Last session: 2026-07-02T09:04:01.954Z
+Stopped at: Completed 03-01-PLAN.md (typed competitors block + normalizeSections + prompt)
 Resume file: None

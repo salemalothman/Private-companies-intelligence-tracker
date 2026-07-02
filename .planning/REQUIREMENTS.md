@@ -46,10 +46,10 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 ### Competitors enrichment
 
-- [ ] **CMP-01**: The competitor ranking table gains threat-tier grouping
+- [x] **CMP-01**: The competitor ranking table gains threat-tier grouping
   (direct / indirect-asymmetric / emerging-stealth), reusing existing competitor
   sync data (no re-discovery).
-- [ ] **CMP-02**: A Capability Matrix rates the company vs. top 3 threats (1–10)
+- [x] **CMP-02**: A Capability Matrix rates the company vs. top 3 threats (1–10)
   across IP Depth, GTM Velocity, Capital Efficiency, and Workflow Retention.
 
 ### External grounding ingestion
@@ -124,8 +124,8 @@ Updated during roadmap creation (2026-07-02).
 | OVR-03 | Phase 2 — Overview Enrichment | Complete |
 | OVR-04 | Phase 2 — Overview Enrichment | Complete |
 | OVR-05 | Phase 2 — Overview Enrichment | Complete |
-| CMP-01 | Phase 3 — Competitors Enrichment | Pending |
-| CMP-02 | Phase 3 — Competitors Enrichment | Pending |
+| CMP-01 | Phase 3 — Competitors Enrichment | Complete |
+| CMP-02 | Phase 3 — Competitors Enrichment | Complete |
 | ING-01 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-02 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-03 | Phase 4 — External Grounding Ingestion | Pending |
