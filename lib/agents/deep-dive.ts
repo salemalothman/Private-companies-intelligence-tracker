@@ -7,9 +7,13 @@ import { buildCompetitorRanking, type RankedEntity } from "@/lib/competitors/ran
 import { buildCanonicalRecord, type CanonicalRecord } from "@/lib/canonical";
 import { latestValuation, valuationAmount } from "@/lib/metrics";
 import { nameKey } from "@/lib/market-cache/parse";
+import { clampRating } from "@/lib/agents/deep-dive-types";
 import type {
   AnalysisSections,
   AnalysisValuation,
+  IcRating,
+  LabelledField,
+  OverviewSections,
 } from "@/lib/agents/deep-dive-types";
 import type {
   CompanyWithRelations,
@@ -37,6 +41,139 @@ function percentile(sortedAsc: number[], q: number): number | null {
   if (lo === hi) return sortedAsc[lo];
   const frac = rank - lo;
   return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * frac;
+}
+
+const IC_RATINGS: readonly IcRating[] = ["strong_buy", "buy", "hold", "sell"];
+
+/** True for a plain (non-array, non-null) object. */
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Coerce an arbitrary value into a `LabelledField`, or undefined. Keeps ONLY the
+ * four honest keys (text, basis, confidence, source) — this is what strips any
+ * stray probability/price-target keys the model may attach to a narrative field
+ * (defense-in-depth for the no-fabricated-numbers guardrail). Returns undefined
+ * when there is no usable text.
+ */
+function toLabelled(v: unknown): LabelledField | undefined {
+  if (!isObject(v)) return undefined;
+  const text = typeof v.text === "string" ? v.text : undefined;
+  if (!text) return undefined;
+  const basis = v.basis === "fact" ? "fact" : "estimate";
+  const confidence =
+    v.confidence === "low" || v.confidence === "high" ? v.confidence : "med";
+  const field: LabelledField = { text, basis, confidence };
+  if (typeof v.source === "string") field.source = v.source;
+  return field;
+}
+
+/** Map an array of raw values into labelled fields, dropping unusable entries. */
+function toLabelledArray(v: unknown): LabelledField[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.map(toLabelled).filter((f): f is LabelledField => f != null);
+  return out.length ? out : undefined;
+}
+
+/** Assign a key only if the value is defined (keeps the output object sparse). */
+function put<T extends object, K extends keyof T>(
+  o: T,
+  k: K,
+  val: T[K] | undefined,
+): void {
+  if (val !== undefined) o[k] = val;
+}
+
+/**
+ * Pure, throw-free normalizer that maps a parsed (untrusted) Grok object into the
+ * tightened `OverviewSections` shape (crosses the LLM → app trust boundary — see
+ * threat T-02-01). It: passes every numeric rating through `clampRating`
+ * (moat_rating + each strategic_moat dimension); keeps narrative fields as
+ * {text, basis, confidence, source} via `toLabelled` (which strips any extra
+ * probability/price-target keys); coerces `ic_conclusion.rating` to the enum or
+ * drops it; and drops unknown/missing keys. Returns `{}` for any non-object
+ * input. This runs before persistence so a hostile or malformed model response
+ * can never write fabricated numbers or unexpected keys into storage.
+ */
+export function normalizeSections(raw: unknown): OverviewSections {
+  const out: OverviewSections = {};
+  if (!isObject(raw)) return out;
+
+  // executive_summary — thesis/value_prop/positioning/most_likely_outcome + arrays
+  if (isObject(raw.executive_summary)) {
+    const es = raw.executive_summary;
+    const exec: NonNullable<OverviewSections["executive_summary"]> = {};
+    put(exec, "thesis", toLabelled(es.thesis));
+    put(exec, "value_prop", toLabelled(es.value_prop));
+    put(exec, "strengths", toLabelledArray(es.strengths));
+    put(exec, "weaknesses", toLabelledArray(es.weaknesses));
+    put(exec, "positioning", toLabelled(es.positioning));
+    put(exec, "most_likely_outcome", toLabelled(es.most_likely_outcome));
+    if (Object.keys(exec).length) out.executive_summary = exec;
+  }
+
+  // technology — labelled narrative + a 1–10 moat rating (clamped)
+  if (isObject(raw.technology)) {
+    const t = raw.technology;
+    const tech: NonNullable<OverviewSections["technology"]> = {};
+    put(tech, "narrative", toLabelled(t.narrative));
+    if ("moat_rating" in t) {
+      tech.moat_rating = clampRating(t.moat_rating as number | null | undefined);
+    }
+    if (Object.keys(tech).length) out.technology = tech;
+  }
+
+  // Single labelled-field sections
+  put(out, "product_portfolio", toLabelled(raw.product_portfolio));
+  put(out, "vertical_customer", toLabelled(raw.vertical_customer));
+  put(out, "business_model", toLabelled(raw.business_model));
+  put(out, "unit_economics", toLabelled(raw.unit_economics));
+  put(out, "historical_analogue", toLabelled(raw.historical_analogue));
+  // outlook_and_exit — narrative ONLY; toLabelled strips probability/price keys.
+  put(out, "outlook_and_exit", toLabelled(raw.outlook_and_exit));
+
+  // market_opportunity — tam/sam/som directional labelled ranges
+  if (isObject(raw.market_opportunity)) {
+    const m = raw.market_opportunity;
+    const mkt: NonNullable<OverviewSections["market_opportunity"]> = {};
+    put(mkt, "tam", toLabelled(m.tam));
+    put(mkt, "sam", toLabelled(m.sam));
+    put(mkt, "som", toLabelled(m.som));
+    if (Object.keys(mkt).length) out.market_opportunity = mkt;
+  }
+
+  // strategic_moat — four per-dimension 1–10 ratings (clamped) + optional narrative
+  if (isObject(raw.strategic_moat)) {
+    const sm = raw.strategic_moat;
+    const moat: NonNullable<OverviewSections["strategic_moat"]> = {};
+    const dims = [
+      "switching_costs",
+      "network_flywheel",
+      "distribution_regulatory",
+      "ip",
+    ] as const;
+    for (const d of dims) {
+      if (d in sm) moat[d] = clampRating(sm[d] as number | null | undefined);
+    }
+    put(moat, "narrative", toLabelled(sm.narrative));
+    if (Object.keys(moat).length) out.strategic_moat = moat;
+  }
+
+  // ic_conclusion — rating enum (dropped if invalid) + bull/bear/recommendation
+  if (isObject(raw.ic_conclusion)) {
+    const ic = raw.ic_conclusion;
+    const conc: NonNullable<OverviewSections["ic_conclusion"]> = {};
+    if (IC_RATINGS.includes(ic.rating as IcRating)) {
+      conc.rating = ic.rating as IcRating;
+    }
+    put(conc, "bull", toLabelled(ic.bull));
+    put(conc, "bear", toLabelled(ic.bear));
+    put(conc, "recommendation", toLabelled(ic.recommendation));
+    if (Object.keys(conc).length) out.ic_conclusion = conc;
+  }
+
+  return out;
 }
 
 /**
@@ -109,9 +246,12 @@ function extractJson(s: string): string | null {
 }
 
 /**
- * The structured Grok response. `sections` is the open narrative container; the
- * LLM contributes numbers ONLY inside `growth` (base/bear/bull growth RATES +
- * confidence + rationale) — every quantitative comps input is code-computed.
+ * The structured Grok response. `sections` stays permissive at the parse boundary
+ * (a nested record of unknowns) — `normalizeSections` does the shaping, clamping,
+ * and guardrail filtering after parse. The LLM contributes numbers ONLY inside
+ * `growth` (base/bear/bull growth RATES + confidence + rationale) and the bounded
+ * 1–10 rating indicators inside `sections`; every quantitative comps input is
+ * code-computed.
  */
 const analysisSchema = z.object({
   sections: z.record(z.string(), z.unknown()).nullish(),
@@ -126,12 +266,27 @@ const analysisSchema = z.object({
     .nullish(),
 });
 
+// L is the labelled-field shape reused for every narrative field.
+const LABELLED =
+  '{"text":string,"basis":"fact"|"estimate","confidence":"low"|"med"|"high","source":string|null}';
+
 const ANALYSIS_SHAPE =
-  '{"sections":{"executive_summary":{"text":string,"basis":"fact"|"estimate",' +
-  '"confidence":"low"|"med"|"high","source":string|null},"technology":{...same ' +
-  'labelled-field shape...},"business_model":{...},"moat":{...},"market_opportunity":' +
-  '{...},"outlook_and_exit":{...},"ic_conclusion":{...}},"growth":{"base":number,' +
-  '"bear":number,"bull":number,"confidence":"low"|"med"|"high","rationale":string}}';
+  '{"sections":{' +
+  `"executive_summary":{"thesis":${LABELLED},"value_prop":${LABELLED},` +
+  `"strengths":[${LABELLED}],"weaknesses":[${LABELLED}],"positioning":${LABELLED},` +
+  `"most_likely_outcome":${LABELLED}},` +
+  `"technology":{"narrative":${LABELLED},"moat_rating":integer 1-10},` +
+  `"product_portfolio":${LABELLED},"vertical_customer":${LABELLED},` +
+  `"business_model":${LABELLED},"unit_economics":${LABELLED},` +
+  `"market_opportunity":{"tam":${LABELLED},"sam":${LABELLED},"som":${LABELLED}},` +
+  '"strategic_moat":{"switching_costs":integer 1-10,"network_flywheel":integer 1-10,' +
+  '"distribution_regulatory":integer 1-10,"ip":integer 1-10,' +
+  `"narrative":${LABELLED}},` +
+  `"historical_analogue":${LABELLED},"outlook_and_exit":${LABELLED},` +
+  `"ic_conclusion":{"rating":"strong_buy"|"buy"|"hold"|"sell","bull":${LABELLED},` +
+  `"bear":${LABELLED},"recommendation":${LABELLED}}},` +
+  '"growth":{"base":number,"bear":number,"bull":number,' +
+  '"confidence":"low"|"med"|"high","rationale":string}}';
 
 /**
  * The one and only prompt guard. Instructs Grok to synthesize the narrative from
@@ -145,11 +300,29 @@ function buildPrompt(grounding: string): string {
     `company. Use ONLY the grounding context below plus X/web search for ` +
     `qualitative colour.\n\nGROUNDING CONTEXT:\n${grounding}\n\n` +
     `Produce a JSON object with two keys:\n` +
-    `1. "sections" — a narrative object (executive_summary, technology, ` +
-    `business_model, moat, market_opportunity, outlook_and_exit, ic_conclusion). ` +
-    `Every forward-looking field MUST be an object {text, basis:"fact"|"estimate", ` +
-    `confidence:"low"|"med"|"high", source?}. Label anything not directly ` +
-    `attributable to the grounding as an "estimate".\n` +
+    `1. "sections" — a narrative object with THESE keys, in this order:\n` +
+    `   - executive_summary: {thesis, value_prop, strengths[], weaknesses[], ` +
+    `positioning, most_likely_outcome} (each a labelled field, strengths/weaknesses ` +
+    `are arrays of labelled fields).\n` +
+    `   - technology: {narrative (labelled field), moat_rating: an integer 1-10 ` +
+    `reflecting the durability of the technical/differentiation moat}.\n` +
+    `   - product_portfolio, vertical_customer, business_model, unit_economics: ` +
+    `each a single labelled field (qualitative/directional — NO fabricated ` +
+    `revenue $ per product).\n` +
+    `   - market_opportunity: {tam, sam, som} each a labelled field expressing a ` +
+    `DIRECTIONAL range with confidence — never an asserted exact figure.\n` +
+    `   - strategic_moat: {switching_costs, network_flywheel, ` +
+    `distribution_regulatory, ip} each an integer 1-10, plus an optional narrative ` +
+    `labelled field.\n` +
+    `   - historical_analogue: a single labelled field.\n` +
+    `   - outlook_and_exit: a single labelled field — narrative ONLY (likely ` +
+    `strategic moves, IPO readiness, likely suitors, scenario narrative). NO ` +
+    `probability fields, NO price targets.\n` +
+    `   - ic_conclusion: {rating:"strong_buy"|"buy"|"hold"|"sell", bull, bear, ` +
+    `recommendation} (bull/bear/recommendation each a labelled field).\n` +
+    `   Every forward-looking narrative field MUST be an object {text, ` +
+    `basis:"fact"|"estimate", confidence:"low"|"med"|"high", source?}. Label ` +
+    `anything not directly attributable to the grounding as an "estimate".\n` +
     `2. "growth" — ONLY a proposed annual revenue growth-RATE scenario for this ` +
     `company: base, bear and bull as decimals (e.g. 0.3 = 30%), a confidence, and ` +
     `a one-line rationale grounded in its history/sector.\n\n` +
@@ -157,8 +330,10 @@ function buildPrompt(grounding: string): string {
     `(no IPO-by-year %, no acquisition %, no scenario % splits); assert price ` +
     `targets or exact valuation figures; fabricate revenue, margins, or P&L as ` +
     `fact. Do not output any numeric valuation forecast — the comps math is done ` +
-    `in code from real peer multiples, not by you. Numbers you emit appear ONLY ` +
-    `inside "growth" as rates.`
+    `in code from real peer multiples, not by you. The ONLY numbers you emit are: ` +
+    `the growth RATES inside "growth", and the 1-10 integer rating indicators ` +
+    `(technology.moat_rating and the four strategic_moat dimensions), which are ` +
+    `qualitative judgement scores — NOT fabricated financials.`
   );
 }
 
@@ -273,7 +448,7 @@ export async function runDeepDive(
 
   // Step 2 — ONE structured Grok call for the narrative + growth-rate proposal.
   // Degrade to an empty analysis on any failure (never throw) — matches grok.ts.
-  let sections: AnalysisSections = {};
+  let sections: OverviewSections = {};
   let growth: AnalysisValuation["growth"] = EMPTY_GROWTH;
   try {
     const { text } = await generateText({
@@ -287,7 +462,7 @@ export async function runDeepDive(
     const json = extractJson(text ?? "");
     const parsed = json ? analysisSchema.safeParse(JSON.parse(json)) : null;
     if (parsed?.success) {
-      sections = (parsed.data.sections ?? {}) as AnalysisSections;
+      sections = normalizeSections(parsed.data.sections);
       const g = parsed.data.growth;
       if (g) {
         growth = {
@@ -320,7 +495,10 @@ export async function runDeepDive(
       user_id: company.user_id,
       generated_at: new Date().toISOString(),
       model: GROK_MODEL,
-      sections,
+      // OverviewSections is the tightened producer shape; the stored column type
+      // AnalysisSections is intentionally wider (legacy open index) — a normalized
+      // OverviewSections is always a valid AnalysisSections.
+      sections: sections as AnalysisSections,
       valuation,
     },
     { onConflict: "company_id" },

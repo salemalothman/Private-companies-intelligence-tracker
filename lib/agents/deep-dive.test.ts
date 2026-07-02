@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computePeerMultiple, deriveBaseRevenue } from "@/lib/agents/deep-dive";
+import {
+  computePeerMultiple,
+  deriveBaseRevenue,
+  normalizeSections,
+} from "@/lib/agents/deep-dive";
 import { clampRating } from "@/lib/agents/deep-dive-types";
 import type { RankedEntity } from "@/lib/competitors/rank";
 import type { CanonicalRecord } from "@/lib/canonical";
@@ -44,6 +48,88 @@ function peer(p: Partial<RankedEntity>): RankedEntity {
     isTarget: p.isTarget ?? false,
   };
 }
+
+describe("normalizeSections", () => {
+  const lf = (text: string) => ({
+    text,
+    basis: "estimate" as const,
+    confidence: "med" as const,
+  });
+
+  it("maps a full raw object into the typed shape, clamping all ratings", () => {
+    const raw = {
+      executive_summary: {
+        thesis: lf("thesis"),
+        strengths: [lf("s1"), lf("s2")],
+        weaknesses: [lf("w1")],
+      },
+      technology: { narrative: lf("tech"), moat_rating: 8 },
+      product_portfolio: lf("products"),
+      vertical_customer: lf("verticals"),
+      business_model: lf("model"),
+      unit_economics: lf("econ"),
+      market_opportunity: { tam: lf("$Xbn"), sam: lf("$Ybn"), som: lf("$Zbn") },
+      strategic_moat: {
+        switching_costs: 7,
+        network_flywheel: 9,
+        distribution_regulatory: 4,
+        ip: 6,
+        narrative: lf("moat"),
+      },
+      historical_analogue: lf("analogue"),
+      outlook_and_exit: lf("outlook"),
+      ic_conclusion: {
+        rating: "buy",
+        bull: lf("bull"),
+        bear: lf("bear"),
+        recommendation: lf("rec"),
+      },
+    };
+    const s = normalizeSections(raw);
+    expect(s.technology?.moat_rating).toBe(8);
+    expect(s.strategic_moat?.switching_costs).toBe(7);
+    expect(s.strategic_moat?.network_flywheel).toBe(9);
+    expect(s.executive_summary?.strengths).toHaveLength(2);
+    expect(s.market_opportunity?.tam?.text).toBe("$Xbn");
+    expect(s.ic_conclusion?.rating).toBe("buy");
+    expect(s.historical_analogue?.text).toBe("analogue");
+  });
+
+  it("drops an ic rating that is not one of the four enum values", () => {
+    const s = normalizeSections({ ic_conclusion: { rating: "invalid", bull: lf("b") } });
+    expect(s.ic_conclusion?.rating).toBeUndefined();
+    expect(s.ic_conclusion?.bull?.text).toBe("b");
+  });
+
+  it("strips probability/price-target keys from outlook_and_exit (guardrail)", () => {
+    const raw = {
+      outlook_and_exit: {
+        text: "outlook narrative",
+        basis: "estimate",
+        confidence: "med",
+        probability: 0.7,
+        price_target: 100,
+      },
+    };
+    const s = normalizeSections(raw);
+    expect(s.outlook_and_exit?.text).toBe("outlook narrative");
+    expect((s.outlook_and_exit as unknown as Record<string, unknown>).probability).toBeUndefined();
+    expect((s.outlook_and_exit as unknown as Record<string, unknown>).price_target).toBeUndefined();
+  });
+
+  it("clamps an out-of-domain moat_rating (12) to null", () => {
+    const s = normalizeSections({ technology: { narrative: lf("t"), moat_rating: 12 } });
+    expect(s.technology?.moat_rating).toBeNull();
+  });
+
+  it("returns {} for null / undefined / non-object input and never throws", () => {
+    expect(normalizeSections(null)).toEqual({});
+    expect(normalizeSections(undefined)).toEqual({});
+    expect(normalizeSections(42)).toEqual({});
+    expect(normalizeSections("nope")).toEqual({});
+    expect(normalizeSections([])).toEqual({});
+  });
+});
 
 describe("computePeerMultiple", () => {
   it("computes median/p25/p75 across SEC-verified peers with finite multiples", () => {
