@@ -7,6 +7,11 @@
  * Database[...] lookups) so TypeScript can resolve the schema cleanly.
  */
 
+import type {
+  AnalysisSections,
+  AnalysisValuation,
+} from "@/lib/agents/deep-dive-types";
+
 export type Confidence = "low" | "medium" | "high";
 export type CompanyStatus = "active" | "exited";
 export type Sentiment = "positive" | "neutral" | "negative";
@@ -392,6 +397,29 @@ type CompanyEventInsert = {
   url?: string | null;
 };
 
+// --- company_analysis (deep-dive analyst layer: one JSONB row per company) ---
+export type CompanyAnalysisRow = {
+  id: string;
+  company_id: string;
+  user_id: string;
+  generated_at: string;
+  model: string | null;
+  sections: AnalysisSections;
+  valuation: AnalysisValuation;
+  created_at: string;
+  updated_at: string;
+};
+type CompanyAnalysisInsert = {
+  id?: string;
+  company_id: string;
+  user_id?: string;
+  generated_at?: string;
+  model?: string | null;
+  sections?: AnalysisSections;
+  valuation?: AnalysisValuation;
+  updated_at?: string;
+};
+
 // --- alert preferences ---
 export type AlertPrefsRow = {
   user_id: string;
@@ -506,6 +534,12 @@ export interface Database {
         Update: Partial<DigestPrefsInsert>;
         Relationships: [];
       };
+      company_analysis: {
+        Row: CompanyAnalysisRow;
+        Insert: CompanyAnalysisInsert;
+        Update: Partial<CompanyAnalysisInsert>;
+        Relationships: [];
+      };
     };
     Views: Empty;
     Functions: Empty;
@@ -529,6 +563,7 @@ export type PortfolioEvent = PortfolioEventRow;
 export type AlertPrefs = AlertPrefsRow;
 export type CompanyEvent = CompanyEventRow;
 export type DigestPrefs = DigestPrefsRow;
+export type CompanyAnalysis = CompanyAnalysisRow;
 
 /** A company joined with its related records — the shape the UI consumes. */
 export interface CompanyWithRelations extends CompanyRow {
