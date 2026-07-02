@@ -17,11 +17,17 @@ import {
   deriveBaseRevenue,
   normalizeSections,
   runDeepDive,
+  summarizeCachedGrounding,
 } from "@/lib/agents/deep-dive";
 import { clampRating } from "@/lib/agents/deep-dive-types";
 import type { RankedEntity } from "@/lib/competitors/rank";
 import type { CanonicalRecord } from "@/lib/canonical";
-import type { CompanyWithRelations } from "@/lib/types";
+import type {
+  CompanyWithRelations,
+  FormDRoundRow,
+  PeerFinancialRow,
+  XPostRow,
+} from "@/lib/types";
 
 describe("clampRating", () => {
   it("passes a valid in-domain integer through unchanged", () => {
@@ -390,6 +396,140 @@ describe("deriveBaseRevenue", () => {
     const br = deriveBaseRevenue(rec);
     expect(br.value).toBeNull();
     expect(br.source).toBeNull();
+  });
+});
+
+function formD(p: Partial<FormDRoundRow>): FormDRoundRow {
+  return {
+    id: p.id ?? "fd-1",
+    company_id: p.company_id ?? "co-1",
+    user_id: p.user_id ?? "user-1",
+    subject: p.subject ?? "Target Co",
+    cik: p.cik ?? null,
+    accession: p.accession ?? null,
+    offering_amount: p.offering_amount ?? null,
+    amount_sold: p.amount_sold ?? null,
+    filing_date: p.filing_date ?? null,
+    exemption: p.exemption ?? null,
+    related_persons: p.related_persons ?? [],
+    signals: p.signals ?? {},
+    source: p.source ?? "company-goat",
+    source_url: p.source_url ?? null,
+    fetched_at: p.fetched_at ?? "2026-07-01T00:00:00Z",
+    created_at: p.created_at ?? "2026-07-01T00:00:00Z",
+    updated_at: p.updated_at ?? "2026-07-01T00:00:00Z",
+  };
+}
+
+function peerFin(p: Partial<PeerFinancialRow>): PeerFinancialRow {
+  return {
+    id: p.id ?? "pf-1",
+    cik: p.cik ?? "0000000000",
+    ticker: p.ticker ?? null,
+    entity_name: p.entity_name ?? "Peer Inc",
+    fiscal_period: p.fiscal_period ?? "FY2024",
+    revenue: p.revenue ?? null,
+    net_income: p.net_income ?? null,
+    gross_profit: p.gross_profit ?? null,
+    operating_income: p.operating_income ?? null,
+    currency: p.currency ?? null,
+    source: p.source ?? "sec-edgar",
+    source_url: p.source_url ?? null,
+    fetched_at: p.fetched_at ?? "2026-07-01T00:00:00Z",
+    created_at: p.created_at ?? "2026-07-01T00:00:00Z",
+    updated_at: p.updated_at ?? "2026-07-01T00:00:00Z",
+  };
+}
+
+function xPost(p: Partial<XPostRow>): XPostRow {
+  return {
+    id: p.id ?? "xp-1",
+    company_id: p.company_id ?? "co-1",
+    user_id: p.user_id ?? "user-1",
+    subject: p.subject ?? "Target Co",
+    handle: p.handle ?? null,
+    post_id: p.post_id ?? "1",
+    text: p.text ?? null,
+    author: p.author ?? null,
+    posted_at: p.posted_at ?? null,
+    url: p.url ?? null,
+    metrics: p.metrics ?? {},
+    source: p.source ?? "x-twitter",
+    fetched_at: p.fetched_at ?? "2026-07-01T00:00:00Z",
+    created_at: p.created_at ?? "2026-07-01T00:00:00Z",
+    updated_at: p.updated_at ?? "2026-07-01T00:00:00Z",
+  };
+}
+
+describe("summarizeCachedGrounding", () => {
+  it("renders all three sections with explicit source tags", () => {
+    const out = summarizeCachedGrounding({
+      formD: [
+        formD({
+          subject: "Target Co",
+          offering_amount: 50_000_000,
+          filing_date: "2025-03-01",
+        }),
+      ],
+      peerFin: [
+        peerFin({
+          entity_name: "Peer Inc",
+          revenue: 1_200_000_000,
+          fiscal_period: "FY2024",
+        }),
+      ],
+      posts: [
+        xPost({
+          subject: "Target Co",
+          text: "shipped a big release",
+          posted_at: "2026-06-30T12:00:00Z",
+        }),
+      ],
+    });
+    // Each real source is attributed by its true origin tag.
+    expect(out).toContain("Form D (SEC, source: company-goat)");
+    expect(out).toContain("Peer XBRL (SEC, source: sec-edgar)");
+    expect(out).toContain("X post (source: x-twitter)");
+    // Real values are carried verbatim — never fabricated.
+    expect(out).toContain("50000000");
+    expect(out).toContain("1200000000");
+    expect(out).toContain("shipped a big release");
+    // Peer XBRL lines carry the fiscal period so revenue is never period-ambiguous.
+    expect(out).toContain("FY2024");
+  });
+
+  it("omits a section entirely when its array is empty (no empty headers)", () => {
+    const out = summarizeCachedGrounding({
+      formD: [formD({ subject: "Target Co", offering_amount: 10_000_000 })],
+      peerFin: [],
+      posts: [],
+    });
+    expect(out).toContain("Form D");
+    expect(out).not.toContain("Peer XBRL");
+    expect(out).not.toContain("X post");
+  });
+
+  it("returns an empty string when all three arrays are empty", () => {
+    expect(summarizeCachedGrounding({ formD: [], peerFin: [], posts: [] })).toBe(
+      "",
+    );
+  });
+
+  it("renders missing numeric fields as '?' — never a fabricated number", () => {
+    const out = summarizeCachedGrounding({
+      formD: [
+        formD({
+          subject: "Target Co",
+          offering_amount: null,
+          filing_date: null,
+        }),
+      ],
+      peerFin: [peerFin({ entity_name: "Peer Inc", revenue: null })],
+      posts: [],
+    });
+    // No invented figure: absent amounts/revenue render as the "?" sentinel.
+    expect(out).toContain("?");
+    expect(out).not.toMatch(/raised \$?\d/);
   });
 });
 

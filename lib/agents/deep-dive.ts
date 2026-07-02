@@ -22,7 +22,10 @@ import type {
   CompanyWithRelations,
   CompetitorRow,
   Database,
+  FormDRoundRow,
   MarketValuationRow,
+  PeerFinancialRow,
+  XPostRow,
 } from "@/lib/types";
 
 const GROK_MODEL = "grok-4.3";
@@ -465,6 +468,82 @@ function summarizeGrounding(
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+/** Cap on cached items per source folded into the prompt — the structured Grok
+ * response is already large (11 narrative sections + the competitors matrix);
+ * over-stuffing the prompt risks the completion truncating mid-object. */
+const CACHED_GROUNDING_CAP = 8;
+
+/** Render a real numeric/string field or the "?" sentinel — NEVER a fabricated
+ * value. Used by summarizeCachedGrounding so an absent cached fact reads as
+ * unknown rather than an invented number. */
+function orUnknown(v: number | string | null | undefined): string {
+  return v == null || v === "" ? "?" : String(v);
+}
+
+/**
+ * Pure, source-attributed serialization of the three ingested caches (ING-05).
+ * Each cached fact is a REAL, already-source-tagged row; this renders one compact
+ * line per fact prefixed with its true origin — "Form D (SEC, source: <src>)",
+ * "Peer XBRL (SEC, source: <src>)", "X post (source: <src>)" — so the model can
+ * cite the fact by its genuine source and never conflate it with an estimate.
+ *
+ * Contracts (unit-tested):
+ * - Missing numeric/text fields render as "?" (never a fabricated number).
+ * - An empty source array omits its whole section — no empty headers, no invented
+ *   placeholder facts. All three empty → "".
+ * - Peer XBRL lines always carry fiscal_period so revenue is never period-ambiguous.
+ * - Each source is capped at CACHED_GROUNDING_CAP items to protect the completion
+ *   from truncation.
+ * - Fully pure (no Supabase, no network) so it is directly unit-testable.
+ */
+export function summarizeCachedGrounding(cached: {
+  formD: FormDRoundRow[];
+  peerFin: PeerFinancialRow[];
+  posts: XPostRow[];
+}): string {
+  const sections: string[] = [];
+
+  const formD = cached.formD.slice(0, CACHED_GROUNDING_CAP);
+  if (formD.length) {
+    const lines = formD
+      .map(
+        (f) =>
+          `- Form D (SEC, source: ${f.source}): ${orUnknown(f.subject)} raised ` +
+          `${orUnknown(f.offering_amount)} on ${orUnknown(f.filing_date)}` +
+          `${f.exemption ? ` (exemption ${f.exemption})` : ""}`,
+      )
+      .join("\n");
+    sections.push(`Form D rounds (real SEC filings):\n${lines}`);
+  }
+
+  const peerFin = cached.peerFin.slice(0, CACHED_GROUNDING_CAP);
+  if (peerFin.length) {
+    const lines = peerFin
+      .map(
+        (p) =>
+          `- Peer XBRL (SEC, source: ${p.source}): ${orUnknown(p.entity_name)} ` +
+          `revenue ${orUnknown(p.revenue)} (${orUnknown(p.fiscal_period)})` +
+          `${p.net_income != null ? `, net income ${p.net_income}` : ""}`,
+      )
+      .join("\n");
+    sections.push(`Peer XBRL income facts (real SEC data):\n${lines}`);
+  }
+
+  const posts = cached.posts.slice(0, CACHED_GROUNDING_CAP);
+  if (posts.length) {
+    const lines = posts
+      .map(
+        (x) =>
+          `- X post (source: ${x.source}): ${orUnknown(x.text)} ` +
+          `(${orUnknown(x.posted_at)})`,
+      )
+      .join("\n");
+    sections.push(`Recent X posts (real X/Twitter, news + sentiment):\n${lines}`);
+  }
+
+  return sections.join("\n\n");
 }
 
 const EMPTY_GROWTH: AnalysisValuation["growth"] = {
