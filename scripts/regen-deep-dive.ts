@@ -46,8 +46,10 @@ async function main() {
   }
 
   console.log(`\nRegenerating deep-dive for "${company.name}" (${company.id}) …`);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await runDeepDive(sb as any, company as any);
+  const { error } = await runDeepDive(
+    sb as Parameters<typeof runDeepDive>[0],
+    company as Parameters<typeof runDeepDive>[1],
+  );
   if (error) {
     console.error("runDeepDive failed:", error);
     process.exit(1);
