@@ -82,6 +82,54 @@ export interface ExecutiveSummarySection {
   most_likely_outcome?: LabelledField;
 }
 
+/**
+ * How threatening a competitor is relative to the target. These tiers CLASSIFY
+ * competitors that are ALREADY in the ranking (buildCompetitorRanking) — the
+ * agent never invents new names; it only assigns one of these tiers to a name it
+ * was given. `direct` = head-on same-market rival, `indirect` = asymmetric /
+ * adjacent threat, `emerging` = stealth / early-stage entrant.
+ */
+export type ThreatTier = "direct" | "indirect" | "emerging";
+
+/**
+ * One row of the Capability Matrix: the target vs. a single top threat, scored
+ * across four capability axes. Each score is a bounded qualitative judgement
+ * indicator (1–10, like the existing moat ratings) — NOT a fabricated financial
+ * figure. `name` must be a competitor already present in the ranking.
+ */
+export interface CapabilityThreat {
+  name: string;
+  ip_depth: Rating1to10 | null;
+  gtm_velocity: Rating1to10 | null;
+  capital_efficiency: Rating1to10 | null;
+  workflow_retention: Rating1to10 | null;
+}
+
+/**
+ * The Capability Matrix (design spec §Competitors CMP-02): the target company
+ * versus its top 3 threats. `threats` holds 0..3 entries drawn from the ranked
+ * competitors; more than 3 are capped in normalizeSections.
+ */
+export interface CapabilityMatrix {
+  target: string;
+  threats: CapabilityThreat[];
+}
+
+/**
+ * The stored `competitors` analysis block (design spec §Competitors). It
+ * CLASSIFIES the already-ranked competitors into threat tiers (CMP-01) and scores
+ * the target vs. its top threats in a Capability Matrix (CMP-02). All fields are
+ * optional so a partial/older stored row still type-checks; every 1–10 score is a
+ * bounded qualitative judgement indicator, never a fabricated financial.
+ */
+export interface CompetitorsSection {
+  /** Competitor name → tier. Only names already in the ranking are kept. */
+  threat_tiers?: Record<string, ThreatTier>;
+  capability_matrix?: CapabilityMatrix;
+  /** Optional short summary of the competitive picture. */
+  narrative?: LabelledField;
+}
+
 /** The IC rating enum — Strong Buy … Sell. */
 export type IcRating = "strong_buy" | "buy" | "hold" | "sell";
 
@@ -121,6 +169,11 @@ export interface OverviewSections {
   /** Narrative labelled fields ONLY — no probabilities, no price targets. */
   outlook_and_exit?: LabelledField;
   ic_conclusion?: IcConclusionSection;
+  /**
+   * Competitor classification (threat tiers + Capability Matrix). Classifies the
+   * ALREADY-ranked competitors only — the agent invents no new names here.
+   */
+  competitors?: CompetitorsSection;
 }
 
 /**
