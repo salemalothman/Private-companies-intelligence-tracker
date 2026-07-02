@@ -19,7 +19,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 - [x] **FND-03**: Comps inputs (peer-multiple percentiles, base revenue) are
   computed in code, not by the LLM; the LLM supplies only the growth proposal +
   rationale + confidence.
-- [ ] **FND-04**: A "Run deep-dive" header button triggers generation on demand
+- [x] **FND-04**: A "Run deep-dive" header button triggers generation on demand
   (separate from Sync) with staged progress; re-run overwrites, timestamped.
 - [x] **FND-05**: Every forward-looking generated field carries
   `basis: fact|estimate` and `confidence: low|med|high`, surfaced via a shared
@@ -96,7 +96,7 @@ Updated during roadmap creation (2026-07-02).
 | FND-01 | Phase 1 — Foundation | Complete |
 | FND-02 | Phase 1 — Foundation | Complete |
 | FND-03 | Phase 1 — Foundation | Complete |
-| FND-04 | Phase 1 — Foundation | Pending |
+| FND-04 | Phase 1 — Foundation | Complete |
 | FND-05 | Phase 1 — Foundation | Complete |
 | FND-06 | Phase 1 — Foundation | Complete |
 | OVR-01 | Phase 2 — Overview Enrichment | Pending |

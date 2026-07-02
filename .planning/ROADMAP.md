@@ -21,7 +21,7 @@ probabilities.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Analysis storage, the Grok deep-dive agent, on-demand trigger, and shared confidence chip
+- [x] **Phase 1: Foundation** - Analysis storage, the Grok deep-dive agent, on-demand trigger, and shared confidence chip (completed 2026-07-02)
 - [ ] **Phase 2: Overview Enrichment** - Distribute the thesis sections into the Overview tab as collapsible content
 - [ ] **Phase 3: Competitors Enrichment** - Threat tiers and a Capability Matrix layered on the existing ranking table
 - [ ] **Phase 4: Valuation Targets Tab** - Comps model (2026–2030) with interactive controls, plus factual financial detail on Valuation
@@ -44,7 +44,7 @@ Plans:
 - [x] 01-01-PLAN.md — company_analysis table + RLS + types + [BLOCKING] schema push + getCompanyAnalysis reader (FND-01)
 - [x] 01-02-PLAN.md — runDeepDive Grok agent: grounding gather, one structured call, code-computed comps, upsert (FND-02, FND-03)
 - [x] 01-03-PLAN.md — shared Fact/Estimate + confidence chip, empty-state primitive, staleness helper (FND-05, FND-06)
-- [ ] 01-04-PLAN.md — Run deep-dive header button + server action + empty/stale wiring (FND-04, FND-06)
+- [x] 01-04-PLAN.md — Run deep-dive header button + server action + empty/stale wiring (FND-04, FND-06)
 **UI hint**: yes
 
 ### Phase 2: Overview Enrichment
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 3/4 | In Progress|  |
+| 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 0/TBD | Not started | - |
 | 3. Competitors Enrichment | 0/TBD | Not started | - |
 | 4. Valuation Targets Tab | 0/TBD | Not started | - |
