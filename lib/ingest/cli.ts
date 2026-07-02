@@ -84,7 +84,11 @@ export function parseEnvelope(stdout: string): Envelope {
     return { ok: false, error: "envelope is not a JSON object" };
   }
   const meta = isPlainObject(parsed.meta) ? parsed.meta : undefined;
-  return { ok: true, meta, results: parsed.results };
+  // Not every pp-cli command wraps its payload in `{meta, results}` — `doctor`
+  // (and some others) return the payload at the top level. When there is no
+  // `results` key, the parsed object IS the result; otherwise use it verbatim.
+  const results = "results" in parsed ? parsed.results : parsed;
+  return { ok: true, meta, results };
 }
 
 /**
