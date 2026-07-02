@@ -13,10 +13,10 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 - [ ] **FND-01**: A `company_analysis` table stores one JSONB analysis row per
   company (upserted, RLS via company ownership), with `generated_at` and `model`.
-- [ ] **FND-02**: A single Grok deep-dive agent (`runDeepDive`) generates one
+- [x] **FND-02**: A single Grok deep-dive agent (`runDeepDive`) generates one
   structured `sections` object per company from existing in-app grounding context
   (canonical record, competitor ranking, funding/valuation history, news, docs).
-- [ ] **FND-03**: Comps inputs (peer-multiple percentiles, base revenue) are
+- [x] **FND-03**: Comps inputs (peer-multiple percentiles, base revenue) are
   computed in code, not by the LLM; the LLM supplies only the growth proposal +
   rationale + confidence.
 - [ ] **FND-04**: A "Run deep-dive" header button triggers generation on demand
@@ -93,9 +93,9 @@ Updated during roadmap creation (2026-07-02).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | Phase 1 — Foundation | Pending |
-| FND-02 | Phase 1 — Foundation | Pending |
-| FND-03 | Phase 1 — Foundation | Pending |
+| FND-01 | Phase 1 — Foundation | Complete |
+| FND-02 | Phase 1 — Foundation | Complete |
+| FND-03 | Phase 1 — Foundation | Complete |
 | FND-04 | Phase 1 — Foundation | Pending |
 | FND-05 | Phase 1 — Foundation | Pending |
 | FND-06 | Phase 1 — Foundation | Pending |
