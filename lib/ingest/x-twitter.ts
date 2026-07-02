@@ -22,10 +22,32 @@
  *    upserted row carries user_id/company_id from the enumerated target (owner-scoped).
  *  - No field is fabricated — absent tweet fields map to null (never 0/"").
  */
-import type { IngestTarget } from "@/lib/ingest/types";
-import type { XPostInsert } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { hasBinary, requireEnv, runAgentCli } from "@/lib/ingest/cli";
+import type {
+  Envelope,
+  IngestTarget,
+  SourceSummary,
+} from "@/lib/ingest/types";
+import type { Database, XPostInsert } from "@/lib/types";
 
 const SOURCE = "x-twitter";
+const BIN = "x-twitter-pp-cli";
+const BEARER_ENV = "X_BEARER_TOKEN";
+
+/**
+ * The recent window synced per target. Bounded on purpose (T-04-17): X bills
+ * reads per-use, so a short, fixed window caps the paid-read cost of every run.
+ */
+const SINCE_WINDOW = "14d";
+
+/**
+ * READ-ONLY subcommand allowlist (T-04-16). Every runAgentCli invocation in this
+ * module is built from a member of this set — no post/reply/quote/like string
+ * appears anywhere in the file, so the module can only ever READ from X.
+ */
+const READ_SUBCOMMANDS = ["doctor", "sync", "recent-search"] as const;
+type ReadSubcommand = (typeof READ_SUBCOMMANDS)[number];
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -134,3 +156,152 @@ export function mapTweetsResult(
 
   return rows;
 }
+
+// ---------------------------------------------------------------------------
+// Impure dispatch — only called from scripts/ingest-grounding.ts (off-Vercel).
+//
+// NO `import "server-only"` here: this file's pure helpers (appOnlyLaneReady,
+// mapTweetsResult) are loaded by Vitest in plain Node, and `server-only` throws
+// outside a React-Server bundle — it would break the unit tests. The module is
+// kept off app/ runtime by convention (only the local script imports it), the
+// same way company-goat.ts and sec-edgar.ts are.
+// ---------------------------------------------------------------------------
+
+type Admin = SupabaseClient<Database>;
+
+/**
+ * Build the child env carrying the paid bearer token. The VALUE is passed through
+ * to execFile only and is NEVER logged (T-04-15).
+ */
+function buildEnv(bearer: string): Record<string, string | undefined> {
+  return { ...process.env, [BEARER_ENV]: bearer };
+}
+
+/**
+ * Run a READ-ONLY x-twitter subcommand. `sub` is constrained to the allowlist at
+ * the type level so no write subcommand can ever be constructed here (T-04-16).
+ */
+function runRead(
+  sub: ReadSubcommand,
+  args: string[],
+  env: Record<string, string | undefined>,
+): Promise<Envelope> {
+  return runAgentCli(BIN, [sub, ...args], { env });
+}
+
+/**
+ * ingestXTwitter — the SourceModule dispatch for x-twitter (opt-in, read-only).
+ *
+ * Preflight, in order (any failure → clean "skipped", never an error):
+ *  1. X_BEARER_TOKEN present — absent means opt-out (paid per-read), skip.
+ *  2. x-twitter-pp-cli on PATH — absent → skip.
+ *  3. `doctor` app-only lane usable (appOnlyLaneReady) — not ready → skip.
+ *
+ * For each target: `sync --resources tweets --since <window>` scoped by the
+ * subject (READ-ONLY — only allowlisted subcommands), map via mapTweetsResult,
+ * and idempotently upsert on (company_id, post_id) with user_id from the target
+ * (service-role bypasses RLS — writes are owner-scoped, T-04-18). Per target is
+ * try/catch-guarded so one target never aborts the run.
+ */
+export async function ingestXTwitter(
+  admin: Admin,
+  targets: IngestTarget[],
+): Promise<SourceSummary> {
+  // 1. Opt-in: the paid bearer token must be present.
+  const bearer = requireEnv(BEARER_ENV);
+  if (!bearer) {
+    return {
+      source: SOURCE,
+      upserted: 0,
+      skipped: targets.length,
+      status: "skipped",
+      detail: `${BEARER_ENV} not set (opt-in)`,
+    };
+  }
+
+  // 2. Binary must be on PATH.
+  if (!(await hasBinary(BIN))) {
+    return {
+      source: SOURCE,
+      upserted: 0,
+      skipped: targets.length,
+      status: "skipped",
+      detail: "binary not on PATH",
+    };
+  }
+
+  const env = buildEnv(bearer);
+
+  // 3. Preflight the app-only lane via doctor.
+  const doctor = await runRead("doctor", [], env);
+  if (!appOnlyLaneReady(doctor.results)) {
+    return {
+      source: SOURCE,
+      upserted: 0,
+      skipped: targets.length,
+      status: "skipped",
+      detail: "app-only api lane not available",
+    };
+  }
+
+  let upserted = 0;
+  let skipped = 0;
+  let hadError = false;
+
+  for (const target of targets) {
+    try {
+      // READ-ONLY sync of recent tweets for this subject, bounded window.
+      const sync = await runRead(
+        "sync",
+        [
+          "--resources",
+          "tweets",
+          "--since",
+          SINCE_WINDOW,
+          "--query",
+          target.subject,
+        ],
+        env,
+      );
+      if (!sync.ok) {
+        skipped++;
+        continue;
+      }
+
+      const rows = mapTweetsResult(sync.results, target);
+      if (rows.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      // Idempotent, owner-scoped upsert on the (company_id, post_id) natural key.
+      const { error } = await admin
+        .from("x_posts")
+        .upsert(rows, { onConflict: "company_id,post_id" });
+      if (error) {
+        hadError = true;
+        skipped++;
+        continue;
+      }
+
+      upserted += rows.length;
+    } catch {
+      // Never let one target abort the run.
+      hadError = true;
+      skipped++;
+    }
+  }
+
+  return {
+    source: SOURCE,
+    upserted,
+    skipped,
+    status: hadError ? "partial" : "success",
+  };
+}
+
+/**
+ * Dispatch alias — scripts/ingest-grounding.ts imports the module by the name
+ * `runXTwitter`. Kept in sync with the SourceModule contract.
+ */
+export const runXTwitter = ingestXTwitter;
