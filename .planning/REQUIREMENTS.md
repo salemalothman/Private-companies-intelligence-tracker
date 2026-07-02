@@ -54,7 +54,7 @@ Requirements for the deep-dive analysis feature. Each maps to a roadmap phase.
 
 ### External grounding ingestion
 
-- [ ] **ING-01**: A local/cron ingestion script (mirroring the market-cache
+- [x] **ING-01**: A local/cron ingestion script (mirroring the market-cache
   pattern) runs the Printing Press CLIs in `--agent` JSON mode and upserts
   source-tagged results into Supabase; it does NOT run in the Vercel serverless
   runtime.
@@ -126,7 +126,7 @@ Updated during roadmap creation (2026-07-02).
 | OVR-05 | Phase 2 — Overview Enrichment | Complete |
 | CMP-01 | Phase 3 — Competitors Enrichment | Complete |
 | CMP-02 | Phase 3 — Competitors Enrichment | Complete |
-| ING-01 | Phase 4 — External Grounding Ingestion | Pending |
+| ING-01 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-02 | Phase 4 — External Grounding Ingestion | Complete |
 | ING-03 | Phase 4 — External Grounding Ingestion | Pending |
 | ING-04 | Phase 4 — External Grounding Ingestion | Complete |
