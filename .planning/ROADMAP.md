@@ -77,7 +77,10 @@ Plans:
   1. The competitor ranking table is grouped into threat tiers (direct / indirect-asymmetric / emerging-stealth), reusing existing competitor sync data with no re-discovery pass.
   2. A Capability Matrix rates the company vs. its top 3 threats (1–10) across IP Depth, GTM Velocity, Capital Efficiency, and Workflow Retention.
   3. Existing competitor ranking behavior (valuation, revenue, V/R multiple, SEC-verified badges) is preserved and the enrichment shows a "Run deep-dive" empty state before generation.
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — Extend deep-dive agent with a typed `competitors` block (threat_tiers + capability_matrix); prompt + zod + normalizeSections (name-filter allow-list, tier-coerce, clamp, cap-3) + unit tests (CMP-01, CMP-02 data side)
+- [ ] 03-02-PLAN.md — Competitors tab renderer: tier-grouped ranking + Capability Matrix grid via RatingIndicator, DeepDiveEmpty before first run, existing table behavior preserved; regen verify checkpoint (CMP-01, CMP-02)
 **UI hint**: yes
 
 ### Phase 4: External Grounding Ingestion
@@ -124,6 +127,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete   | 2026-07-02 |
 | 2. Overview Enrichment | 2/2 | Complete   | 2026-07-02 |
-| 3. Competitors Enrichment | 0/TBD | Not started | - |
+| 3. Competitors Enrichment | 0/2 | Not started | - |
 | 4. External Grounding Ingestion | 0/6 | Not started | - |
 | 5. Valuation Targets Tab | 0/TBD | Not started | - |
