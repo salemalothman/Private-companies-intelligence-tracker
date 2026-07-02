@@ -476,6 +476,48 @@ const EMPTY_GROWTH: AnalysisValuation["growth"] = {
 };
 
 /**
+ * Upper bound on the Grok completion. The response is now large (11 narrative
+ * sections + the competitors capability matrix); the model's default ceiling
+ * truncated it mid-object (observed JSON.parse failure at ~position 4798). Sizing
+ * this generously keeps the single structured object intact so it parses.
+ */
+const MAX_OUTPUT_TOKENS = 16000;
+
+/** How many times to ask Grok before giving up (1 retry — a transient
+ * truncated/malformed response then self-heals without a manual re-run). */
+const MAX_ATTEMPTS = 2;
+
+/**
+ * One structured Grok attempt: generate → pull the first balanced JSON object
+ * (extractJson already ignores any surrounding code fences / prose / trailing
+ * citations) → validate against `analysisSchema`. Returns the parsed payload, or
+ * `null` on ANY soft failure — empty text, no JSON found, malformed/truncated
+ * JSON (JSON.parse throw), or schema mismatch. Never throws for those; a thrown
+ * error here means the network/model call itself failed and is handled by the
+ * caller's retry loop.
+ */
+async function grokAnalysisAttempt(
+  prompt: string,
+): Promise<z.infer<typeof analysisSchema> | null> {
+  const { text } = await generateText({
+    model: xai.responses(GROK_MODEL),
+    tools: { x_search: xai.tools.xSearch() },
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    prompt,
+  });
+  const json = extractJson(text ?? "");
+  if (!json) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null; // malformed / truncated — caller retries, never persists garbage
+  }
+  const result = analysisSchema.safeParse(parsed);
+  return result.success ? result.data : null;
+}
+
+/**
  * The single Grok deep-dive agent. Signature convention: the Supabase client is
  * the first arg so the agent runs identically under an RLS user session (the
  * "Run deep-dive" button) or a service-role identity (cron).
@@ -486,9 +528,14 @@ const EMPTY_GROWTH: AnalysisValuation["growth"] = {
  * Grok call for the narrative `sections` + a growth-RATE proposal; (3) compute the
  * comps inputs IN CODE (peer-multiple percentiles, base revenue, current
  * valuation) — the LLM's numbers live ONLY inside `growth`; (4) UPSERT one
- * `company_analysis` row keyed on `company_id`. The Grok call degrades to an empty
- * analysis (still a timestamped upsert) rather than throwing, matching the
- * connector convention.
+ * `company_analysis` row keyed on `company_id`.
+ *
+ * DATA-INTEGRITY GUARANTEE: the Grok call is retried once and, if it still yields
+ * no usable analysis (malformed/truncated JSON, schema mismatch, or a response
+ * that normalizes to zero sections), runDeepDive does NOT upsert — it returns an
+ * `{ error }` so the caller can surface the failure and the previously-stored
+ * analysis row is left untouched. A transient LLM hiccup can never overwrite a
+ * good stored analysis with an empty one.
  */
 export async function runDeepDive(
   supabase: DB,
@@ -538,41 +585,51 @@ export async function runDeepDive(
     peers,
   );
 
-  // Step 2 — ONE structured Grok call for the narrative + growth-rate proposal.
-  // Degrade to an empty analysis on any failure (never throw) — matches grok.ts.
+  // Step 2 — structured Grok call for the narrative + growth-rate proposal,
+  // retried once. Each attempt returns null (never throws) on a soft parse/schema
+  // failure; a thrown error is a hard network/model failure we log and retry.
+  const prompt =
+    `${buildPrompt(summarizeGrounding(company, canonical, ranking))}\n\n` +
+    `Respond with ONLY minified JSON matching this shape — no prose, no ` +
+    `markdown fences, no citations:\n${ANALYSIS_SHAPE}`;
+  let data: z.infer<typeof analysisSchema> | null = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS && !data; attempt++) {
+    try {
+      data = await grokAnalysisAttempt(prompt);
+    } catch (e) {
+      console.error("runDeepDive.grok:", (e as Error).message);
+    }
+  }
+
   let sections: OverviewSections = {};
   let growth: AnalysisValuation["growth"] = EMPTY_GROWTH;
-  try {
-    const { text } = await generateText({
-      model: xai.responses(GROK_MODEL),
-      tools: { x_search: xai.tools.xSearch() },
-      prompt:
-        `${buildPrompt(summarizeGrounding(company, canonical, ranking))}\n\n` +
-        `Respond with ONLY minified JSON matching this shape — no prose, no ` +
-        `markdown fences, no citations:\n${ANALYSIS_SHAPE}`,
-    });
-    const json = extractJson(text ?? "");
-    const parsed = json ? analysisSchema.safeParse(JSON.parse(json)) : null;
-    if (parsed?.success) {
-      // Ranked names (target + all peers) are the classification allow-list so
-      // the model cannot inject a competitor it was never given (threat T-03-02).
-      sections = normalizeSections(
-        parsed.data.sections,
-        ranking.map((r) => r.name),
-      );
-      const g = parsed.data.growth;
-      if (g) {
-        growth = {
-          base: g.base ?? 0,
-          bear: g.bear ?? 0,
-          bull: g.bull ?? 0,
-          confidence: g.confidence ?? "low",
-          rationale: g.rationale ?? "",
-        };
-      }
+  if (data) {
+    // Ranked names (target + all peers) are the classification allow-list so
+    // the model cannot inject a competitor it was never given (threat T-03-02).
+    sections = normalizeSections(data.sections, ranking.map((r) => r.name));
+    const g = data.growth;
+    if (g) {
+      growth = {
+        base: g.base ?? 0,
+        bear: g.bear ?? 0,
+        bull: g.bull ?? 0,
+        confidence: g.confidence ?? "low",
+        rationale: g.rationale ?? "",
+      };
     }
-  } catch (e) {
-    console.error("runDeepDive.grok:", (e as Error).message);
+  }
+
+  // DATA-INTEGRITY GUARD: bail BEFORE the upsert when the model produced no
+  // usable analysis (both attempts failed, or the response normalized to zero
+  // sections). Overwriting a previously-good company_analysis row with an empty
+  // one on a transient LLM hiccup would destroy real work — so instead we leave
+  // the existing row untouched and surface the failure to the caller/UI.
+  if (Object.keys(sections).length === 0) {
+    return {
+      error:
+        "Deep-dive generation failed: the model returned no usable analysis. " +
+        "Any previously saved analysis was left unchanged — please retry.",
+    };
   }
 
   // Step 3 — comps inputs computed IN CODE (LLM contributes nothing here).

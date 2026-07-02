@@ -1,12 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The deep-dive agent calls xAI Grok via the AI SDK at module load / call time.
+// Mock both so runDeepDive can be driven with canned model responses (the only
+// unavoidable mocks — the Supabase client is dependency-injected as a fake).
+vi.mock("@ai-sdk/xai", () => ({
+  xai: Object.assign(() => ({}), {
+    responses: () => ({}),
+    tools: { xSearch: () => ({}) },
+  }),
+}));
+vi.mock("ai", () => ({ generateText: vi.fn() }));
+
+import { generateText } from "ai";
 import {
   computePeerMultiple,
   deriveBaseRevenue,
   normalizeSections,
+  runDeepDive,
 } from "@/lib/agents/deep-dive";
 import { clampRating } from "@/lib/agents/deep-dive-types";
 import type { RankedEntity } from "@/lib/competitors/rank";
 import type { CanonicalRecord } from "@/lib/canonical";
+import type { CompanyWithRelations } from "@/lib/types";
 
 describe("clampRating", () => {
   it("passes a valid in-domain integer through unchanged", () => {
@@ -375,5 +390,125 @@ describe("deriveBaseRevenue", () => {
     const br = deriveBaseRevenue(rec);
     expect(br.value).toBeNull();
     expect(br.source).toBeNull();
+  });
+});
+
+describe("runDeepDive persistence guard", () => {
+  // A minimal company — runDeepDive only reads id/user_id/name/sector/description
+  // plus the (empty) relation arrays; buildCanonicalRecord tolerates null revenue.
+  const company = {
+    id: "co-1",
+    user_id: "user-1",
+    name: "Target Co",
+    sector: "AI",
+    description: "an AI company",
+    revenue: null,
+    revenue_source: null,
+    revenue_date: null,
+    investments: [],
+    valuations: [],
+    funding_rounds: [],
+    news: [],
+  } as unknown as CompanyWithRelations;
+
+  // Well-formed response whose sections normalize to a NON-empty object.
+  const VALID_JSON = JSON.stringify({
+    sections: {
+      technology: {
+        narrative: { text: "solid tech", basis: "estimate", confidence: "med" },
+        moat_rating: 7,
+      },
+    },
+    growth: { base: 0.3, bear: 0.1, bull: 0.5, confidence: "med", rationale: "r" },
+  });
+
+  // Balanced braces but invalid JSON → JSON.parse throws (mirrors the observed
+  // truncation symptom). extractJson returns it; the parse then fails.
+  const MALFORMED_JSON = 'prose {"sections": } trailing';
+
+  // Valid JSON whose sections contain only unknown keys → normalizeSections => {}.
+  const EMPTY_SECTIONS_JSON = JSON.stringify({
+    sections: { unknown_key: 123 },
+    growth: null,
+  });
+
+  /**
+   * Hand-rolled Supabase fake. The competitors read is awaited directly after
+   * `.eq()` (the builder is thenable); the market read ends in `.maybeSingle()`.
+   * Every `company_analysis.upsert` is recorded so tests can assert it did — or
+   * critically, did NOT — happen.
+   */
+  function makeSupabase() {
+    const upsertCalls: Array<{ row: Record<string, unknown>; opts: unknown }> = [];
+    const from = () => {
+      const builder: Record<string, unknown> = {
+        select: () => builder,
+        eq: () => builder,
+        maybeSingle: () => Promise.resolve({ data: null }),
+        upsert: (row: Record<string, unknown>, opts: unknown) => {
+          upsertCalls.push({ row, opts });
+          return Promise.resolve({ error: null });
+        },
+        then: (resolve: (v: unknown) => unknown) =>
+          Promise.resolve({ data: [] }).then(resolve),
+      };
+      return builder;
+    };
+    return {
+      supabase: { from } as unknown as Parameters<typeof runDeepDive>[0],
+      upsertCalls,
+    };
+  }
+
+  const mockGrok = vi.mocked(generateText);
+
+  beforeEach(() => {
+    mockGrok.mockReset();
+  });
+
+  it("does NOT upsert and returns an error when every attempt is malformed JSON", async () => {
+    mockGrok.mockResolvedValue({ text: MALFORMED_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(upsertCalls).toHaveLength(0); // prior company_analysis row left intact
+    expect(result.error).toBeTruthy();
+  });
+
+  it("does NOT upsert and returns an error when sections normalize to empty", async () => {
+    mockGrok.mockResolvedValue({ text: EMPTY_SECTIONS_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(upsertCalls).toHaveLength(0);
+    expect(result.error).toBeTruthy();
+  });
+
+  it("upserts exactly one analysis row on a valid response", async () => {
+    mockGrok.mockResolvedValue({ text: VALID_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(result.error).toBeUndefined();
+    expect(upsertCalls).toHaveLength(1);
+    expect(upsertCalls[0].row.company_id).toBe("co-1");
+    const sections = upsertCalls[0].row.sections as Record<string, unknown>;
+    expect(Object.keys(sections).length).toBeGreaterThan(0);
+  });
+
+  it("retries once and self-heals when the first attempt is malformed", async () => {
+    mockGrok
+      .mockResolvedValueOnce({ text: MALFORMED_JSON } as never)
+      .mockResolvedValueOnce({ text: VALID_JSON } as never);
+    const { supabase, upsertCalls } = makeSupabase();
+
+    const result = await runDeepDive(supabase, company);
+
+    expect(mockGrok).toHaveBeenCalledTimes(2);
+    expect(result.error).toBeUndefined();
+    expect(upsertCalls).toHaveLength(1);
   });
 });
