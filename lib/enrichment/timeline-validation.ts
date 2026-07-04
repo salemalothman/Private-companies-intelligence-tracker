@@ -21,7 +21,11 @@ type DB = SupabaseClient<Database>;
 
 const DOWN_TOLERANCE = 0.05; // a later value below (1 - 5%) of an earlier one = down round
 const DUP_TOLERANCE = 0.02; // values within 2% of a verified figure = duplicate
-const MAX_PLAUSIBLE = 5e11; // $500B — above any real private company; higher = a parse error
+// $3T — the bound's job is catching unit-parse errors (a $65T "valuation" from
+// a bad regex), NOT capping reality: the market cache itself records private
+// marks past the old $500B assumption (SpaceX $1.77T, Anthropic $1T, OpenAI
+// $852B), which this was silently stripping as "parse errors".
+const MAX_PLAUSIBLE = 3e12;
 
 /**
  * Reasons an entry is invalid against a set of trusted reference entries.

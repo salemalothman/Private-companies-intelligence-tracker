@@ -14,6 +14,10 @@ import {
   validateAllTimelines,
   type TimelineValidationSummary,
 } from "@/lib/enrichment/timeline-validation";
+import {
+  sweepRoundHygiene,
+  type RoundHygieneSummary,
+} from "@/lib/enrichment/round-hygiene";
 
 type DB = SupabaseClient<Database>;
 
@@ -26,6 +30,7 @@ export interface GlobalSyncSummary {
   competitorsAdded: number;
   signalsBlocked: number;
   timeline: TimelineValidationSummary;
+  hygiene: RoundHygieneSummary;
   sanitized: SanitizeSummary;
   status: "success" | "partial";
   detail?: string;
@@ -55,8 +60,9 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     .select(FIELDS);
   const empty: SanitizeSummary = { scanned: 0, rewritten: 0, flagged: 0 };
   const emptyTimeline: TimelineValidationSummary = { scanned: 0, stripped: 0, flagged: 0 };
+  const emptyHygiene: RoundHygieneSummary = { companies: 0, merged: 0, deleted: 0, backfilled: 0 };
   if (error)
-    return { companies: 0, enriched: 0, competitorsAdded: 0, signalsBlocked: 0, timeline: emptyTimeline, sanitized: empty, status: "partial", detail: error.message };
+    return { companies: 0, enriched: 0, competitorsAdded: 0, signalsBlocked: 0, timeline: emptyTimeline, hygiene: emptyHygiene, sanitized: empty, status: "partial", detail: error.message };
 
   let enriched = 0, competitorsAdded = 0, signalsBlocked = 0;
   const errors: string[] = [];
@@ -119,7 +125,18 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
     errors.push(`events: ${(e as Error).message}`);
   }
 
-  // 5. Timeline validation — strip backdated/hallucinated valuations that break
+  // 5a. Round hygiene — persist the same-raise dedupe (unnamed amount-only
+  //     events fold into their named round in the DB, not just at render) and
+  //     backfill timeline rows from rounds' recorded post-money. Runs BEFORE
+  //     timeline validation so the backfilled figures arm the monotonic guard.
+  let hygiene: RoundHygieneSummary = emptyHygiene;
+  try {
+    hygiene = await sweepRoundHygiene(supabase);
+  } catch (e) {
+    errors.push(`hygiene: ${(e as Error).message}`);
+  }
+
+  // 5b. Timeline validation — strip backdated/hallucinated valuations that break
   //    monotonic growth or lack a trusted primary source (re-leaked by enrichment).
   const timeline = await validateAllTimelines(supabase);
 
@@ -129,7 +146,7 @@ export async function runGlobalSync(supabase: DB): Promise<GlobalSyncSummary> {
 
   return {
     companies: companies?.length ?? 0,
-    enriched, competitorsAdded, signalsBlocked, timeline, sanitized,
+    enriched, competitorsAdded, signalsBlocked, timeline, hygiene, sanitized,
     status: errors.length ? "partial" : "success",
     detail: errors.length ? errors.slice(0, 3).join("; ") : undefined,
   };
