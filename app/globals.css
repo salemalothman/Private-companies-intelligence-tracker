@@ -37,10 +37,15 @@
 
     /* Restrained brand accent — used sparingly for focus + emphasis */
     --brand: 221 83% 53%;
+    --brand-foreground: 0 0% 100%;
+    /* Darker stop for the primary button's vertical gradient (premium depth). */
+    --brand-deep: 224 76% 44%;
 
     --border: 220 16% 92%;
     --input: 220 16% 90%;
-    --ring: 224 24% 12%;
+    /* Focus ring carries the brand hue — the token's documented purpose
+       ("used sparingly for focus + emphasis"), now actually wired. */
+    --ring: 221 83% 53%;
 
     /* Muted, distinct data palette */
     --chart-1: 221 70% 52%;
@@ -72,6 +77,8 @@
     --success: 152 52% 46%;
     --success-foreground: 224 28% 8%;
     --brand: 217 91% 62%;
+    --brand-foreground: 224 28% 8%;
+    --brand-deep: 221 83% 53%;
     --border: 220 16% 16%;
     --input: 220 16% 18%;
     --ring: 210 20% 80%;
@@ -139,6 +146,26 @@
 }
 
 @layer utilities {
+  /* Brand gradient family — the vibrancy layer's only gradient recipe
+     (brand blue → cyan). Reserved for hero numbers, active accents, and
+     progress indicators; never for trust surfaces or body text. */
+  .bg-gradient-brand {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--brand)),
+      hsl(var(--chart-5))
+    );
+  }
+  .text-gradient-brand {
+    background-image: linear-gradient(
+      120deg,
+      hsl(var(--brand)),
+      hsl(var(--chart-5))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   /* Affordance hint for horizontally-scrollable strips (the 9-tab bar): fade
      the right edge below lg — where the strip overflows — so off-screen tabs
      are discoverable. Static mask, no JS; the trailing tab dims slightly at

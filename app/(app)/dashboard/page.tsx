@@ -20,6 +20,7 @@ import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { EventsCalendar } from "@/components/dashboard/events-calendar";
 import { GlobalSyncButton } from "@/components/dashboard/global-sync-button";
+import { Reveal } from "@/components/motion/reveal";
 
 export default async function DashboardPage() {
   const [companies, activity, unseen, alertPrefs, calendar] = await Promise.all([
@@ -51,17 +52,25 @@ export default async function DashboardPage() {
         }
       />
 
+      {/* Above the fold — the route template already animates it; no Reveal. */}
       <SummaryCards summary={summary} changes={changes} />
 
-      <EventsCalendar upcoming={upcoming} past={past} />
+      {/* Below-fold sections rise in once as they scroll into view. */}
+      <Reveal>
+        <EventsCalendar upcoming={upcoming} past={past} />
+      </Reveal>
 
-      <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
+      <Reveal delay={0.05}>
+        <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
+      </Reveal>
 
-      <PortfolioCharts
-        valueSeries={portfolioValueSeries(companies)}
-        allocation={sectorAllocation(companies)}
-        performers={topPerformers(companies)}
-      />
+      <Reveal delay={0.1}>
+        <PortfolioCharts
+          valueSeries={portfolioValueSeries(companies)}
+          allocation={sectorAllocation(companies)}
+          performers={topPerformers(companies)}
+        />
+      </Reveal>
     </div>
   );
 }

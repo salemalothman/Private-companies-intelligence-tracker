@@ -47,6 +47,14 @@ const config: Config = {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
         },
+        // The restrained brand accent — the vibrancy layer's anchor. Used for
+        // designated-primary actions, focus rings, active indicators, and data
+        // highlights; NEVER on trust surfaces (chips, provenance, badges).
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+          deep: "hsl(var(--brand-deep))",
+        },
         chart: {
           1: "hsl(var(--chart-1))",
           2: "hsl(var(--chart-2))",
@@ -69,10 +77,18 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        // Skeleton shimmer: a light band sweeping across a muted block.
+        shimmer: {
+          from: { backgroundPosition: "200% 0" },
+          to: { backgroundPosition: "-200% 0" },
+        },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        // Softer, slightly longer easing so section expand/collapse reads as
+        // settled rather than snapped (Material standard curve).
+        "accordion-down": "accordion-down 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        "accordion-up": "accordion-up 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        shimmer: "shimmer 1.8s linear infinite",
       },
     },
   },

@@ -35,23 +35,30 @@ function ChartCard({
   title,
   children,
   empty,
+  className,
+  height = 220,
 }: {
   title: string;
   children: React.ReactNode;
   empty: boolean;
+  className?: string;
+  height?: number;
 }) {
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         {empty ? (
-          <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+          <div
+            className="flex items-center justify-center text-sm text-muted-foreground"
+            style={{ height }}
+          >
             Not enough data yet
           </div>
         ) : (
-          <div className="h-[220px]">{children}</div>
+          <div style={{ height }}>{children}</div>
         )}
       </CardContent>
     </Card>
@@ -68,14 +75,37 @@ export function PortfolioCharts({
   performers: PerformerRow[];
 }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <ChartCard title="Portfolio valuation growth" empty={valueSeries.length < 2}>
+    // Proportional 3-col grid, no orphan cells: the growth curve is the hero
+    // (2/3 width), allocation completes the row, performers spans the full
+    // width below — horizontal bars are the one chart that improves with width.
+    <div className="grid gap-4 lg:grid-cols-3">
+      <ChartCard
+        title="Portfolio valuation growth"
+        empty={valueSeries.length < 2}
+        className="lg:col-span-2"
+        height={260}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={valueSeries} margin={{ left: 8, right: 8, top: 8 }}>
+            {/* Brand-hued hero fill — id unique to this file (duplicate SVG ids
+                across mounted charts resolve to the first in the DOM). */}
             <defs>
-              <linearGradient id="pv" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART[0]} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={CHART[0]} stopOpacity={0} />
+              <linearGradient id="pvBrandFill" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="hsl(var(--brand))"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="60%"
+                  stopColor="hsl(var(--chart-5))"
+                  stopOpacity={0.12}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="hsl(var(--chart-5))"
+                  stopOpacity={0}
+                />
               </linearGradient>
             </defs>
             <XAxis
@@ -99,15 +129,22 @@ export function PortfolioCharts({
             <Area
               type="monotone"
               dataKey="value"
-              stroke={CHART[0]}
+              stroke="hsl(var(--brand))"
               strokeWidth={2}
-              fill="url(#pv)"
+              fill="url(#pvBrandFill)"
+              isAnimationActive
+              animationDuration={600}
+              animationEasing="ease-out"
             />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Allocation by sector" empty={allocation.length === 0}>
+      <ChartCard
+        title="Allocation by sector"
+        empty={allocation.length === 0}
+        height={260}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -117,6 +154,9 @@ export function PortfolioCharts({
               innerRadius={55}
               outerRadius={85}
               paddingAngle={2}
+              isAnimationActive
+              animationDuration={600}
+              animationEasing="ease-out"
             >
               {allocation.map((_, i) => (
                 <Cell key={i} fill={CHART[i % CHART.length]} />
@@ -130,7 +170,11 @@ export function PortfolioCharts({
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Top performing companies" empty={performers.length === 0}>
+      <ChartCard
+        title="Top performing companies"
+        empty={performers.length === 0}
+        className="lg:col-span-3"
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={performers}
@@ -156,7 +200,13 @@ export function PortfolioCharts({
               contentStyle={tooltipStyle}
               formatter={(v) => [formatPercent(Number(v), { signed: true }), "Change"]}
             />
-            <Bar dataKey="changePct" radius={[0, 4, 4, 0]}>
+            <Bar
+              dataKey="changePct"
+              radius={[0, 4, 4, 0]}
+              isAnimationActive
+              animationDuration={600}
+              animationEasing="ease-out"
+            >
               {performers.map((p, i) => (
                 <Cell
                   key={i}

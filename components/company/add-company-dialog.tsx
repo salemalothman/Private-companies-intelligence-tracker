@@ -171,7 +171,9 @@ export function AddCompanyDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        {/* brand: the designated primary on the dashboard/companies surfaces —
+            growing the portfolio is the screen's job; Sync is maintenance. */}
+        <Button variant="brand" className="gap-2">
           <Plus className="h-4 w-4" /> Add company
         </Button>
       </DialogTrigger>

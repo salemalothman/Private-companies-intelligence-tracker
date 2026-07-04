@@ -8,11 +8,19 @@ const buttonVariants = cva(
   // scale for tactile feedback — interruptible CSS transitions, and the
   // global prefers-reduced-motion block collapses both for motion-sensitive
   // users. 0.97 stays within the craft bar's "never below 0.95".
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform,filter] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // The ONE designated-primary action per surface (deep-dive, add
+        // company) — brand blue, not ink, so it reads as the screen's live
+        // wire. Premium treatment: a subtle top→bottom gradient for depth, a
+        // brand-tinted soft shadow that deepens on hover, and a gentle
+        // brightness lift — never a flat fill, never a glow. --primary stays
+        // ink; this is not a repaint.
+        brand:
+          "bg-gradient-to-b from-brand to-brand-deep text-brand-foreground shadow-sm shadow-brand/35 hover:shadow-md hover:shadow-brand/30 hover:brightness-[1.06] active:brightness-95",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:

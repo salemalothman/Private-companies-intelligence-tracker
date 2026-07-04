@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { m } from "motion/react";
 import { Check, Sparkles } from "lucide-react";
 import { runDeepDiveAction } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
@@ -72,19 +73,28 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
           {error}
         </span>
       )}
-      {/* variant="default": the ONE visual primary in the company header —
+      {/* variant="brand": the ONE visual primary in the company header —
           deep-dive is the product's core value; the neighbouring actions stay
           outline/ghost so nothing competes (Airbnb one-primary rule). */}
       <Button
         size="sm"
+        variant="brand"
         onClick={run}
         disabled={pending}
         title="Generate a grounded deep-dive analysis for this company"
       >
         {done ? (
-          // Inherits primary-foreground — success-green would vanish on the
-          // primary button's near-black ground.
-          <Check className="h-3.5 w-3.5" />
+          // Spring pop on success; inherits brand-foreground (white) — green
+          // would vanish on the brand ground. Label ("Generated") carries the
+          // state for reduced-motion users.
+          <m.span
+            className="inline-flex"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 600, damping: 20 }}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </m.span>
         ) : (
           <Sparkles className={cn("h-3.5 w-3.5", pending && "animate-pulse")} />
         )}

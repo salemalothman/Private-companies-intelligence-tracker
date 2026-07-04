@@ -68,7 +68,9 @@ export function GlobalSyncButton() {
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <Button onClick={sync} disabled={pending}>
+      {/* outline: background maintenance must not carry primary weight —
+          Add company is the dashboard's designated primary (brand). */}
+      <Button variant="outline" onClick={sync} disabled={pending}>
         <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
         {pending ? "Syncing…" : "Sync"}
       </Button>

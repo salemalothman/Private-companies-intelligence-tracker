@@ -20,7 +20,9 @@ interface Point {
   kind: "round" | "investment" | "market";
 }
 
-const ROUND_COLOR = "hsl(var(--chart-1))";
+// Brand carries the valuation line (the page's hero series); investment and
+// market marks keep their distinct categorical hues.
+const ROUND_COLOR = "hsl(var(--brand))";
 const INVEST_COLOR = "hsl(var(--chart-3))";
 const MARKET_COLOR = "hsl(var(--chart-2))";
 
@@ -169,6 +171,9 @@ export function ValuationTimeline({
               strokeWidth={2}
               dot={renderDot}
               activeDot={{ r: 6 }}
+              isAnimationActive
+              animationDuration={600}
+              animationEasing="ease-out"
             />
           </LineChart>
         </ResponsiveContainer>

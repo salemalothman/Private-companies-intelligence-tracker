@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { m } from "motion/react";
 import { Check, RefreshCw } from "lucide-react";
 import { syncCompany } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,16 @@ export function SyncButton({ companyId }: { companyId: string }) {
         title="Fetch funding rounds, valuations, news, and competitors"
       >
         {done ? (
-          <Check className="h-3.5 w-3.5 text-success" />
+          // Spring pop on success — the label ("Synced") always accompanies
+          // it, so reduced-motion users still get the state change.
+          <m.span
+            className="inline-flex"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 600, damping: 20 }}
+          >
+            <Check className="h-3.5 w-3.5 text-success" />
+          </m.span>
         ) : (
           <RefreshCw className={cn("h-3.5 w-3.5", pending && "animate-spin")} />
         )}

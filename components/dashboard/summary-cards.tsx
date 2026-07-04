@@ -7,6 +7,10 @@ import {
   SectionEmpty,
 } from "@/components/dashboard/collapsible-section";
 import { cn, formatCurrency, formatDate, formatPercent } from "@/lib/utils";
+import {
+  AnimatedNumber,
+  type AnimatedNumberFormat,
+} from "@/components/motion/animated-number";
 import type { PortfolioSummary, ValuationChange } from "@/lib/metrics";
 
 export function SummaryCards({
@@ -18,20 +22,33 @@ export function SummaryCards({
 }) {
   const gainPositive = summary.unrealizedGain >= 0;
 
-  const stats = [
+  const stats: {
+    label: string;
+    value: string;
+    sub: string | null;
+    accent: string;
+    /** Present → the value counts up on first view (AnimatedNumber). */
+    raw?: { value: number; format: AnimatedNumberFormat };
+  }[] = [
     {
       label: "Portfolio Value",
       value: formatCurrency(summary.portfolioValue),
-      sub: null as string | null,
-      accent: "text-foreground",
+      sub: null,
+      // The app's single hero-gradient number — the headline figure the whole
+      // product exists to answer. Gradients stop here; every other KPI stays ink.
+      accent: "text-gradient-brand",
+      raw: { value: summary.portfolioValue, format: "currency" },
     },
     {
       label: "Invested Capital",
       value: formatCurrency(summary.totalInvested),
       sub: null,
       accent: "text-foreground",
+      raw: { value: summary.totalInvested, format: "currency" },
     },
     {
+      // Static (no counter): the +/− sign prefix is semantic and must never
+      // flicker through intermediate states.
       label: gainPositive ? "Unrealized Gain" : "Unrealized Loss",
       value: `${gainPositive ? "+" : ""}${formatCurrency(summary.unrealizedGain)}`,
       sub: formatPercent(summary.totalReturnPct, { signed: true }),
@@ -58,7 +75,11 @@ export function SummaryCards({
                 s.accent,
               )}
             >
-              {s.value}
+              {s.raw ? (
+                <AnimatedNumber value={s.raw.value} format={s.raw.format} />
+              ) : (
+                s.value
+              )}
             </div>
             <div className="mt-2 h-4 text-xs text-muted-foreground tabular-nums">
               {s.sub ?? ""}
