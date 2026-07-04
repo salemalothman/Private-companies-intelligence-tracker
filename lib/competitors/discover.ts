@@ -7,7 +7,16 @@ import type { ConnectorCompetitor } from "@/lib/connectors/types";
 import { lookupMarketValuations } from "@/lib/market-cache/lookup";
 import { nameKey } from "@/lib/market-cache/parse";
 
-const CACHE_SOURCE = "agdillon (cache)";
+/**
+ * Source label for a figure copied out of the weekly market cache. MUST carry
+ * the underlying row's own source — labelling every cache hit "agdillon" would
+ * launder an unverified aggregate row into AG Dillon's (trusted) name, and the
+ * canonical trust tiering downstream keys off exactly this string.
+ */
+function cacheSource(row: MarketValuationRow | undefined): string {
+  const base = row?.source?.trim();
+  return base ? `${base} (cache)` : "market cache";
+}
 
 function fmtUsd(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
@@ -55,7 +64,7 @@ function applyCache<T extends Partial<ConnectorCompetitor>>(
     revenue: cached.revenue ?? base.revenue,
     revenueBasis: cached.revenue_basis ?? base.revenueBasis,
     basis: cached.note ?? base.basis,
-    source: CACHE_SOURCE,
+    source: cacheSource(cached),
   };
 }
 
@@ -114,7 +123,7 @@ export async function discoverCompetitors(
         revenue: targetCache.revenue ?? undefined,
         revenueBasis: targetCache.revenue_basis ?? undefined,
         basis: targetCache.note ?? undefined,
-        source: CACHE_SOURCE,
+        source: cacheSource(targetCache),
       }
     : selfLive;
 

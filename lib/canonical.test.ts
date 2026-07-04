@@ -75,4 +75,56 @@ describe("buildCanonicalRecord", () => {
     expect(rec.valuation.value).toBeNull();
     expect(rec.valuation.corroboration).toBe(0);
   });
+
+  // Regression (sync-overwrite bug): a NEWER bare tool parse (exa/grok, tier 3)
+  // must never out-headline the reconciled market cache (tier 2). Observed live:
+  // sync's exa rows ($380B Jun 12 / $70B Jul 4) replaced the $1T/$30B market
+  // consensus of May 28 purely by recency.
+  it("market-cache consensus beats a newer bare tool parse", () => {
+    const co = {
+      ...company([
+        { post_money: 380e9, date: "2026-06-12", source: "exa" },
+        { post_money: 380e9, date: "2026-02-12", source: "grok:x:social" },
+      ]),
+      revenue: 70e9,
+      revenue_source: "exa",
+      revenue_date: "2026-07-04",
+    } as unknown as CompanyWithRelations;
+    const rec = buildCanonicalRecord(co, {
+      market: {
+        source: "private-market aggregate (unverified)",
+        valuation: 1e12,
+        valuation_date: "2026-05-28",
+        revenue: 30e9,
+        as_of: "2026-05-28",
+      },
+      self: {
+        source: "private-market aggregate (unverified) (cache)",
+        valuation: 1e12,
+        revenue: 30e9,
+        valuation_date: "2026-05-28",
+      },
+    });
+    expect(rec.valuation.value).toBe(1e12);
+    expect(rec.valuation.asOf).toBe("2026-05-28");
+    expect(rec.revenue.value).toBe(30e9);
+    // The diverging tool parses stay visible and still raise the conflict flag.
+    expect(rec.valuation.conflict).toBe(true);
+  });
+
+  it("a primary-verified publisher beats the market cache even when older", () => {
+    const rec = buildCanonicalRecord(
+      company([{ post_money: 500e9, date: "2026-05-01", source: "techcrunch.com" }]),
+      {
+        market: {
+          source: "private-market aggregate (unverified)",
+          valuation: 1e12,
+          valuation_date: "2026-05-28",
+          revenue: null,
+          as_of: "2026-05-28",
+        },
+      },
+    );
+    expect(rec.valuation.value).toBe(500e9); // tier 1 outranks tier 2
+  });
 });

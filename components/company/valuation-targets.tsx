@@ -161,7 +161,8 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
   if (!hasBaseRevenue || !hasMultiple) {
     const missing: string[] = [];
     if (!hasBaseRevenue) missing.push("No base revenue on record");
-    if (!hasMultiple) missing.push("No SEC-verified peer multiples yet");
+    if (!hasMultiple)
+      missing.push("No trusted peer multiples yet (SEC-verified or market-cache)");
     return (
       <div className="space-y-3">
         <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/20 p-5">
@@ -425,7 +426,8 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="tabular-nums">
-                {pm.n_peers} peers · {pm.n_sec_verified} SEC-verified
+                {pm.n_peers} peers · {pm.n_trusted ?? pm.n_sec_verified} trusted
+                multiples · {pm.n_sec_verified} SEC-verified
               </span>
               {pm.n_sec_verified > 0 ? (
                 <span

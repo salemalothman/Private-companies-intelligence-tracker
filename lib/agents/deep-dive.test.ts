@@ -426,6 +426,27 @@ describe("computePeerMultiple", () => {
     expect(pm.n_sec_verified).toBe(0);
     expect(pm.n_peers).toBe(2);
   });
+
+  // Market-cache-sourced multiples are comps-grade (all-private peer sets have
+  // no XBRL, but the weekly cache is reconciled data); bare tool labels stay
+  // excluded, and the SEC count only reflects genuinely SEC-verified peers.
+  it("accepts market-cache-sourced multiples without an SEC flag; tool labels stay out", () => {
+    const ranked = [
+      peer({ name: "Target", multiple: 100, isTarget: true }),
+      peer({
+        name: "CachePeer",
+        multiple: 12.5,
+        source: "private-market aggregate (unverified) (cache)",
+      }),
+      peer({ name: "DillonPeer", multiple: 46, source: "AG Dillon" }),
+      peer({ name: "GrokPeer", multiple: 999, source: "grok:x" }),
+    ];
+    const pm = computePeerMultiple(ranked);
+    expect(pm.median).toBeCloseTo((12.5 + 46) / 2);
+    expect(pm.n_trusted).toBe(2);
+    expect(pm.n_sec_verified).toBe(0); // cache-trusted is NOT the SEC badge
+    expect(pm.n_peers).toBe(3);
+  });
 });
 
 describe("deriveBaseRevenue", () => {

@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCompetitorRanking, type RankedEntity } from "@/lib/competitors/rank";
-import { buildCanonicalRecord, type CanonicalRecord } from "@/lib/canonical";
+import { buildCanonicalRecord, provider, type CanonicalRecord } from "@/lib/canonical";
 import { latestValuation, valuationAmount } from "@/lib/metrics";
 import { nameKey } from "@/lib/market-cache/parse";
 import { clampRating } from "@/lib/agents/deep-dive-types";
@@ -272,27 +272,43 @@ export function normalizeSections(
 }
 
 /**
+ * A peer multiple may feed the comps percentiles only when its figures come
+ * from a source we'd let headline the canonical record: an SEC filing match,
+ * or the weekly market cache (AG Dillon rows and reconciled private-market
+ * aggregates). Bare tool labels (grok/exa) and manual rows never feed the
+ * math — a single LLM/web parse is not comps-grade input. This mirrors the
+ * canonical trust tiers in lib/canonical.ts.
+ */
+const COMPS_TRUSTED_PROVIDERS = new Set(["agdillon", "aggregate", "sec-edgar"]);
+function trustedForComps(r: RankedEntity): boolean {
+  return r.secVerified || COMPS_TRUSTED_PROVIDERS.has(provider(r.source));
+}
+
+/**
  * Peer-multiple percentiles, computed IN CODE (never by the LLM) from the ranked
- * competitor set. Only non-target peers that are BOTH SEC-verified and carry a
- * finite V/R `multiple` feed the median/p25/p75; when none qualify the percentiles
- * are null (not zero, not invented). `n_sec_verified` counts the peers that fed the
- * percentiles; `n_peers` counts every non-target ranked peer considered.
+ * competitor set. Only non-target peers that carry a finite V/R `multiple` from a
+ * comps-trusted source (SEC-verified, or market-cache-sourced — see
+ * `trustedForComps`) feed the median/p25/p75; when none qualify the percentiles
+ * are null (not zero, not invented). `n_trusted` counts the peers that fed the
+ * percentiles; `n_sec_verified` counts the SEC-verified subset (drives the SEC
+ * badge); `n_peers` counts every non-target ranked peer considered.
  */
 export function computePeerMultiple(
   ranked: RankedEntity[],
 ): AnalysisValuation["peer_multiple"] {
   const peers = ranked.filter((r) => !r.isTarget);
-  const secVerifiedMultiples = peers
-    .filter((r) => r.secVerified && r.multiple != null && Number.isFinite(r.multiple))
-    .map((r) => r.multiple as number)
-    .sort((a, b) => a - b);
+  const fed = peers.filter(
+    (r) => trustedForComps(r) && r.multiple != null && Number.isFinite(r.multiple),
+  );
+  const multiples = fed.map((r) => r.multiple as number).sort((a, b) => a - b);
 
   return {
-    median: percentile(secVerifiedMultiples, 0.5),
-    p25: percentile(secVerifiedMultiples, 0.25),
-    p75: percentile(secVerifiedMultiples, 0.75),
+    median: percentile(multiples, 0.5),
+    p25: percentile(multiples, 0.25),
+    p75: percentile(multiples, 0.75),
     n_peers: peers.length,
-    n_sec_verified: secVerifiedMultiples.length,
+    n_trusted: fed.length,
+    n_sec_verified: fed.filter((r) => r.secVerified).length,
   };
 }
 
@@ -847,8 +863,11 @@ export async function runDeepDive(
   // Step 3 — comps inputs computed IN CODE (LLM contributes nothing here).
   const valuation: AnalysisValuation = {
     base_revenue: deriveBaseRevenue(canonical),
+    // Canonical first: it applies the trust tiers (market consensus beats a
+    // bare tool parse), so the analysis can't disagree with the header — the
+    // raw latest valuation row is only a fallback when canonical is empty.
     current_valuation:
-      valuationAmount(latestVal) ?? canonical.valuation.value ?? null,
+      canonical.valuation.value ?? valuationAmount(latestVal) ?? null,
     peer_multiple: computePeerMultiple(ranking),
     growth,
   };

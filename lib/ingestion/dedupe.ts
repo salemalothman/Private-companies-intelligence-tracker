@@ -57,30 +57,44 @@ interface Accessors<T> {
   round: (t: T) => string | null | undefined;
   date: (t: T) => string | null | undefined;
   /** The valuation used for matching (post-money). */
-  value: (t: T) => number | null | undefined;
+  /**
+   * Match keys — records sharing ANY key (plus the date window) describe the
+   * same event. Funding rows key on BOTH post-money valuation ("v:…") and
+   * amount raised ("a:…"), in separate keyspaces so a $65B raise never
+   * collides with a $65B valuation. Rationale: an unnamed connector event
+   * that reports only the amount ("Funding (Exa)", raised $65B, no valuation)
+   * must still fold into the named round of the same raise ("Series H",
+   * raised $65B, $965B post) — matching on valuation alone missed exactly
+   * that pair.
+   */
+  keys: (t: T) => (string | null | undefined)[];
   merge: (primary: T, dup: T) => T;
   windowDays?: number;
 }
 
 /**
- * Generic merge: group records that share the same `value` and fall within the
+ * Generic merge: group records that share any match key and fall within the
  * date window, keep the most explicitly-named as primary (tie → earliest date),
- * and fold the rest in via `merge`. Records without a date or value are never
- * grouped (we can't confirm they're the same event), so they pass through.
+ * and fold the rest in via `merge`. Records without a date or any key are
+ * never grouped (we can't confirm they're the same event), so they pass
+ * through.
  */
 export function dedupeBy<T>(items: T[], acc: Accessors<T>): T[] {
   const win = acc.windowDays ?? WINDOW_DAYS;
   const groups: T[][] = [];
+  const keysOf = (t: T) => acc.keys(t).filter((k): k is string => k != null);
 
   for (const item of items) {
-    const v = acc.value(item);
+    const ks = keysOf(item);
     const d = acc.date(item);
     const group =
-      v != null && d
-        ? groups.find(
-            (g) =>
-              acc.value(g[0]) === v &&
-              g.some((m) => withinDays(acc.date(m), d, win)),
+      ks.length && d
+        ? groups.find((g) =>
+            g.some(
+              (m) =>
+                keysOf(m).some((k) => ks.includes(k)) &&
+                withinDays(acc.date(m), d, win),
+            ),
           )
         : undefined;
     if (group) group.push(item);
@@ -98,6 +112,10 @@ export function dedupeBy<T>(items: T[], acc: Accessors<T>): T[] {
   });
 }
 
+/** Namespaced money key ("v:965000000000") or null when the figure is absent. */
+const moneyKey = (space: "v" | "a", n: number | null | undefined): string | null =>
+  n == null ? null : `${space}:${n}`;
+
 /** Dedupe connector funding rounds (pre-DB). */
 export function dedupeConnectorRounds(
   rounds: ConnectorFundingRound[],
@@ -105,7 +123,7 @@ export function dedupeConnectorRounds(
   return dedupeBy(rounds, {
     round: (r) => r.round,
     date: (r) => r.date,
-    value: (r) => r.valuation,
+    keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amountRaised)],
     merge: (p, d) => ({
       ...p,
       amountRaised: p.amountRaised ?? d.amountRaised,
@@ -122,7 +140,7 @@ export function dedupeFundingRows(rows: FundingRoundRow[]): FundingRoundRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
-    value: (r) => r.valuation,
+    keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amount_raised)],
     merge: (p, d) => ({
       ...p,
       amount_raised: p.amount_raised ?? d.amount_raised,
@@ -140,7 +158,7 @@ export function dedupeValuationRows(rows: ValuationRow[]): ValuationRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
-    value: (r) => r.post_money,
+    keys: (r) => [moneyKey("v", r.post_money)],
     merge: (p, d) => ({
       ...p,
       pre_money: p.pre_money ?? d.pre_money,

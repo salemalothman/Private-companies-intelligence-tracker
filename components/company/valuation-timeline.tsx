@@ -17,11 +17,12 @@ interface Point {
   date: string;
   value: number;
   label: string;
-  kind: "round" | "investment";
+  kind: "round" | "investment" | "market";
 }
 
 const ROUND_COLOR = "hsl(var(--chart-1))";
 const INVEST_COLOR = "hsl(var(--chart-3))";
+const MARKET_COLOR = "hsl(var(--chart-2))";
 
 /** Distinct marker for the user's investment entry vs. company rounds. */
 function renderDot(props: {
@@ -32,7 +33,22 @@ function renderDot(props: {
 }) {
   const { cx, cy, index, payload } = props;
   if (cx == null || cy == null) return <g key={`d-${index}`} />;
-  const isInvestment = payload?.kind === "investment";
+  const kind = payload?.kind;
+  if (kind === "market") {
+    // Hollow ring: a market mark is a cache-reported level, not a recorded round.
+    return (
+      <circle
+        key={`d-${index}`}
+        cx={cx}
+        cy={cy}
+        r={5.5}
+        fill="hsl(var(--background))"
+        stroke={MARKET_COLOR}
+        strokeWidth={2.5}
+      />
+    );
+  }
+  const isInvestment = kind === "investment";
   return (
     <circle
       key={`d-${index}`}
@@ -49,9 +65,14 @@ function renderDot(props: {
 export function ValuationTimeline({
   valuations,
   investment,
+  market,
 }: {
   valuations: Valuation[];
   investment?: { date: string; value: number } | null;
+  /** Latest market-cache mark (AG Dillon / private-market aggregate) — shown as
+   * a distinct hollow point so the chart never under-reports the current level
+   * when the cache leads the recorded rounds (e.g. $1T vs a $380B last round). */
+  market?: { date: string; value: number; label: string } | null;
 }) {
   // Company's three most recent valuation rounds.
   const rounds: Point[] = [...valuations]
@@ -77,8 +98,23 @@ export function ValuationTimeline({
       ]
     : [];
 
+  // The market-cache mark, unless a recorded round already covers that exact
+  // date+value (no double-plotting the same fact).
+  const marketPoint: Point[] =
+    market &&
+    !rounds.some((r) => r.date === market.date && r.value === market.value)
+      ? [
+          {
+            date: market.date,
+            value: market.value,
+            label: market.label,
+            kind: "market" as const,
+          },
+        ]
+      : [];
+
   // Filter to only these points, sorted chronologically.
-  const data: Point[] = [...rounds, ...investPoint].sort(
+  const data: Point[] = [...rounds, ...investPoint, ...marketPoint].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
@@ -153,6 +189,15 @@ export function ValuationTimeline({
               style={{ background: INVEST_COLOR }}
             />
             Your investment · {formatCurrency(investment.value)}
+          </span>
+        )}
+        {marketPoint.length > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full border-2 bg-background"
+              style={{ borderColor: MARKET_COLOR }}
+            />
+            {market!.label} · {formatCurrency(market!.value)}
           </span>
         )}
       </div>

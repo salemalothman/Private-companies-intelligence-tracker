@@ -58,16 +58,37 @@ export function provider(source: string | null | undefined): string {
   return s.split(/[:\s(]/)[0] || "manual";
 }
 
+/**
+ * Trust tier for canonical pool selection:
+ *  1 — primary-verified: real publisher domains, SEC filings, documents, and
+ *      the AG Dillon curated cache.
+ *  2 — reconciled market cache: "private-market aggregate" rows and their
+ *      competitor-row copies. Not primary-verified, but a reconciled consensus.
+ *  3 — bare tool labels ("exa", "grok:*") and manual entries — a single
+ *      connector's parse of one article.
+ * A lower tier can never out-headline a higher one just by being newer: a
+ * low-confidence Exa event parse must not overwrite the market consensus on
+ * sync (the bug this fixes), exactly as an unverified figure must never beat a
+ * verified one. Lower-tier observations remain visible in the lineage and
+ * still drive the corroboration/conflict badges.
+ */
+function tier(source: string): 1 | 2 | 3 {
+  if (isTrustedSource(source) || provider(source) === "agdillon") return 1;
+  const p = provider(source);
+  if (p === "aggregate" || p === "unverified") return 2;
+  return 3;
+}
+
 function field(observations: SourceObservation[]): CanonicalField {
   const valued = observations.filter((o) => o.value != null);
   if (valued.length === 0) {
     return { value: null, asOf: null, observations, corroboration: 0, conflict: false };
   }
-  // Canonical = most recent dated observation, preferring trusted publishers so
-  // an unverified figure (e.g. a leaked aggregator value) can never become the
-  // headline when a verified one exists.
-  const trusted = valued.filter((o) => isTrustedSource(o.source));
-  const pool = trusted.length ? trusted : valued;
+  // Canonical = most recent dated observation from the BEST non-empty trust
+  // tier, so an unverified/tool figure can never become the headline when a
+  // verified or market-consensus one exists.
+  const bestTier = Math.min(...valued.map((o) => tier(o.source)));
+  const pool = valued.filter((o) => tier(o.source) === bestTier);
   const canon = [...pool].sort((a, b) =>
     (b.date ?? "").localeCompare(a.date ?? ""),
   )[0];

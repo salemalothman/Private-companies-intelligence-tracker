@@ -55,4 +55,35 @@ describe("dedupeConnectorRounds", () => {
     ]);
     expect(out).toHaveLength(2);
   });
+
+  // Regression (live duplicate): an unnamed amount-only event must fold into
+  // the named round of the same raise even when it carries NO valuation —
+  // "Funding (Exa)" May 29 ($65B raised) duplicated "Series H" May 28
+  // ($65B raised, $965B post) because matching keyed on valuation alone.
+  it("merges an amount-only unnamed event into the named round of the same raise", () => {
+    const out = dedupeConnectorRounds([
+      r({
+        round: "Series H",
+        date: "2026-05-28",
+        amountRaised: 65e9,
+        valuation: 965e9,
+        source: "grok:x:social",
+      }),
+      r({ round: "Funding (Exa)", date: "2026-05-29", amountRaised: 65e9, source: "exa" }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].round).toBe("Series H");
+    expect(out[0].valuation).toBe(965e9);
+    expect(out[0].source).toContain("exa");
+    expect(out[0].source).toContain("grok:x:social");
+  });
+
+  it("does not cross-match a raise amount against an equal valuation", () => {
+    // $65B raised vs a $65B post-money are different facts — separate keyspaces.
+    const out = dedupeConnectorRounds([
+      r({ round: "Series H", date: "2026-05-28", amountRaised: 65e9 }),
+      r({ round: "Series B", date: "2026-05-29", valuation: 65e9 }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
 });

@@ -510,6 +510,16 @@ export default async function CompanyDetailPage({
                 <ValuationTimeline
                   valuations={valuations}
                   investment={investmentEntryPoint(company)}
+                  market={
+                    marketRow?.valuation != null &&
+                    (marketRow.valuation_date ?? marketRow.as_of)
+                      ? {
+                          date: (marketRow.valuation_date ?? marketRow.as_of)!,
+                          value: marketRow.valuation,
+                          label: "Market cache",
+                        }
+                      : null
+                  }
                 />
               </CardContent>
             </Card>

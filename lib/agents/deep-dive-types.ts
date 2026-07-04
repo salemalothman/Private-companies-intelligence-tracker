@@ -236,6 +236,9 @@ export interface AnalysisValuation {
     p25: number | null;
     p75: number | null;
     n_peers: number;
+    /** Peers whose multiple fed the percentiles (SEC-verified or market-cache
+     * sourced). Optional: rows persisted before this field existed lack it. */
+    n_trusted?: number;
     n_sec_verified: number;
   };
   growth: {
