@@ -1,14 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowDownRight,
-  ArrowLeft,
-  ArrowUpRight,
-  ExternalLink,
-  Globe,
-  Handshake,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, Globe, Sparkles } from "lucide-react";
 import {
   getCompany,
   getCompanyAnalysis,
@@ -18,8 +10,6 @@ import {
 } from "@/lib/queries";
 import { isStale } from "@/lib/analysis/staleness";
 import { buildCanonicalRecord } from "@/lib/canonical";
-import { Provenance } from "@/components/company/provenance";
-import { DataRoom } from "@/components/company/data-room";
 import {
   companyChangePct,
   companyInvested,
@@ -31,70 +21,31 @@ import {
   valuationAmount,
 } from "@/lib/metrics";
 import { buildCompetitorRanking } from "@/lib/competitors/rank";
-import {
-  cn,
-  formatCurrency,
-  formatDate,
-  formatMultiple,
-  formatPercent,
-} from "@/lib/utils";
+import { buildCompsTable } from "@/lib/valuation/comps";
+import { formatCurrency, formatDate, formatMultiple, formatPercent } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UrlTabs } from "@/components/company/url-tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { CompanyTabs } from "@/components/company/company-tabs";
+import { CondensedHeader } from "@/components/company/condensed-header";
+import { CompanyBento, type CompanyBentoData } from "@/components/company/company-bento";
+import { OverviewGroup } from "@/components/company/groups/overview-group";
+import { FinancialsGroup } from "@/components/company/groups/financials-group";
+import { MarketGroup } from "@/components/company/groups/market-group";
+import { RecordsGroup } from "@/components/company/groups/records-group";
+import { Stat } from "@/components/company/groups/shared";
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { SyncButton } from "@/components/company/sync-button";
 import { DeepDiveButton } from "@/components/company/deep-dive-button";
 import { DeepDiveEmpty } from "@/components/company/confidence-chip";
 import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { DeleteCompanyButton } from "@/components/company/delete-company-button";
-import { ValuationTimeline } from "@/components/company/valuation-timeline";
-import { RefreshCompetitorsButton } from "@/components/company/refresh-competitors-button";
-import { BusinessModelAnalysis } from "@/components/company/business-model-analysis";
-import { OverviewAnalysis } from "@/components/company/overview-sections";
-import { CompetitorsAnalysis } from "@/components/company/competitors-analysis";
-import { ValuationTargets } from "@/components/company/valuation-targets";
-import { HistoricalFinancials } from "@/components/company/historical-financials";
 import type {
   AnalysisValuation,
   OverviewSections,
 } from "@/lib/agents/deep-dive-types";
 import { isContractWin } from "@/lib/news/classify";
 import { dedupeFundingRows, dedupeValuationRows } from "@/lib/ingestion/dedupe";
-import {
-  AddFundingRoundDialog,
-  AddInvestmentDialog,
-  AddNewsDialog,
-  AddValuationDialog,
-} from "@/components/company/entity-dialogs";
-import type { Sentiment } from "@/lib/types";
-
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) {
-  return (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-lg font-semibold tabular-nums", accent)}>
-        {value}
-      </div>
-    </div>
-  );
-}
 
 export default async function CompanyDetailPage({
   params,
@@ -187,6 +138,78 @@ export default async function CompanyDetailPage({
     peers,
   );
 
+  // ---- Bento command-center data (no extra queries — all derived above). ----
+  const sections = analysis?.sections as OverviewSections | undefined;
+  const analysisValuation =
+    (analysis?.valuation as AnalysisValuation | null) ?? null;
+  // 2030 base case from the SAME pure comps math the Targets tab uses; shown
+  // only when the model actually yields a figure (null-honest, never 0).
+  const base2030 = analysisValuation
+    ? (buildCompsTable(analysisValuation).at(-1)?.base ?? null)
+    : null;
+  const thesisField = sections?.executive_summary?.thesis;
+  const latestNews = sortedNews[0] ?? null;
+  const bentoData: CompanyBentoData = {
+    position: [
+      {
+        label: "Invested",
+        value: formatCurrency(invested),
+        raw: invested != null ? { value: invested, format: "currency" } : undefined,
+      },
+      {
+        label: "Est. current value",
+        value: formatCurrency(value),
+        accent: "brand",
+        raw: value != null ? { value, format: "currency" } : undefined,
+      },
+      {
+        // Static: the +/− sign is semantic and must never flicker mid-count.
+        label: "Round change",
+        value: change == null ? "—" : formatPercent(change, { signed: true }),
+        accent: change == null ? undefined : changeUp ? "success" : "destructive",
+      },
+      {
+        label: "Net MOIC",
+        value: formatMultiple(df.netMoic),
+        raw:
+          df.netMoic != null ? { value: df.netMoic, format: "multiple" } : undefined,
+      },
+    ],
+    valuation: {
+      value: formatCurrency(canonical.valuation.value),
+      date: formatDate(canonical.valuation.asOf),
+      change:
+        change == null
+          ? null
+          : {
+              label: "Round change",
+              value: formatPercent(change, { signed: true }),
+              accent: changeUp ? "success" : "destructive",
+            },
+    },
+    targets: base2030 != null ? { base2030: formatCurrency(base2030) } : null,
+    market: {
+      topPeers: competitorRanking
+        .filter((r) => !r.isTarget)
+        .slice(0, 3)
+        .map((r) => r.name),
+      news: latestNews
+        ? {
+            title: latestNews.title,
+            sentiment: latestNews.sentiment ?? "neutral",
+          }
+        : null,
+      secVerified: peers.filter((p) => p.sec_verified).length,
+    },
+    thesis: thesisField
+      ? { field: thesisField, rating: sections?.ic_conclusion?.rating ?? null }
+      : null,
+    records: {
+      documents: documents.length,
+      sources: canonical.sources.length,
+    },
+  };
+
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <Link
@@ -254,9 +277,7 @@ export default async function CompanyDetailPage({
       </div>
 
       {/* Deep-dive analysis status (FND-06): empty-state CTA before the first
-          run; a generated_at line + "may be stale" hint once a row exists. The
-          full narrative renders into the tabs in Phase 2 — this is additive and
-          leaves existing tab content unchanged. */}
+          run; a generated_at line + "may be stale" hint once a row exists. */}
       {analysis ? (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -278,7 +299,7 @@ export default async function CompanyDetailPage({
           <Stat
             label="Est. current value"
             value={formatCurrency(value)}
-            accent="text-primary"
+            accent="text-brand"
           />
           <Stat
             label="Round change"
@@ -293,30 +314,22 @@ export default async function CompanyDetailPage({
           />
           <Stat
             label="Ownership"
-            value={ownership != null ? `${ownership}%` : "—"}
+            value={ownership == null ? "—" : `${ownership}%`}
           />
           <Stat
             label="Revenue / ARR"
-            value={
-              canonical.revenue.value != null
-                ? formatCurrency(canonical.revenue.value)
-                : "—"
-            }
+            value={formatCurrency(canonical.revenue.value)}
           />
           <Stat
             label="V / R multiple"
-            value={canonical.multiple != null ? formatMultiple(canonical.multiple) : "—"}
+            value={formatMultiple(canonical.multiple)}
           />
         </CardContent>
       </Card>
 
-      {/* Deal-specific fee structure */}
       <Card>
         <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-          <Stat
-            label="Carry / performance"
-            value={`${df.carryPct}%${df.isCustomCarry ? " · custom" : ""}`}
-          />
+          <Stat label="Carry / performance" value={`${df.carryPct}%`} />
           <Stat
             label="Management fee"
             value={`${df.mgmtFeePct}%${df.isCustomMgmt ? " · custom" : ""}`}
@@ -324,438 +337,80 @@ export default async function CompanyDetailPage({
           <Stat
             label="Net value (after fees)"
             value={formatCurrency(df.netValue)}
-            accent="text-primary"
+            accent="text-brand"
           />
           <Stat label="Net MOIC" value={formatMultiple(df.netMoic)} />
         </CardContent>
       </Card>
 
-      {/* Tabs */}
-      {/* URL-synced: ?tab=<value> so the active tab survives refresh and is
-          deep-linkable (e.g. share a company's Valuation Targets directly). */}
-      <UrlTabs
-        defaultValue="overview"
-        values={[
-          "overview",
-          "provenance",
-          "dataroom",
-          "investment",
-          "valuation",
-          "valuation-targets",
-          "funding",
-          "competitors",
-          "news",
+      {/* Condensing header: sentinel sits here in flow — once the stat cards
+          scroll off, the fixed compact strip fades in (desktop only). */}
+      <CondensedHeader
+        name={company.name}
+        logoUrl={company.logo_url}
+        stats={[
+          { label: "Invested", value: formatCurrency(invested) },
+          {
+            label: "Value",
+            value: formatCurrency(value),
+            accent: "brand",
+          },
+          {
+            label: "Change",
+            value: change == null ? "—" : formatPercent(change, { signed: true }),
+            accent: change == null ? undefined : changeUp ? "success" : "destructive",
+          },
+          { label: "Net MOIC", value: formatMultiple(df.netMoic) },
         ]}
-      >
-        {/* max-w-full + overflow-x-auto gives the 9 nowrap tabs their own
-            horizontal scroll region, so the new Valuation Targets tab stays
-            reachable on phones despite the page's overflow-x-hidden. justify-start
-            keeps the first tab flush-left (justify-center can strand the leading
-            tab off the scrollable edge). scroll-fade-r fades the right edge
-            below lg so off-screen tabs are discoverable. */}
+      />
+
+      {/* Tabs — 4 intent groups (was 9 flat tabs); every legacy ?tab= value
+          still deep-links via the alias resolver in CompanyTabs. */}
+      <CompanyTabs>
+        {/* max-w-full + overflow-x-auto keeps the strip usable on the narrowest
+            phones; scroll-fade-r hints when anything is clipped. */}
         <TabsList className="scroll-fade-r max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="provenance">Provenance</TabsTrigger>
-          <TabsTrigger value="dataroom">Data room</TabsTrigger>
-          <TabsTrigger value="investment">Investment</TabsTrigger>
-          <TabsTrigger value="valuation">Valuation</TabsTrigger>
-          <TabsTrigger value="valuation-targets">Valuation Targets</TabsTrigger>
-          <TabsTrigger value="funding">Funding Rounds</TabsTrigger>
-          <TabsTrigger value="competitors">Competitors</TabsTrigger>
-          <TabsTrigger value="news">News</TabsTrigger>
+          <TabsTrigger value="financials">Financials</TabsTrigger>
+          <TabsTrigger value="market">Market</TabsTrigger>
+          <TabsTrigger value="records">Records</TabsTrigger>
         </TabsList>
 
-        {/* Overview */}
         <TabsContent value="overview">
-          <Card>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Stat
-                  label="Industry"
-                  value={company.sector ?? "—"}
-                />
-                <Stat
-                  label="Founded"
-                  value={company.founded_year ? String(company.founded_year) : "—"}
-                />
-                <Stat label="Country" value={company.country ?? "—"} />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Founders</div>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {company.founders && company.founders.length > 0 ? (
-                    company.founders.map((f) => (
-                      <Badge key={f} variant="secondary">
-                        {f}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Description</div>
-                <p className="mt-1 text-sm leading-relaxed">
-                  {company.description ?? "No description yet."}
-                </p>
-              </div>
-              <BusinessModelAnalysis company={company} />
-            </CardContent>
-          </Card>
-
-          {/* Full deep-dive investment thesis (Phase 2): Executive Summary
-              pinned top, analytical sections as collapsibles, IC Conclusion
-              pinned bottom. Shows the empty-state CTA before the first run. */}
-          <div className="mt-4 space-y-4">
-            {analysis ? (
-              <OverviewAnalysis sections={analysis.sections} />
-            ) : (
-              <DeepDiveEmpty
-                action={<DeepDiveButton companyId={company.id} />}
-              />
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Provenance — canonical record across sources */}
-        <TabsContent value="provenance">
-          <Provenance record={canonical} />
-        </TabsContent>
-
-        {/* Data room — documents + diffs vs previous deck */}
-        <TabsContent value="dataroom">
-          <DataRoom documents={documents} />
-        </TabsContent>
-
-        {/* Investment */}
-        <TabsContent value="investment">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Investment history</h3>
-              <AddInvestmentDialog companyId={company.id} />
-            </div>
-            {sortedInvestments.length === 0 ? (
-              <EmptyRow text="No investments recorded yet." />
-            ) : (
-              <div className="rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Round</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">Share price</TableHead>
-                      <TableHead className="text-right">Shares</TableHead>
-                      <TableHead className="text-right">Own %</TableHead>
-                      <TableHead>Investor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedInvestments.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell>{formatDate(inv.investment_date)}</TableCell>
-                        <TableCell>{inv.round ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(inv.amount)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {inv.share_price != null
-                            ? formatCurrency(inv.share_price, { compact: false })
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {inv.shares != null
-                            ? inv.shares.toLocaleString()
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {inv.ownership_pct != null
-                            ? `${inv.ownership_pct}%`
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {inv.investor_name ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Valuation */}
-        <TabsContent value="valuation">
-          <div className="space-y-4">
-            {analysis ? (
-              <HistoricalFinancials
-                financials={
-                  (analysis.sections as OverviewSections | undefined)
-                    ?.historical_financials
-                }
-              />
-            ) : (
-              <DeepDiveEmpty
-                action={<DeepDiveButton companyId={company.id} />}
-              />
-            )}
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Valuation timeline</h3>
-              <AddValuationDialog companyId={company.id} />
-            </div>
-            <Card>
-              <CardContent className="p-5">
-                <ValuationTimeline
-                  valuations={valuations}
-                  investment={investmentEntryPoint(company)}
-                  market={
-                    marketRow?.valuation != null &&
-                    (marketRow.valuation_date ?? marketRow.as_of)
-                      ? {
-                          date: (marketRow.valuation_date ?? marketRow.as_of)!,
-                          value: marketRow.valuation,
-                          label: "Market cache",
-                        }
-                      : null
-                  }
-                />
-              </CardContent>
-            </Card>
-            {sortedVals.length > 0 && (
-              <div className="rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Round</TableHead>
-                      <TableHead className="text-right">Pre-money</TableHead>
-                      <TableHead className="text-right">Post-money</TableHead>
-                      <TableHead className="text-right">Share price</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Confidence</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedVals.map((v) => (
-                      <TableRow key={v.id}>
-                        <TableCell>{formatDate(v.date)}</TableCell>
-                        <TableCell>{v.round ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(v.pre_money)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(v.post_money)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {v.share_price != null
-                            ? formatCurrency(v.share_price, { compact: false })
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {v.source ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="muted">{v.confidence}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="valuation-targets">
-          <ValuationTargets
-            valuation={
-              (analysis?.valuation as AnalysisValuation | null) ?? null
-            }
-            deepDiveAction={<DeepDiveButton companyId={company.id} />}
+          <OverviewGroup
+            company={company}
+            analysis={analysis}
+            bento={<CompanyBento data={bentoData} />}
           />
         </TabsContent>
 
-        {/* Funding rounds */}
-        <TabsContent value="funding">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Funding rounds</h3>
-              <AddFundingRoundDialog companyId={company.id} />
-            </div>
-            {sortedRounds.length === 0 ? (
-              <EmptyRow text="No funding rounds recorded yet." />
-            ) : (
-              <div className="rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Round</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Raised</TableHead>
-                      <TableHead className="text-right">Valuation</TableHead>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>Investors</TableHead>
-                      <TableHead>Source</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedRounds.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">{r.round}</TableCell>
-                        <TableCell>{formatDate(r.date)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(r.amount_raised)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(r.valuation)}
-                        </TableCell>
-                        <TableCell>{r.lead_investor ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {r.investors?.join(", ") ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {r.source ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
+        <TabsContent value="financials">
+          <FinancialsGroup
+            company={company}
+            analysis={analysis}
+            investments={sortedInvestments}
+            valuations={valuations}
+            sortedVals={sortedVals}
+            sortedRounds={sortedRounds}
+            market={marketRow}
+            investmentEntry={investmentEntryPoint(company)}
+          />
         </TabsContent>
 
-        {/* Competitors */}
-        <TabsContent value="competitors">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-medium">Competitive landscape</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {company.name} ranked against its primary competitors by latest
-                  valuation, with revenue/ARR and the implied valuation-to-revenue
-                  multiple. Each figure is tagged with its primary source
-                  (financial press, SEC filings, or verified X accounts).
-                </p>
-              </div>
-              <RefreshCompetitorsButton
-                companyId={company.id}
-                hasData={peers.length > 0}
-              />
-            </div>
-            {peers.length === 0 ? (
-              <EmptyRow text="No competitors discovered yet. Click “Sync data” (or “Find competitors”) to scan X and SEC filings." />
-            ) : (
-              <div className="space-y-4">
-                {/* Before the first deep-dive run the enrichment shows the CTA
-                    while the flat ranking still renders below (mirrors the
-                    Overview tab gate). */}
-                {!analysis && (
-                  <DeepDiveEmpty
-                    action={<DeepDiveButton companyId={company.id} />}
-                  />
-                )}
-                <CompetitorsAnalysis
-                  ranking={competitorRanking}
-                  competitors={
-                    (analysis?.sections as OverviewSections | undefined)
-                      ?.competitors
-                  }
-                />
-              </div>
-            )}
-          </div>
+        <TabsContent value="market">
+          <MarketGroup
+            company={company}
+            analysis={analysis}
+            peers={peers}
+            ranking={competitorRanking}
+            sortedNews={sortedNews}
+          />
         </TabsContent>
 
-        {/* News */}
-        <TabsContent value="news">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">News &amp; updates</h3>
-              <AddNewsDialog companyId={company.id} />
-            </div>
-            {sortedNews.length === 0 ? (
-              <EmptyRow text="No news yet. Add an update — or connect a live news source in a later phase." />
-            ) : (
-              <div className="space-y-3">
-                {sortedNews.map((n) => {
-                  const deal = isContractWin(n.category);
-                  return (
-                  <Card
-                    key={n.id}
-                    className={cn(
-                      deal &&
-                        "border-primary/40 bg-primary/[0.03] ring-1 ring-primary/15",
-                    )}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {deal && (
-                              <Badge
-                                variant="default"
-                                className="gap-1"
-                                title="Material business deal / contract win"
-                              >
-                                <Handshake className="h-3 w-3" /> Contract win
-                              </Badge>
-                            )}
-                            <Badge variant={sentimentVariant(n.sentiment)}>
-                              {n.sentiment ?? "neutral"}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {n.source ?? "—"} · {formatDate(n.date)}
-                            </span>
-                          </div>
-                          <h4 className="mt-1.5 font-medium leading-snug">
-                            {n.url ? (
-                              <a
-                                href={n.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hover:text-primary"
-                              >
-                                {n.title}
-                              </a>
-                            ) : (
-                              n.title
-                            )}
-                          </h4>
-                          {n.summary && (
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {n.summary}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        <TabsContent value="records">
+          <RecordsGroup canonical={canonical} documents={documents} />
         </TabsContent>
-      </UrlTabs>
-    </div>
-  );
-}
-
-function sentimentVariant(
-  s: Sentiment | null,
-): "success" | "destructive" | "muted" {
-  if (s === "positive") return "success";
-  if (s === "negative") return "destructive";
-  return "muted";
-}
-
-function EmptyRow({ text }: { text: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-      {text}
+      </CompanyTabs>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, type ComponentProps } from "react";
 import { useSearchParams } from "next/navigation";
-import { Tabs } from "@/components/ui/tabs";
+import { Tabs, TabsActiveValueProvider } from "@/components/ui/tabs";
 
 /**
  * Tabs whose active value lives in a `?tab=` search param, so the selected tab
@@ -20,15 +20,24 @@ export function UrlTabs({
   param = "tab",
   values,
   defaultValue,
+  resolve,
   children,
   ...props
 }: Omit<ComponentProps<typeof Tabs>, "value" | "onValueChange" | "defaultValue"> & {
   param?: string;
   values: readonly string[];
   defaultValue: string;
+  /**
+   * Optional alias resolver applied BEFORE the allow-list check — lets legacy
+   * param values (the pre-grouping 9 tab names) keep deep-linking after a
+   * rename/regroup instead of silently falling back to the default. Writes
+   * always emit canonical values, so a legacy URL self-heals on first click.
+   */
+  resolve?: (raw: string | null) => string | null;
 }) {
   const searchParams = useSearchParams();
-  const raw = searchParams.get(param);
+  const raw0 = searchParams.get(param);
+  const raw = resolve ? resolve(raw0) : raw0;
   const value = raw && values.includes(raw) ? raw : defaultValue;
 
   const onValueChange = useCallback(
@@ -47,8 +56,12 @@ export function UrlTabs({
   );
 
   return (
-    <Tabs {...props} value={value} onValueChange={onValueChange}>
-      {children}
-    </Tabs>
+    // The provider powers the springing active-tab pill in TabsTrigger; plain
+    // Tabs consumers elsewhere keep the static CSS pill.
+    <TabsActiveValueProvider value={value}>
+      <Tabs {...props} value={value} onValueChange={onValueChange}>
+        {children}
+      </Tabs>
+    </TabsActiveValueProvider>
   );
 }

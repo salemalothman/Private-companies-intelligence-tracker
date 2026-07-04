@@ -147,6 +147,16 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
   const [percentile, setPercentile] =
     React.useState<MultiplePercentile | null>(null);
 
+  // Entrance-only chart animation gate: true for the first paint (lines draw
+  // in), flipped off right after so input-driven recomputes render instantly.
+  const mountAnimation = React.useRef(true);
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      mountAnimation.current = false;
+    }, 700);
+    return () => clearTimeout(t);
+  }, []);
+
   // The LIVE recompute (VAL-04): rows depend only on stored inputs + overrides.
   const rows = React.useMemo<CompsRow[]>(
     () =>
@@ -322,6 +332,12 @@ function ValuationTargetsBody({ valuation }: { valuation: AnalysisValuation }) {
                   dot={false}
                   activeDot={{ r: 5 }}
                   connectNulls={false}
+                  // Ref-gated: the scenario lines draw in once on first paint;
+                  // every input-driven recompute after that is INSTANT — a
+                  // 600ms tween on live recalculation would read as lag.
+                  isAnimationActive={mountAnimation.current}
+                  animationDuration={600}
+                  animationEasing="ease-out"
                 />
               ))}
             </LineChart>
