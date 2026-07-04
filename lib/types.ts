@@ -426,6 +426,7 @@ export type PeerFinancialRow = {
   cik: string;
   ticker: string | null;
   entity_name: string | null;
+  subject_key: string | null; // nameKey(competitor name) — deep-dive match anchor
   fiscal_period: string;
   revenue: number | null;
   net_income: number | null;
@@ -443,6 +444,7 @@ type PeerFinancialInsert = {
   cik: string;
   ticker?: string | null;
   entity_name?: string | null;
+  subject_key?: string | null;
   fiscal_period: string;
   revenue?: number | null;
   net_income?: number | null;

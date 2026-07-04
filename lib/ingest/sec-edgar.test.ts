@@ -48,6 +48,18 @@ describe("mapStatementResult", () => {
     expect(Number.isNaN(Date.parse(fy24.fetched_at as string))).toBe(false);
   });
 
+  it("stamps ctx.subjectKey onto every row (the deep-dive match anchor), null when absent", () => {
+    // With a subjectKey the agent can match colloquial competitor names to these
+    // rows; without one it falls back to null (never a fabricated key).
+    const keyed = mapStatementResult(statementResult, {
+      ...ctx,
+      subjectKey: "apple",
+    });
+    expect(keyed.every((r) => r.subject_key === "apple")).toBe(true);
+    const unkeyed = mapStatementResult(statementResult, ctx);
+    expect(unkeyed.every((r) => r.subject_key === null)).toBe(true);
+  });
+
   it("nulls a numeric field when its us-gaap tag is absent for that period (never 0, never carried)", () => {
     const partial = {
       cik: "0000320193",

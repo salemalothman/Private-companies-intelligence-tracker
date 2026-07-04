@@ -24,6 +24,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasBinary, requireEnv, runAgentCli } from "@/lib/ingest/cli";
+import { nameKey } from "@/lib/market-cache/parse";
 import type {
   Envelope,
   IngestTarget,
@@ -129,7 +130,12 @@ function extractPeriods(result: unknown): Record<string, unknown>[] {
  */
 export function mapStatementResult(
   result: unknown,
-  ctx: { cik: string; ticker?: string | null; entityName?: string | null },
+  ctx: {
+    cik: string;
+    ticker?: string | null;
+    entityName?: string | null;
+    subjectKey?: string | null;
+  },
 ): PeerFinancialInsert[] {
   const periods = extractPeriods(result);
   if (periods.length === 0) return [];
@@ -155,6 +161,7 @@ export function mapStatementResult(
       cik: ctx.cik,
       ticker: strOrNull(ctx.ticker),
       entity_name: entityName,
+      subject_key: strOrNull(ctx.subjectKey),
       fiscal_period: fiscalPeriod,
       revenue: pickTag(period, REVENUE_TAGS),
       net_income: pickTag(period, NET_INCOME_TAGS),
@@ -310,6 +317,10 @@ export async function ingestSecEdgar(
   let skipped = 0;
   let hadError = false;
   const resolvedTickers: string[] = [];
+  // cik → nameKey(subject): lets the cross-section backfill (a ticker pivot with
+  // no per-subject context) carry the same match anchor as the statement rows, so
+  // an overlapping (cik, fiscal_period) upsert never nulls out subject_key.
+  const cikToSubjectKey = new Map<string, string>();
 
   // Only competitors are candidate public peers.
   const candidates = targets.filter((t) => t.kind === "competitor");
@@ -324,6 +335,8 @@ export async function ingestSecEdgar(
         continue;
       }
       if (identity.ticker) resolvedTickers.push(identity.ticker);
+      const subjectKey = nameKey(target.subject);
+      cikToSubjectKey.set(identity.cik, subjectKey);
 
       const facts = await runAgentCli(
         BIN,
@@ -339,6 +352,7 @@ export async function ingestSecEdgar(
         cik: identity.cik,
         ticker: identity.ticker,
         entityName: identity.entityName,
+        subjectKey,
       });
       if (rows.length === 0) {
         skipped++;
@@ -379,7 +393,12 @@ export async function ingestSecEdgar(
         { env },
       );
       if (cross.ok) {
-        const crossRows = mapCrossSection(cross.results);
+        const crossRows = mapCrossSection(cross.results).map((r) => ({
+          ...r,
+          // Carry the statement rows' match anchor onto same-cik cross rows so an
+          // overlapping upsert on (cik, fiscal_period) preserves subject_key.
+          subject_key: cikToSubjectKey.get(r.cik) ?? r.subject_key ?? null,
+        }));
         if (crossRows.length > 0) {
           const { error } = await admin
             .from("peer_financials")
