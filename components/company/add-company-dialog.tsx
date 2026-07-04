@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Sparkles } from "lucide-react";
+import { ChevronDown, Loader2, Plus, Sparkles } from "lucide-react";
 import { createCompany, enrichCompany } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -87,6 +87,10 @@ export function AddCompanyDialog() {
   const [error, setError] = useState<string | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [f, setF] = useState<FormState>(EMPTY);
+  // Investment Details starts collapsed (progressive disclosure — the section
+  // is optional and its 3 fields double the form's apparent length). Typed
+  // values persist in `f` regardless of the disclosure state.
+  const [showInvestment, setShowInvestment] = useState(false);
 
   // Fields populated by enrichment (vs. typed by the user) — so re-enriching
   // updates auto-filled fields but never clobbers the user's own edits.
@@ -222,6 +226,7 @@ export function AddCompanyDialog() {
                   value={f.name}
                   onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
                   placeholder="OpenAI"
+                  autoComplete="organization"
                   autoFocus
                 />
                 {enriching && (
@@ -239,22 +244,25 @@ export function AddCompanyDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Sector">
+              {/* datalist lives outside the Field so the label/input id
+                  pairing (single-element clone) applies. */}
               <Input
                 value={f.sector}
                 onChange={(e) => userSet("sector", e.target.value)}
                 list="sectors"
                 placeholder="AI"
               />
-              <datalist id="sectors">
-                {SECTORS.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
             </Field>
+            <datalist id="sectors">
+              {SECTORS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
             <Field label="Country">
               <Input
                 value={f.country}
                 onChange={(e) => userSet("country", e.target.value)}
+                autoComplete="country-name"
                 placeholder="United States"
               />
             </Field>
@@ -262,9 +270,15 @@ export function AddCompanyDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Website">
+              {/* inputMode="url" (not type="url"): the URL keyboard on mobile
+                  without native scheme validation — enrichment or users often
+                  supply bare "openai.com", which type="url" would reject. */}
               <Input
                 value={f.website}
                 onChange={(e) => userSet("website", e.target.value)}
+                inputMode="url"
+                autoComplete="url"
+                spellCheck={false}
                 placeholder="https://openai.com"
               />
             </Field>
@@ -273,6 +287,7 @@ export function AddCompanyDialog() {
                 value={f.founded_year}
                 onChange={(e) => userSet("founded_year", e.target.value)}
                 type="number"
+                inputMode="numeric"
                 placeholder="2015"
               />
             </Field>
@@ -294,15 +309,41 @@ export function AddCompanyDialog() {
             />
           </Field>
 
-          {/* Investment Details — optional entry metrics, seed the timeline. */}
-          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-            <div>
-              <h4 className="text-sm font-medium">Investment Details</h4>
-              <p className="text-xs text-muted-foreground">
-                Optional — record your entry to seed the valuation timeline and
-                portfolio metrics.
-              </p>
-            </div>
+          {/* Investment Details — optional entry metrics behind a disclosure
+              so the core profile form stays short (progressive disclosure);
+              typed values persist in state while collapsed. */}
+          <div className="rounded-lg border border-border bg-muted/30">
+            <button
+              type="button"
+              onClick={() => setShowInvestment((v) => !v)}
+              aria-expanded={showInvestment}
+              className="flex w-full items-center justify-between gap-2 rounded-lg p-3 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <div>
+                <h4 className="text-sm font-medium">
+                  Investment Details
+                  {!showInvestment &&
+                    (f.entry_valuation || f.investment_amount || f.ownership_pct) !== "" && (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        · filled
+                      </span>
+                    )}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Optional — record your entry to seed the valuation timeline and
+                  portfolio metrics.
+                </p>
+              </div>
+              <ChevronDown
+                aria-hidden="true"
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  showInvestment && "rotate-180",
+                )}
+              />
+            </button>
+            {showInvestment && (
+            <div className="space-y-3 p-3 pt-0">
             <Field label="Your entry valuation ($)">
               <Input
                 value={f.entry_valuation}
@@ -355,10 +396,15 @@ export function AddCompanyDialog() {
                 />
               </Field>
             </div>
+            </div>
+            )}
           </div>
 
           {error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {error}
             </p>
           )}

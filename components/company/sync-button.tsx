@@ -29,7 +29,11 @@ export function SyncButton({ companyId }: { companyId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {error && (
+        <span role="alert" className="text-xs text-destructive">
+          {error}
+        </span>
+      )}
       <Button
         size="sm"
         variant="outline"

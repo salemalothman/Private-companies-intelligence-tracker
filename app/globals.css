@@ -29,7 +29,10 @@
 
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 56% 36%;
+    /* Darkened from 152 56% 36% so success text passes AA (≥4.5:1) even when
+       composited over its own bg-success/15 badge tint — the "Confirmed by N
+       sources" trust label must stay legible at text-xs. */
+    --success: 152 60% 30%;
     --success-foreground: 0 0% 100%;
 
     /* Restrained brand accent — used sparingly for focus + emphasis */
@@ -119,9 +122,37 @@
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
   }
+  /* Respect the user's motion preference globally: collapse every animation
+     and transition to a single imperceptible frame. Spinners/pulses become
+     static, dialog fades appear instantly — nothing depends on motion to
+     communicate state (labels always carry the meaning). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer utilities {
+  /* Affordance hint for horizontally-scrollable strips (the 9-tab bar): fade
+     the right edge below lg — where the strip overflows — so off-screen tabs
+     are discoverable. Static mask, no JS; the trailing tab dims slightly at
+     full scroll, an accepted tradeoff for a pure-CSS hint. */
+  @media (max-width: 1023.98px) {
+    .scroll-fade-r {
+      -webkit-mask-image: linear-gradient(
+        to right,
+        black calc(100% - 28px),
+        transparent
+      );
+      mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+    }
+  }
   /* Safe-area insets for fixed top/bottom chrome on notched iPhones */
   .pt-safe {
     padding-top: env(safe-area-inset-top);

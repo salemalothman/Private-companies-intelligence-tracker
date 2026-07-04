@@ -17,7 +17,9 @@ import { Logo } from "@/components/app/logo";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/companies", label: "Companies", icon: Building2 },
-  { href: "/fund", label: "Fund Analysis", icon: PieChart },
+  // Keep the label identical to mobile-nav's ("Fund") so the mental model
+  // doesn't fork across breakpoints.
+  { href: "/fund", label: "Fund", icon: PieChart },
   { href: "/reports", label: "Reports", icon: FileText },
 ];
 

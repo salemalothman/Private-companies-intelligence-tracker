@@ -1,6 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useActionState,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -71,7 +78,10 @@ export function FormDialog({
         <form action={formAction} className="space-y-4">
           {children}
           {state?.error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {state.error}
             </p>
           )}
@@ -84,7 +94,13 @@ export function FormDialog({
   );
 }
 
-/** Labeled field wrapper for dialog forms. */
+/** Labeled field wrapper for dialog forms.
+ *
+ * Associates the label with its control: a generated `id` is cloned onto the
+ * (single-element) child unless it already carries one, and the label gets the
+ * matching `htmlFor` — so clicking a label focuses its input and screen
+ * readers can pair them. Renders at full ink (`text-foreground`), not muted:
+ * form structure must stay scannable in a data-entry-heavy app. */
 export function Field({
   label,
   children,
@@ -92,12 +108,15 @@ export function Field({
   label: string;
   children: React.ReactNode;
 }) {
+  const generatedId = useId();
+  const child = isValidElement<{ id?: string }>(children) ? children : null;
+  const id = child ? (child.props.id ?? generatedId) : undefined;
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-muted-foreground">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
       </label>
-      {children}
+      {child && child.props.id == null ? cloneElement(child, { id }) : children}
     </div>
   );
 }

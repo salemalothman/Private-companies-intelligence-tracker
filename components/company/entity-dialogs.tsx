@@ -48,30 +48,33 @@ export function AddInvestmentDialog({ companyId }: { companyId: string }) {
           <Input name="investment_date" type="date" required />
         </Field>
         <Field label="Investment round">
+          {/* datalist lives outside the Field so the label/input id pairing
+              (single-element clone) applies — see Field in form-dialog.tsx. */}
           <Input name="round" list="rounds" placeholder="Series A" />
-          <datalist id="rounds">
-            {ROUNDS.map((r) => (
-              <option key={r} value={r} />
-            ))}
-          </datalist>
         </Field>
+        <datalist id="rounds">
+          {ROUNDS.map((r) => (
+            <option key={r} value={r} />
+          ))}
+        </datalist>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Amount invested ($)">
-          <Input name="amount" type="number" step="any" placeholder="500000" />
+          <Input name="amount" type="number" inputMode="decimal" step="any" placeholder="500000" />
         </Field>
         <Field label="Share price ($)">
-          <Input name="share_price" type="number" step="any" placeholder="25" />
+          <Input name="share_price" type="number" inputMode="decimal" step="any" placeholder="25" />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Number of shares">
-          <Input name="shares" type="number" step="any" placeholder="20000" />
+          <Input name="shares" type="number" inputMode="decimal" step="any" placeholder="20000" />
         </Field>
         <Field label="Ownership %">
           <Input
             name="ownership_pct"
             type="number"
+            inputMode="decimal"
             step="any"
             placeholder="0.05"
           />
@@ -105,21 +108,22 @@ export function AddValuationDialog({ companyId }: { companyId: string }) {
         </Field>
         <Field label="Round">
           <Input name="round" list="vrounds" placeholder="Series B" />
-          <datalist id="vrounds">
-            {ROUNDS.map((r) => (
-              <option key={r} value={r} />
-            ))}
-          </datalist>
         </Field>
+        <datalist id="vrounds">
+          {ROUNDS.map((r) => (
+            <option key={r} value={r} />
+          ))}
+        </datalist>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Pre-money ($)">
-          <Input name="pre_money" type="number" step="any" placeholder="900000000" />
+          <Input name="pre_money" type="number" inputMode="decimal" step="any" placeholder="900000000" />
         </Field>
         <Field label="Post-money ($)">
           <Input
             name="post_money"
             type="number"
+            inputMode="decimal"
             step="any"
             placeholder="1000000000"
           />
@@ -127,7 +131,7 @@ export function AddValuationDialog({ companyId }: { companyId: string }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Share price ($)">
-          <Input name="share_price" type="number" step="any" placeholder="50" />
+          <Input name="share_price" type="number" inputMode="decimal" step="any" placeholder="50" />
         </Field>
         <Field label="Confidence">
           <select
@@ -238,7 +242,7 @@ export function AddFundingRoundDialog({ companyId }: { companyId: string }) {
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Share price ($)">
-          <Input name="share_price" type="number" step="any" placeholder="50" />
+          <Input name="share_price" type="number" inputMode="decimal" step="any" placeholder="50" />
         </Field>
         <Field label="Source">
           <Input name="source" placeholder="TechCrunch, press release…" />

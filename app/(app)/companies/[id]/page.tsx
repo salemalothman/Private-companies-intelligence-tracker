@@ -40,7 +40,8 @@ import {
 } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UrlTabs } from "@/components/company/url-tabs";
 import {
   Table,
   TableBody,
@@ -242,6 +243,9 @@ export default async function CompanyDetailPage({
           <SyncButton companyId={company.id} />
           <DeepDiveButton companyId={company.id} />
           <EditOverviewDialog company={company} />
+          {/* Hairline quarantine: the destructive action must never sit flush
+              against a routine one (accidental-click adjacency). */}
+          <div aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
           <DeleteCompanyButton
             companyId={company.id}
             companyName={company.name}
@@ -327,8 +331,29 @@ export default async function CompanyDetailPage({
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
-        <TabsList>
+      {/* URL-synced: ?tab=<value> so the active tab survives refresh and is
+          deep-linkable (e.g. share a company's Valuation Targets directly). */}
+      <UrlTabs
+        defaultValue="overview"
+        values={[
+          "overview",
+          "provenance",
+          "dataroom",
+          "investment",
+          "valuation",
+          "valuation-targets",
+          "funding",
+          "competitors",
+          "news",
+        ]}
+      >
+        {/* max-w-full + overflow-x-auto gives the 9 nowrap tabs their own
+            horizontal scroll region, so the new Valuation Targets tab stays
+            reachable on phones despite the page's overflow-x-hidden. justify-start
+            keeps the first tab flush-left (justify-center can strand the leading
+            tab off the scrollable edge). scroll-fade-r fades the right edge
+            below lg so off-screen tabs are discoverable. */}
+        <TabsList className="scroll-fade-r max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="provenance">Provenance</TabsTrigger>
           <TabsTrigger value="dataroom">Data room</TabsTrigger>
@@ -704,7 +729,7 @@ export default async function CompanyDetailPage({
             )}
           </div>
         </TabsContent>
-      </Tabs>
+      </UrlTabs>
     </div>
   );
 }

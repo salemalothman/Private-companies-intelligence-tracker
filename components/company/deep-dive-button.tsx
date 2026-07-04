@@ -67,16 +67,24 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {error && (
+        <span role="alert" className="text-xs text-destructive">
+          {error}
+        </span>
+      )}
+      {/* variant="default": the ONE visual primary in the company header —
+          deep-dive is the product's core value; the neighbouring actions stay
+          outline/ghost so nothing competes (Airbnb one-primary rule). */}
       <Button
         size="sm"
-        variant="outline"
         onClick={run}
         disabled={pending}
         title="Generate a grounded deep-dive analysis for this company"
       >
         {done ? (
-          <Check className="h-3.5 w-3.5 text-success" />
+          // Inherits primary-foreground — success-green would vanish on the
+          // primary button's near-black ground.
+          <Check className="h-3.5 w-3.5" />
         ) : (
           <Sparkles className={cn("h-3.5 w-3.5", pending && "animate-pulse")} />
         )}
