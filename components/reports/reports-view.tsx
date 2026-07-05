@@ -104,7 +104,9 @@ export function ReportsView({
             <CardTitle className="text-sm font-medium">Generated digests</CardTitle>
             {msg && <p className="mt-0.5 text-xs text-muted-foreground">{msg}</p>}
           </div>
-          <Button size="sm" onClick={generate} disabled={genPending}>
+          {/* mono: the shared white/ink-outline primary treatment (Add
+              company, Run deep-dive, Generate now all speak one language). */}
+          <Button size="sm" variant="mono" onClick={generate} disabled={genPending}>
             <RefreshCw className={cn("h-3.5 w-3.5", genPending && "animate-spin")} />
             {genPending ? "Generating…" : "Generate now"}
           </Button>

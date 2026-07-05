@@ -73,20 +73,22 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
           {error}
         </span>
       )}
-      {/* variant="brand": the ONE visual primary in the company header —
-          deep-dive is the product's core value; the neighbouring actions stay
-          outline/ghost so nothing competes (Airbnb one-primary rule). */}
+      {/* variant="mono": the designated primary in the company header — the
+          white/ink-outline treatment shared by Add company and Generate now,
+          so every surface's primary speaks one language. Neighbouring actions
+          stay hairline-outline/ghost so nothing competes (one-primary rule). */}
       <Button
         size="sm"
-        variant="brand"
+        variant="mono"
         onClick={run}
         disabled={pending}
         title="Generate a grounded deep-dive analysis for this company"
       >
         {done ? (
-          // Spring pop on success; inherits brand-foreground (white) — green
-          // would vanish on the brand ground. Label ("Generated") carries the
-          // state for reduced-motion users.
+          // Spring pop on success; the check inherits the button's text color,
+          // so it stays legible through mono's hover inversion (ink on white,
+          // white on ink). Label ("Generated") carries the state for
+          // reduced-motion users.
           <m.span
             className="inline-flex"
             initial={{ scale: 0 }}
