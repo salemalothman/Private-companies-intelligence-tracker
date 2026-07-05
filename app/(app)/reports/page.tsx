@@ -9,6 +9,7 @@ export default async function ReportsPage() {
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Reports"
+        titleEffect
         subtitle="Download your portfolio digests and configure how they're generated."
       />
       <ReportsView reports={reports} prefs={prefs} />

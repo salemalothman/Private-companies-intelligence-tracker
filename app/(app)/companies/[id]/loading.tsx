@@ -27,7 +27,7 @@ export default function CompanyDetailLoading() {
       </div>
 
       {/* 6-stat card */}
-      <div className="grid grid-cols-2 gap-4 rounded-xl border border-border p-5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 rounded-2xl border border-border p-5 sm:grid-cols-3 lg:grid-cols-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="space-y-2">
             <Skeleton className="h-3 w-20" />
@@ -37,7 +37,7 @@ export default function CompanyDetailLoading() {
       </div>
 
       {/* 4-stat card */}
-      <div className="grid grid-cols-2 gap-4 rounded-xl border border-border p-5 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 rounded-2xl border border-border p-5 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="space-y-2">
             <Skeleton className="h-3 w-24" />
@@ -52,7 +52,7 @@ export default function CompanyDetailLoading() {
           <Skeleton key={i} className="h-7 w-24 rounded-md" />
         ))}
       </div>
-      <Skeleton className="h-64 w-full rounded-xl" />
+      <Skeleton className="h-64 w-full rounded-2xl" />
     </div>
   );
 }

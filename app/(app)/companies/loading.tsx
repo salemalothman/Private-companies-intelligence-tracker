@@ -12,7 +12,7 @@ export default function CompaniesLoading() {
         <Skeleton className="h-9 w-32" />
       </div>
 
-      <div className="space-y-px overflow-hidden rounded-xl border border-border">
+      <div className="space-y-px overflow-hidden rounded-lg border border-border">
         <Skeleton className="h-10 w-full rounded-none" />
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 border-t border-border px-4 py-3">

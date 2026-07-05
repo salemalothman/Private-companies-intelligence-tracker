@@ -17,7 +17,9 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      // Enter decelerates (ease-out, 200ms); exit accelerates and is quicker
+      // (ease-in, 150ms) — exits should feel lighter than entrances.
+      "fixed inset-0 z-50 bg-black/70 duration-200 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=closed]:ease-in",
       className,
     )}
     {...props}
@@ -41,7 +43,15 @@ const DialogContent = React.forwardRef<
         // inside the animation keyframes (whose transform would otherwise
         // replace translate-x/y-[-50%] and make the dialog jump from the
         // corner); 48% top yields the gentle upward settle.
-        "fixed left-[50%] top-[50%] z-50 grid max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:p-6",
+        //
+        // Motion-performance tuning (ui-skills fixing-motion-performance):
+        // transform/opacity keyframes only (compositor-safe); ~150ms with
+        // ASYMMETRIC easing — enter decelerates (ease-out), exit accelerates
+        // (ease-in), so exits feel lighter than entrances (measured live:
+        // cubic-bezier(0,0,.2,1) in / (.4,0,1,1) out). will-change is the
+        // sanctioned "temporary and surgical" layer hint — Radix unmounts the
+        // element on close, so the promoted layer never outlives the dialog.
+        "fixed left-[50%] top-[50%] z-50 grid max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-lg will-change-[transform,opacity] duration-200 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=closed]:duration-150 data-[state=closed]:ease-in sm:p-6",
         className,
       )}
       {...props}

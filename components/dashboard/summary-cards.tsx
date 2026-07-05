@@ -212,7 +212,7 @@ export function ValuationChangesList({ changes }: { changes: ValuationChange[] }
     <CollapsibleSection
       title="Latest valuation changes"
       defaultOpen
-      className="rounded-xl"
+      className="rounded-2xl"
     >
       {changes.length === 0 ? (
         <SectionEmpty>No changes yet.</SectionEmpty>

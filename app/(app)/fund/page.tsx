@@ -17,6 +17,7 @@ export default async function FundPage() {
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Fund Analysis"
+        titleEffect
         subtitle="Deal-by-deal performance — MOIC, IRR, holding period, and ownership. Fees are set per company."
       />
 

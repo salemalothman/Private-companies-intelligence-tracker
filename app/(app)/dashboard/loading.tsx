@@ -1,9 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Instant shell for the dashboard — geometry mirrors the real page (header,
- * 4-cell hairline-divided KPI strip, section bars, chart grid) so the loaded
- * content replaces it without a jump.
+ * Instant shell for the dashboard — geometry mirrors the real page (4 KPI
+ * cards with chip/number/sparkline stubs, 2/3+1/3 chart row, full-width
+ * performers, then section bars) so the loaded content replaces it without a
+ * jump.
  */
 export default function DashboardLoading() {
   return (
@@ -20,26 +21,33 @@ export default function DashboardLoading() {
         </div>
       </div>
 
-      {/* KPI strip — matches the 2/4-col divided grid */}
-      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border lg:grid-cols-4 lg:divide-y-0">
+      {/* KPI cards — chip, figure, label + sparkline slot */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="space-y-3 px-5 py-5 lg:px-6">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-3 w-16" />
+          <div
+            key={i}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-border p-5"
+          >
+            <div className="space-y-3">
+              <Skeleton className="h-9 w-9 rounded-full" />
+              <Skeleton className="h-7 w-28" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-12 w-24" />
           </div>
         ))}
       </div>
 
-      {/* Section bars (valuation changes, events, activity) */}
-      <Skeleton className="h-48 w-full rounded-xl" />
-      <Skeleton className="h-40 w-full rounded-xl" />
-
-      {/* Chart grid */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-72 rounded-xl" />
-        <Skeleton className="h-72 rounded-xl" />
+      {/* Chart row: 2/3 hero + 1/3 radial, then full-width performers */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-2xl" />
+        <Skeleton className="h-64 rounded-2xl lg:col-span-3" />
       </div>
+
+      {/* Section bars (valuation changes, events, activity) */}
+      <Skeleton className="h-44 w-full rounded-2xl" />
+      <Skeleton className="h-40 w-full rounded-2xl" />
     </div>
   );
 }

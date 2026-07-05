@@ -8,7 +8,10 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border border-border bg-card text-card-foreground",
+      // rounded-2xl: the app-wide surface radius (the softer reference
+      // aesthetic) — every page's cards share it; dense data tables keep their
+      // own rounded-lg tier.
+      "rounded-2xl border border-border bg-card text-card-foreground",
       className,
     )}
     {...props}
