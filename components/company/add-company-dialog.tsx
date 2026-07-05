@@ -171,9 +171,10 @@ export function AddCompanyDialog() {
       }}
     >
       <DialogTrigger asChild>
-        {/* brand: the designated primary on the dashboard/companies surfaces —
-            growing the portfolio is the screen's job; Sync is maintenance. */}
-        <Button variant="brand" className="gap-2">
+        {/* mono: the designated primary on the dashboard/companies surfaces —
+            white with a full-ink outline (inverts on hover), reading premium
+            without a colored fill. Sync stays a quiet hairline outline. */}
+        <Button variant="mono" className="gap-2">
           <Plus className="h-4 w-4" /> Add company
         </Button>
       </DialogTrigger>

@@ -6,16 +6,22 @@ import {
   getUnseenEventCount,
 } from "@/lib/queries";
 import {
+  companyCountSeries,
+  investedCapitalSeries,
   latestValuationChanges,
   portfolioSummary,
   portfolioValueSeries,
   sectorAllocation,
   topPerformers,
+  unrealizedGainSeries,
 } from "@/lib/metrics";
 import { partitionEvents } from "@/lib/calendar";
 import { PageHeader } from "@/components/app/page-header";
 import { AddCompanyDialog } from "@/components/company/add-company-dialog";
-import { SummaryCards } from "@/components/dashboard/summary-cards";
+import {
+  SummaryCards,
+  ValuationChangesList,
+} from "@/components/dashboard/summary-cards";
 import { PortfolioCharts } from "@/components/dashboard/portfolio-charts";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { EventsCalendar } from "@/components/dashboard/events-calendar";
@@ -44,6 +50,7 @@ export default async function DashboardPage() {
       <PageHeader
         title="Portfolio Dashboard"
         subtitle="What is your private portfolio worth today — and what changed?"
+        titleEffect
         actions={
           <div className="flex items-start gap-2">
             <GlobalSyncButton />
@@ -52,24 +59,37 @@ export default async function DashboardPage() {
         }
       />
 
-      {/* Above the fold — the route template already animates it; no Reveal. */}
-      <SummaryCards summary={summary} changes={changes} />
+      {/* Above the fold — the route template already animates it; no Reveal.
+          Every sparkline series is REAL recorded data (see lib/metrics.ts). */}
+      <SummaryCards
+        summary={summary}
+        series={{
+          value: portfolioValueSeries(companies),
+          invested: investedCapitalSeries(companies),
+          gain: unrealizedGainSeries(companies),
+          count: companyCountSeries(companies),
+        }}
+      />
+
+      {/* Reference sequencing: stats → charts → changes → events → activity. */}
+      <PortfolioCharts
+        valueSeries={portfolioValueSeries(companies)}
+        investedSeries={investedCapitalSeries(companies)}
+        allocation={sectorAllocation(companies)}
+        performers={topPerformers(companies)}
+      />
 
       {/* Below-fold sections rise in once as they scroll into view. */}
       <Reveal>
-        <EventsCalendar upcoming={upcoming} past={past} />
+        <ValuationChangesList changes={changes} />
       </Reveal>
 
       <Reveal delay={0.05}>
-        <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
+        <EventsCalendar upcoming={upcoming} past={past} />
       </Reveal>
 
       <Reveal delay={0.1}>
-        <PortfolioCharts
-          valueSeries={portfolioValueSeries(companies)}
-          allocation={sectorAllocation(companies)}
-          performers={topPerformers(companies)}
-        />
+        <ActivityFeed events={activity} unseen={unseen} prefs={alertPrefs} />
       </Reveal>
     </div>
   );

@@ -21,6 +21,10 @@ const buttonVariants = cva(
         // ink; this is not a repaint.
         brand:
           "bg-gradient-to-b from-brand to-brand-deep text-brand-foreground shadow-sm shadow-brand/35 hover:shadow-md hover:shadow-brand/30 hover:brightness-[1.06] active:brightness-95",
+        // Monochrome primary: white ground, full-ink outline, inverting on
+        // hover — the quiet-premium alternative where a colored fill would
+        // shout (dashboard header actions).
+        mono: "border border-foreground bg-background text-foreground shadow-sm hover:bg-foreground hover:text-background",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
