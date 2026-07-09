@@ -6,14 +6,12 @@ import {
   getUnseenEventCount,
 } from "@/lib/queries";
 import {
-  companyCountSeries,
   investedCapitalSeries,
   latestValuationChanges,
   portfolioSummary,
   portfolioValueSeries,
   sectorAllocation,
   topPerformers,
-  unrealizedGainSeries,
 } from "@/lib/metrics";
 import { partitionEvents } from "@/lib/calendar";
 import { PageHeader } from "@/components/app/page-header";
@@ -59,17 +57,8 @@ export default async function DashboardPage() {
         }
       />
 
-      {/* Above the fold — the route template already animates it; no Reveal.
-          Every sparkline series is REAL recorded data (see lib/metrics.ts). */}
-      <SummaryCards
-        summary={summary}
-        series={{
-          value: portfolioValueSeries(companies),
-          invested: investedCapitalSeries(companies),
-          gain: unrealizedGainSeries(companies),
-          count: companyCountSeries(companies),
-        }}
-      />
+      {/* Above the fold — the route template already animates it; no Reveal. */}
+      <SummaryCards summary={summary} />
 
       {/* Reference sequencing: stats → charts → changes → events → activity. */}
       <PortfolioCharts
