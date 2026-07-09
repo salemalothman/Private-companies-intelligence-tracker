@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-02 -- 05-03 code landed; awaiting live-verify checkpoint
+Last activity: 2026-07-09 - Completed quick task 260709-t3h: dashboard stat-card sparkline removal + donut total relocation
 
 Progress: [█████████░] 94%
 
@@ -99,6 +99,12 @@ None yet.
 
 - Phases 2, 3, 4 all depend on the Phase 1 substrate (`company_analysis` schema + `runDeepDive` output shape). The `sections`/`valuation` JSONB shapes must be settled in Phase 1 to avoid rework downstream.
 - Guardrails are hard gates: no fabricated financials, no predictive probabilities; forward-looking content must carry basis + confidence; quantitative valuation only via transparent peer-multiple comps.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260709-t3h | Dashboard: remove stat-card sparklines, keep numbers; move donut total out of circle | 2026-07-09 | 087cf3a | [260709-t3h-dashboard-remove-stat-card-sparklines-ke](./quick/260709-t3h-dashboard-remove-stat-card-sparklines-ke/) |
 
 ## Deferred Items
 
