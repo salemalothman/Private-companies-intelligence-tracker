@@ -214,28 +214,36 @@ export function PortfolioCharts({
         title="Allocation by sector"
         empty={allocation.length === 0}
         header={
-          <div className="space-y-2">
-            <CardTitle className="text-sm font-medium">
-              Allocation by sector
-            </CardTitle>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {rings.map((a, i) => (
-                <span
-                  key={a.sector}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
-                >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <CardTitle className="text-sm font-medium">
+                Allocation by sector
+              </CardTitle>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {rings.map((a, i) => (
                   <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: CHART[i % CHART.length] }}
-                  />
-                  {a.sector}
-                </span>
-              ))}
+                    key={a.sector}
+                    className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: CHART[i % CHART.length] }}
+                    />
+                    {a.sector}
+                  </span>
+                ))}
+              </div>
             </div>
+            <span className="text-right">
+              <span className="label-eyebrow block">Total</span>
+              <span className="text-xl font-semibold tabular-nums">
+                {formatCurrency(allocationTotal)}
+              </span>
+            </span>
           </div>
         }
       >
-        <div className="relative h-full w-full">
+        <div className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               data={rings}
@@ -265,13 +273,6 @@ export function PortfolioCharts({
               />
             </RadialBarChart>
           </ResponsiveContainer>
-          {/* Center total — the REAL sum of the plotted slices. */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="label-eyebrow">Total</span>
-            <span className="text-lg font-semibold tabular-nums">
-              {formatCurrency(allocationTotal)}
-            </span>
-          </div>
         </div>
       </ChartCard>
 
