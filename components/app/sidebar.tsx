@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/app/logo";
+import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -64,6 +65,7 @@ export function Sidebar({ email }: { email: string | null }) {
         <div className="mb-2 truncate px-2 text-xs text-muted-foreground">
           {email ?? "Signed in"}
         </div>
+        <ChangePasswordDialog />
         <form action={signOut}>
           <Button
             type="submit"
