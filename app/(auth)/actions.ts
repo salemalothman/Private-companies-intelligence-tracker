@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendApprovalRequest } from "@/lib/email/approval";
 import { siteUrl } from "@/lib/site-url";
+import { requestOrigin } from "@/lib/request-origin";
 
 export interface AuthResult {
   error?: string;
@@ -107,8 +109,12 @@ export async function signOut() {
  * Request a password-reset email. Deliberately neutral: we ignore the Supabase
  * result (success, error, or unknown email) and ALWAYS return { sent: true } so
  * account existence can never be probed via this endpoint (T-pwd-01). The
- * redirectTo is server-derived from siteUrl(), never user input, closing the
- * open-redirect vector (T-pwd-02).
+ * redirectTo now FOLLOWS the serving host (via requestOrigin) so reset links
+ * from the Cloudflare deployment point at workers.dev, Vercel keeps its host,
+ * and localhost keeps localhost — falling back to siteUrl() only when no host
+ * header exists. It is still server-derived, never user input, closing the
+ * open-redirect vector (T-pwd-02 / T-eoe-03); Supabase Auth additionally only
+ * honors redirectTo values on its Redirect URLs allowlist.
  */
 export async function requestPasswordReset(
   _prev: AuthResult | undefined,
@@ -117,7 +123,9 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "");
 
   try {
-    const redirectTo = `${await siteUrl()}/auth/confirm`;
+    const h = await headers();
+    const origin = requestOrigin(h) ?? (await siteUrl());
+    const redirectTo = `${origin}/auth/confirm`;
     const supabase = await createClient();
     await supabase.auth.resetPasswordForEmail(email, { redirectTo });
   } catch (e) {
