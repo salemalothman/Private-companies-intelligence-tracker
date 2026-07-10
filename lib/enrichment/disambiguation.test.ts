@@ -27,6 +27,62 @@ describe("wrongEntitySignal — Accrete AI vs Accrete Inc (TYO:4395)", () => {
   });
 });
 
+describe("wrongEntitySignal — purge scope must not delete legitimate rows", () => {
+  it("does NOT purge an item with a third-party (peer) ticker mention", () => {
+    // NYSE:CRM belongs to Salesforce, not the tracked company — an incidental
+    // peer ticker must never trigger the destructive DELETE path.
+    expect(
+      wrongEntitySignal("Acme", "Acme acquired by Salesforce (NYSE:CRM)", {
+        scope: "purge",
+      }).blocked,
+    ).toBe(false);
+    // …and it is not even blocked at ingest (name-adjacency, not mere mention).
+    expect(
+      wrongEntitySignal("Acme", "Acme acquired by Salesforce (NYSE:CRM)").blocked,
+    ).toBe(false);
+  });
+
+  it("does NOT purge a finance.yahoo.com funding item", () => {
+    expect(
+      wrongEntitySignal(
+        "Moove Io",
+        "Moove raises $100M Series B — https://finance.yahoo.com/news/moove-funding",
+        { scope: "purge" },
+      ).blocked,
+    ).toBe(false);
+  });
+
+  it("STILL drops the TSE:4395 wrong-entity collision at ingest", () => {
+    expect(
+      wrongEntitySignal(
+        "Accrete Ai",
+        "Accrete Inc. TSE:4395 closing price on Tokyo Stock Exchange",
+      ).blocked,
+    ).toBe(true);
+    // …and the purge path also still removes it (collision rule + STOCK_SIGNAL).
+    expect(
+      wrongEntitySignal(
+        "Accrete Ai",
+        "Accrete Inc. TSE:4395 closing price on Tokyo Stock Exchange",
+        { scope: "purge" },
+      ).blocked,
+    ).toBe(true);
+  });
+
+  it("still drops a name-adjacent public ticker + finance aggregator at ingest", () => {
+    expect(
+      wrongEntitySignal("Moove Io", "Moove Corp (NYSE:MOOV) share price update")
+        .blocked,
+    ).toBe(true);
+    expect(
+      wrongEntitySignal(
+        "Moove Io",
+        "Moove quote — https://www.tradingview.com/symbols/NYSE-MOOV/",
+      ).blocked,
+    ).toBe(true);
+  });
+});
+
 describe("isGenericMultiCompanyReport", () => {
   it("is true for a sector report that omits the tracked company name", () => {
     expect(

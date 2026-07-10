@@ -48,9 +48,39 @@ const STOCK_SIGNAL =
 const EXCHANGE_SYMBOL =
   /\b(?:NYSE|NASDAQ|TSE|TYO|LSE|HKG|SEHK|SGX|ASX|TSX|TSXV|KRX|SIX|FRA|ETR|BSE|NSE|SHA|SHE|SZSE|SSE):\s?[A-Za-z0-9]/i;
 
-/** Finance / ticker aggregator domains that only publish public-equity data. */
+/**
+ * Finance / ticker aggregator domains that publish *only* public-equity data, so
+ * their presence on a private company's feed is definitively wrong-entity noise.
+ * Deliberately excludes finance.yahoo.* and investing.com — those are broad
+ * publishers that also carry legitimate private-company funding coverage, so
+ * blocking them wholesale would purge real rows.
+ */
 const FINANCE_DOMAIN =
-  /\b(?:tradingview\.com|finance\.yahoo\.|marketscreener\.com|stockanalysis\.com|investing\.com|wallmine\.com)\b/i;
+  /\b(?:tradingview\.com|marketscreener\.com|stockanalysis\.com|wallmine\.com)\b/i;
+
+/**
+ * True when an exchange ticker (e.g. "NYSE:MOOV") sits *adjacent* to the tracked
+ * company's own name — "Moove Corp (NYSE:MOOV)" — rather than merely mentioning a
+ * third party's ticker in passing ("Acme acquired by Salesforce (NYSE:CRM)").
+ * Only a name-adjacent ticker marks the item as belonging to the wrong (public)
+ * entity; an incidental peer ticker must not block a legitimate item.
+ */
+function exchangeTickerNearName(text: string, companyName: string): boolean {
+  const token = companyName.trim().split(/\s+/)[0]?.toLowerCase();
+  if (!token) return false;
+  const lower = text.toLowerCase();
+  // Only corporate-suffix / punctuation "connector" tokens may sit between the
+  // company name and its ticker; any real word (e.g. "acquired by") breaks it.
+  const gap =
+    /^[\s,.\-()]*(?:(?:inc|incorporated|corp|corporation|company|co|holdings|group|ltd|limited|plc|ag|sa|nv|the)[\s,.\-()]*)*$/;
+  for (const m of text.matchAll(new RegExp(EXCHANGE_SYMBOL.source, "gi"))) {
+    const idx = m.index ?? 0;
+    const tIdx = lower.lastIndexOf(token, idx);
+    if (tIdx === -1) continue;
+    if (gap.test(lower.slice(tIdx + token.length, idx))) return true;
+  }
+  return false;
+}
 
 /**
  * Which country an exchange prefix implies — used to catch an event that asserts
@@ -81,11 +111,18 @@ export interface BlockResult {
  * Decide whether a text signal belongs to the wrong entity for `companyName`.
  * Applies named collision rules first, then generic public-equity noise for
  * companies known to be private.
+ *
+ * `scope` controls how aggressive the generic public-equity gate is:
+ * - `"ingest"` (default): the write-time filter — also blocks name-adjacent
+ *   exchange tickers and finance-aggregator domains.
+ * - `"purge"`: the destructive DB-cleanup filter — restricted to named collision
+ *   rules + the narrow STOCK_SIGNAL gate only, so a broad ticker/finance match
+ *   can never DELETE a legitimate already-ingested row.
  */
 export function wrongEntitySignal(
   companyName: string,
   text: string,
-  opts: { isPrivate?: boolean } = {},
+  opts: { isPrivate?: boolean; scope?: "ingest" | "purge" } = {},
 ): BlockResult {
   const name = companyName.trim().toLowerCase();
   for (const r of COLLISION_RULES) {
@@ -93,13 +130,18 @@ export function wrongEntitySignal(
       return { blocked: true, reason: r.reason };
     }
   }
-  // A private company should never carry live stock-quote signals, exchange
-  // tickers, or finance-aggregator (public-equity) sources.
+  if (opts.isPrivate === false) return { blocked: false };
+  const scope = opts.scope ?? "ingest";
+  // Narrow gate (both scopes): live stock-quote prose on a private company.
+  if (STOCK_SIGNAL.test(text)) {
+    return { blocked: true, reason: "Public-equity stock signal on a private company" };
+  }
+  // Broad gate (ingest only): a name-adjacent exchange ticker or a pure
+  // public-equity aggregator domain. Excluded from "purge" so the DELETE path
+  // can never remove a legitimate row over an incidental match.
   if (
-    opts.isPrivate !== false &&
-    (STOCK_SIGNAL.test(text) ||
-      EXCHANGE_SYMBOL.test(text) ||
-      FINANCE_DOMAIN.test(text))
+    scope === "ingest" &&
+    (exchangeTickerNearName(text, companyName) || FINANCE_DOMAIN.test(text))
   ) {
     return { blocked: true, reason: "Public-equity stock signal on a private company" };
   }
@@ -232,7 +274,11 @@ export async function purgeWrongEntitySignals(
     .select("id, title, detail, url")
     .eq("company_id", company.id);
   const eventIds = (events ?? [])
-    .filter((e) => wrongEntitySignal(company.name, signalText(e)).blocked)
+    .filter(
+      (e) =>
+        wrongEntitySignal(company.name, signalText(e), { scope: "purge" })
+          .blocked,
+    )
     .map((e) => e.id);
   if (eventIds.length) {
     await supabase.from("company_events").delete().in("id", eventIds);
@@ -244,7 +290,11 @@ export async function purgeWrongEntitySignals(
     .select("id, title, summary, url")
     .eq("company_id", company.id);
   const newsIds = (news ?? [])
-    .filter((n) => wrongEntitySignal(company.name, signalText(n)).blocked)
+    .filter(
+      (n) =>
+        wrongEntitySignal(company.name, signalText(n), { scope: "purge" })
+          .blocked,
+    )
     .map((n) => n.id);
   if (newsIds.length) {
     await supabase.from("news").delete().in("id", newsIds);
