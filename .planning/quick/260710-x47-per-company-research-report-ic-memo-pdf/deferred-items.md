@@ -1,0 +1,3 @@
+# Deferred items — 260710-x47
+
+- **Pre-existing eslint errors in `scripts/market-sync.ts:27` and `scripts/sync-company.ts:48`**: `Definition for rule '@typescript-eslint/no-explicit-any' was not found` when running `npx eslint .` from the repo root. Present on `main` before this task (verified in the main checkout); the project's canonical `npm run lint` (`next lint`) is green. Root cause: `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments reference a plugin rule that isn't registered in `.eslintrc.json` (which extends only `next/core-web-vitals`). Out of scope for this task — fix by removing/adjusting the disable comments or registering the plugin.

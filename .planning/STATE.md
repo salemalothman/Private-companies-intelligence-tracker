@@ -114,6 +114,7 @@ None yet.
 | fast | Gate OpenNext dev init (fix broken next dev) | 2026-07-10 | 83b84bb | (inline) |
 | fast | Fix KPI count-up freezing at ~25% of real values | 2026-07-10 | 7fea4f1 | (inline) |
 | 260710-i69 | Apply deep-review fixes (Critical purge data-loss → Low nits; 27 findings) | 2026-07-10 | bfbc33e | [260710-i69-apply-deep-review-fixes-purge-data-loss-](./quick/260710-i69-apply-deep-review-fixes-purge-data-loss-/) |
+| 260710-x47 | Per-company research report (IC-memo PDF) in Reports section: pdf-kit extraction, render model + tests, PDF builder/upload, picker UI | 2026-07-10 | 85609d6 | [260710-x47-per-company-research-report-ic-memo-pdf](./quick/260710-x47-per-company-research-report-ic-memo-pdf/) |
 
 ## Deferred Items
 
