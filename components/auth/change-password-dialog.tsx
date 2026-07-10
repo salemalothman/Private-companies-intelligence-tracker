@@ -42,7 +42,9 @@ export function ChangePasswordDialog() {
 
         <UpdatePasswordForm
           submitLabel="Update password"
-          onSuccess={() => setOpen(false)}
+          // Keep the dialog open briefly so the "Password updated." confirmation
+          // is seen/announced before it auto-closes.
+          onSuccess={() => window.setTimeout(() => setOpen(false), 1500)}
         />
       </DialogContent>
     </Dialog>

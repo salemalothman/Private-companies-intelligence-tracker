@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendApprovalRequest } from "@/lib/email/approval";
 import { siteUrl } from "@/lib/site-url";
 import { requestOrigin } from "@/lib/request-origin";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 
 export interface AuthResult {
   error?: string;
@@ -42,8 +43,10 @@ export async function signup(
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "");
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    };
   }
 
   const supabase = await createClient();
@@ -151,8 +154,10 @@ export async function updatePassword(
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    };
   }
   if (password !== confirm) {
     return { error: "Passwords do not match." };
