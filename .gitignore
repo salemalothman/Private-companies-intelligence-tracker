@@ -38,3 +38,10 @@ yarn-error.log*
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# cloudflare / opennext
+# .dev.vars holds real workerd/preview runtime secrets — never commit it.
+# .dev.vars.example (placeholders) stays tracked since the pattern below is exact.
+.dev.vars
+.open-next/
+cloudflare-env.d.ts

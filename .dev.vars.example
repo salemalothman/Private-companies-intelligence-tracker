@@ -1,0 +1,23 @@
+# Cloudflare / OpenNext local runtime secrets template.
+# Used by `opennextjs-cloudflare preview` (workerd) — the Cloudflare equivalent of
+# .env.local. Copy this file to `.dev.vars` and fill in real values. `.dev.vars` is
+# gitignored; only this .example (placeholders) is committed. Mirrors .env.local.example.
+
+# Supabase — copy to .dev.vars and fill in from your Supabase project settings
+# Project Settings -> API
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-publishable-key
+
+# Service-role key — server-only, used by the seed script. NEVER expose to the client.
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Reserved for later phases (P5/P6 AI layer)
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+
+# xAI — enables the Grok-powered X/Twitter ingestion connector (lib/connectors/grok.ts)
+# XAI_API_KEY=
+
+# SEC EDGAR — keyless; enables the Form D connector (lib/connectors/sec-edgar.ts).
+# SEC requires a contact User-Agent, e.g. "Your Name your-email@domain.com".
+# SEC_USER_AGENT=
