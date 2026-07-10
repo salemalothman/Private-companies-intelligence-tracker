@@ -1,5 +1,5 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CompanyWithRelations, Database } from "@/lib/types";
 import {
@@ -7,48 +7,13 @@ import {
   currentValue,
   portfolioSummary,
 } from "@/lib/metrics";
+import { drawLogo, GREEN, INK, MUTED, RED, TEAL } from "@/lib/reports/pdf-kit";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 import { sendDigestEmail } from "@/lib/email/digest-email";
 
 type DB = SupabaseClient<Database>;
 
-const TEAL = rgb(0.36, 0.62, 0.68);
-const INK = rgb(0.12, 0.18, 0.24);
-const MUTED = rgb(0.45, 0.5, 0.55);
-const GREEN = rgb(0.13, 0.55, 0.33);
-const RED = rgb(0.79, 0.16, 0.16);
 const REPORT_BUCKET = "reports";
-
-/** Draw the brand mark (network graph in nodes) at (ox, oy-top) in a `box`pt square. */
-function drawLogo(page: PDFPage, ox: number, oyTop: number, box: number) {
-  const s = box / 48;
-  const X = (vx: number) => ox + vx * s;
-  const Y = (vy: number) => oyTop - vy * s; // flip viewBox y-down to PDF y-up
-  const nodes: [number, number, number][] = [
-    [12, 33, 2.8],
-    [20, 24, 2.8],
-    [16, 15, 2.8],
-    [31, 11, 3.2],
-    [34, 20, 2.8],
-  ];
-  const lines: [number, number, number, number][] = [
-    [12, 33, 20, 24],
-    [20, 24, 16, 15],
-    [16, 15, 31, 11],
-    [20, 24, 34, 20],
-  ];
-  for (const [x1, y1, x2, y2] of lines) {
-    page.drawLine({
-      start: { x: X(x1), y: Y(y1) },
-      end: { x: X(x2), y: Y(y2) },
-      thickness: 1.6,
-      color: TEAL,
-    });
-  }
-  for (const [cx, cy, r] of nodes) {
-    page.drawCircle({ x: X(cx), y: Y(cy), size: r * s, color: TEAL });
-  }
-}
 
 export interface DigestActivity {
   company: string | null;

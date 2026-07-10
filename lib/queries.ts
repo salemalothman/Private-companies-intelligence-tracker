@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nameKey } from "@/lib/market-cache/parse";
+import { isStale } from "@/lib/analysis/staleness";
 import type {
   AlertPrefsRow,
   CompanyAnalysisRow,
@@ -77,12 +78,18 @@ export interface ReportFile {
   date: string;
   size: number;
   url: string;
+  /** Digest (portfolio-wide weekly) vs. memo (per-company IC memo). */
+  kind: "digest" | "memo";
+  /** Display label: "Portfolio digest" or the memo's company name. */
+  label: string;
 }
 
 /**
- * The current user's generated digests from the private `reports` bucket, with
- * short-lived signed download URLs. Listed via the admin client scoped to the
- * verified user's own folder (the bucket has no per-user storage policy).
+ * The current user's generated reports (digests + company memos) from the
+ * private `reports` bucket, with short-lived signed download URLs. Listed via
+ * the admin client scoped to the verified user's own folder (the bucket has
+ * no per-user storage policy). Kind is classified by filename suffix:
+ * `-memo.pdf` → memo, anything else keeps the original digest handling.
  */
 export async function listReports(): Promise<ReportFile[]> {
   const supabase = await createClient();
@@ -107,14 +114,81 @@ export async function listReports(): Promise<ReportFile[]> {
     const { data: signed } = await admin.storage
       .from("reports")
       .createSignedUrl(path, 3600);
+    const isMemo = f.name.endsWith("-memo.pdf");
     out.push({
       name: f.name,
-      date: f.name.replace(/-digest\.pdf$/, ""),
+      // Digest date derivation unchanged; memo names are {date}-{slug}-memo.pdf.
+      date: isMemo ? f.name.slice(0, 10) : f.name.replace(/-digest\.pdf$/, ""),
       size: (f.metadata as { size?: number } | null)?.size ?? 0,
       url: signed?.signedUrl ?? "",
+      kind: isMemo ? "memo" : "digest",
+      label: isMemo
+        ? f.name
+            .slice(11)
+            .replace(/-memo\.pdf$/, "")
+            .replace(/-/g, " ")
+        : "Portfolio digest",
     });
   }
   return out;
+}
+
+export interface CompanyAnalysisOption {
+  id: string;
+  name: string;
+  /** null when the company has no stored deep-dive analysis yet. */
+  analysisGeneratedAt: string | null;
+  /** True when underlying data changed after the stored analysis. */
+  stale: boolean;
+}
+
+/**
+ * The current user's companies left-joined to their deep-dive analysis, for
+ * the memo picker: companies without an analysis are rendered disabled, and
+ * ones whose valuations/competitors moved after `generated_at` get a stale
+ * badge (same staleness rule as the company page).
+ */
+export async function listCompaniesWithAnalysis(): Promise<
+  CompanyAnalysisOption[]
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("companies")
+    .select(
+      "id, name, company_analysis(generated_at), valuations(created_at), competitors(updated_at, created_at)",
+    )
+    .order("name", { ascending: true });
+  if (error) {
+    console.error("listCompaniesWithAnalysis:", error.message);
+    return [];
+  }
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    name: string;
+    company_analysis: { generated_at: string }[] | { generated_at: string } | null;
+    valuations: { created_at: string | null }[];
+    competitors: { updated_at: string | null; created_at: string | null }[];
+  }[];
+  return rows.map((r) => {
+    const analysis = Array.isArray(r.company_analysis)
+      ? r.company_analysis[0] ?? null
+      : r.company_analysis;
+    const latestDataChange = [
+      ...(r.valuations ?? []).map((v) => v.created_at),
+      ...(r.competitors ?? []).map((cp) => cp.updated_at ?? cp.created_at),
+    ]
+      .filter((d): d is string => Boolean(d))
+      .sort()
+      .at(-1);
+    return {
+      id: r.id,
+      name: r.name,
+      analysisGeneratedAt: analysis?.generated_at ?? null,
+      stale: analysis
+        ? isStale(analysis.generated_at, latestDataChange)
+        : false,
+    };
+  });
 }
 
 const COMPANY_WITH_RELATIONS =
