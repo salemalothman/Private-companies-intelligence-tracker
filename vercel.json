@@ -1,11 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
-    { "path": "/api/cron/market-sync", "schedule": "0 13 * * 1" },
-    { "path": "/api/cron/daily-refresh", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/news-sentiment", "schedule": "30 6 * * *" },
-    { "path": "/api/cron/exa-events", "schedule": "0 14 * * 1" },
-    { "path": "/api/cron/global-sync", "schedule": "0 4 * * 1" },
-    { "path": "/api/cron/weekly-digest", "schedule": "0 8 * * 1" }
-  ]
+  "crons": []
 }
