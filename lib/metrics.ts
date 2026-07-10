@@ -278,44 +278,6 @@ export function investedCapitalSeries(
   });
 }
 
-/**
- * Cumulative portfolio company count over time (by created_at date) — the
- * "Companies" sparkline. Real records only.
- */
-export function companyCountSeries(
-  companies: CompanyWithRelations[],
-): PortfolioValuePoint[] {
-  const dates = companies
-    .map((c) => c.created_at?.slice(0, 10))
-    .filter((d): d is string => Boolean(d))
-    .sort();
-  return dates.map((date, i) => ({ date, value: i + 1 }));
-}
-
-/**
- * Unrealized gain over time: the value series minus cumulative invested as-of
- * each date. Derived purely from the two real series above — no smoothing, no
- * invented points.
- */
-export function unrealizedGainSeries(
-  companies: CompanyWithRelations[],
-): PortfolioValuePoint[] {
-  const invested = investedCapitalSeries(companies);
-  const investedAsOf = (date: string): number => {
-    const t = new Date(date).getTime();
-    let last = 0;
-    for (const p of invested) {
-      if (new Date(p.date).getTime() <= t) last = p.value;
-      else break;
-    }
-    return last;
-  };
-  return portfolioValueSeries(companies).map((p) => ({
-    date: p.date,
-    value: p.value - investedAsOf(p.date),
-  }));
-}
-
 /** Build a UI row for the portfolio company table. */
 export interface CompanyTableRow {
   id: string;
