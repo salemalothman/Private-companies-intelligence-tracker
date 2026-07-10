@@ -29,7 +29,7 @@ export async function runExaEventsSync(
 ): Promise<ExaEventsSummary> {
   let q = supabase
     .from("companies")
-    .select("id, user_id, name, country, founded_year");
+    .select("id, user_id, name, country");
   if (opts.userId) q = q.eq("user_id", opts.userId);
   const { data: companies, error } = await q;
   if (error)
@@ -58,13 +58,13 @@ export async function runExaEventsSync(
       const rows = events
         // Screen each event against the wrong-entity / generic-report guard.
         // Tracked portfolio companies are private by default; a dropped event is
-        // skipped, and the guard's returned value replaces a fabricated figure.
+        // skipped entirely. The screen only decides keep-vs-drop — the event's
+        // own value is stored verbatim, never rewritten.
         .map((e) => {
           const screen = screenCompanyEvent(
             {
               name: c.name,
               country: c.country,
-              founded_year: c.founded_year,
               isPrivate: true,
             },
             {
@@ -83,7 +83,7 @@ export async function runExaEventsSync(
             title: e.title.slice(0, 300),
             detail: e.detail ?? null,
             event_date: e.eventDate ?? null,
-            value: screen.value,
+            value: e.value ?? null,
             source: "exa",
             url: e.url ?? null,
           };

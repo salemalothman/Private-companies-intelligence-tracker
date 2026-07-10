@@ -81,6 +81,19 @@ describe("wrongEntitySignal — purge scope must not delete legitimate rows", ()
       ).blocked,
     ).toBe(true);
   });
+
+  it("does not treat lowercase prose ('she:', 'sha:', 'big six:') as a ticker", () => {
+    // Case-sensitive EXCHANGE_SYMBOL: only real uppercase exchange codes with an
+    // uppercase/numeric symbol count — lowercase prose passes through.
+    expect(
+      wrongEntitySignal("Six Ventures", "Six raises funding, she said: big win")
+        .blocked,
+    ).toBe(false);
+    expect(
+      wrongEntitySignal("Sha Corp", "Sha announces new product; sha: lowercase")
+        .blocked,
+    ).toBe(false);
+  });
 });
 
 describe("isGenericMultiCompanyReport", () => {
@@ -105,10 +118,17 @@ describe("isGenericMultiCompanyReport", () => {
       isGenericMultiCompanyReport("Accrete Ai", "Accrete AI wins DoD contract"),
     ).toBe(false);
   });
+  it("normalizes the stored name's suffix so a first-token headline is kept", () => {
+    // "Moove Io" reduces to "Moove"; the headline names the company, so it is
+    // NOT a generic report even though it contains the "valuation" keyword.
+    expect(
+      isGenericMultiCompanyReport("Moove Io", "Moove hits $2B valuation"),
+    ).toBe(false);
+  });
 });
 
 describe("screenCompanyEvent", () => {
-  const accrete = { name: "Accrete Ai", country: "United States", founded_year: 2017 };
+  const accrete = { name: "Accrete Ai", country: "United States" };
 
   it("drops the live Accrete Inc. (TSE:4395) TradingView earnings event", () => {
     const r = screenCompanyEvent(accrete, {
@@ -119,7 +139,6 @@ describe("screenCompanyEvent", () => {
       value: null,
     });
     expect(r.drop).toBe(true);
-    expect(r.value).toBeNull();
     expect(r.reason).toBeTruthy();
   });
 
@@ -132,12 +151,11 @@ describe("screenCompanyEvent", () => {
       value: 852_000_000_000,
     });
     expect(r.drop).toBe(true);
-    expect(r.value).toBeNull();
   });
 
-  it("drops a foreign exchange-symbol title for a private company (no collision rule)", () => {
+  it("drops a name-adjacent foreign exchange-symbol title for a private company", () => {
     const r = screenCompanyEvent(
-      { name: "Moove Io", country: "United Kingdom", founded_year: 2020 },
+      { name: "Moove Io", country: "United Kingdom" },
       {
         type: "secondary",
         title: "Moove Corp (NYSE:MOOV) share price update",
@@ -147,12 +165,14 @@ describe("screenCompanyEvent", () => {
       },
     );
     expect(r.drop).toBe(true);
-    expect(r.value).toBeNull();
   });
 
-  it("drops a foreign exchange origin that contradicts the stored country", () => {
+  it("drops a name-adjacent foreign exchange ticker (public-equity gate, rule 1)", () => {
+    // "Ramp Holdings (TYO:7150)" — the ticker sits adjacent to the company name,
+    // so the wrong-entity gate (rule 1) catches it directly; no separate
+    // country-contradiction rule is needed.
     const r = screenCompanyEvent(
-      { name: "Ramp", country: "United States", founded_year: 2019 },
+      { name: "Ramp", country: "United States" },
       {
         type: "corporate",
         title: "Ramp Holdings (TYO:7150) files annual report in Japan",
@@ -164,7 +184,7 @@ describe("screenCompanyEvent", () => {
     expect(r.drop).toBe(true);
   });
 
-  it("passes a legitimate company-specific event with its value intact", () => {
+  it("passes a legitimate company-specific event", () => {
     const r = screenCompanyEvent(accrete, {
       type: "valuation",
       title: "Accrete AI valuation rises to $500M in Series C",
@@ -173,7 +193,6 @@ describe("screenCompanyEvent", () => {
       value: 500_000_000,
     });
     expect(r.drop).toBe(false);
-    expect(r.value).toBe(500_000_000);
   });
 
   it("still screens ticker signals when profile facts are absent", () => {
