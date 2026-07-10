@@ -1,3 +1,5 @@
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -16,3 +18,7 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+// Enables Cloudflare bindings (env, R2, etc.) during `next dev` when running the
+// OpenNext/Cloudflare deploy path. No-op for the Vercel/Node build path.
+initOpenNextCloudflareForDev();
