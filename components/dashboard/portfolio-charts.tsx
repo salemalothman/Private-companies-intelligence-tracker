@@ -90,8 +90,14 @@ function mergeSeries(
   });
 }
 
-/** Format an epoch-ms x value to a YYYY-MM month label. */
-const monthLabel = (ms: number) => new Date(ms).toISOString().slice(0, 7);
+/** Format an epoch-ms x value to a human "Jul 2026" month label (UTC, so the
+ * label matches the UTC-derived series dates regardless of viewer timezone). */
+const monthLabel = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 export function PortfolioCharts({
   valueSeries,
@@ -108,8 +114,19 @@ export function PortfolioCharts({
   const currentValue = valueSeries.at(-1)?.value ?? null;
   const totalInvested = investedSeries.at(-1)?.value ?? null;
   const allocationTotal = allocation.reduce((s, a) => s + a.value, 0);
-  // Radial rings read outside-in; cap at 5 sectors (the palette's width).
-  const rings = allocation.slice(0, 5);
+  // Radial rings read outside-in; cap at 5 (the palette's width). Beyond that,
+  // roll the tail into an honest "Other" slice so the rings still sum to the
+  // stated Total rather than silently dropping smaller sectors.
+  const rings: SectorSlice[] =
+    allocation.length > 5
+      ? [
+          ...allocation.slice(0, 4),
+          {
+            sector: "Other",
+            value: allocation.slice(4).reduce((s, a) => s + a.value, 0),
+          },
+        ]
+      : allocation;
 
   return (
     // Proportional 3-col grid, no orphan cells: the value curve is the hero
@@ -140,6 +157,13 @@ export function PortfolioCharts({
           </div>
         }
       >
+        <div
+          role="img"
+          aria-label={`Portfolio value over time. Current value ${formatCurrency(
+            currentValue,
+          )}, invested cost basis ${formatCurrency(totalInvested)}.`}
+          className="h-full w-full"
+        >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={merged} margin={{ left: 8, right: 8, top: 8 }}>
             {/* Brand-hued hero fill — id unique to this file (duplicate SVG ids
@@ -217,6 +241,7 @@ export function PortfolioCharts({
             />
           </AreaChart>
         </ResponsiveContainer>
+        </div>
       </ChartCard>
 
       <ChartCard
@@ -252,7 +277,13 @@ export function PortfolioCharts({
           </div>
         }
       >
-        <div className="h-full w-full">
+        <div
+          role="img"
+          aria-label={`Allocation by sector. Total ${formatCurrency(
+            allocationTotal,
+          )} across ${rings.length} ${rings.length === 1 ? "sector" : "sectors"}.`}
+          className="h-full w-full"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               data={rings}
@@ -291,6 +322,11 @@ export function PortfolioCharts({
         className="lg:col-span-3"
         height={220}
       >
+        <div
+          role="img"
+          aria-label="Top performing companies by valuation change since entry."
+          className="h-full w-full"
+        >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={performers}
@@ -332,6 +368,7 @@ export function PortfolioCharts({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </ChartCard>
     </div>
   );
