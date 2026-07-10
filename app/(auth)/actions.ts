@@ -49,11 +49,23 @@ export async function signup(
     };
   }
 
+  // The email-confirmation link redirects here after Supabase verifies it.
+  // Follow the serving host (allowlisted) so a user who signs up on the live
+  // deployment lands back on the live app — not on Supabase's Site URL, which
+  // may still be localhost and dead-ends the confirmation on their device.
+  // /dashboard is a safe target: middleware routes a confirmed-but-pending user
+  // to the "Awaiting approval" page.
+  const h = await headers();
+  const origin = requestOrigin(h) ?? (await siteUrl());
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${origin}/dashboard`,
+    },
   });
   if (error) return { error: error.message };
 
