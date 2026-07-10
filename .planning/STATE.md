@@ -109,6 +109,7 @@ None yet.
 | 260710-8rp | Cloudflare Workers deploy via OpenNext adapter: wrangler.jsonc, open-next.config.ts, preview/deploy scripts | 2026-07-10 | 2f6ffcc | [260710-8rp-cloudflare-workers-deploy-via-opennext-a](./quick/260710-8rp-cloudflare-workers-deploy-via-opennext-a/) |
 | 260710-c6c | Fix chart time axis, wrong-entity event guard, wrangler account_id | 2026-07-10 | 19eba3e | [260710-c6c-fix-chart-time-axis-wrong-entity-event-g](./quick/260710-c6c-fix-chart-time-axis-wrong-entity-event-g/) |
 | 260710-eoe | Cloudflare cron triggers via custom worker entry + auth links follow serving host | 2026-07-10 | f3af08e | [260710-eoe-cloudflare-cron-triggers-via-custom-work](./quick/260710-eoe-cloudflare-cron-triggers-via-custom-work/) |
+| fast | Consolidate CF cron triggers to 5 (free-plan limit) | 2026-07-10 | 3926ad2 | (inline) |
 
 ## Deferred Items
 
