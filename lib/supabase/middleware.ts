@@ -4,7 +4,15 @@ import type { Database } from "@/lib/types";
 
 // "/api" routes self-authenticate (cron bearer token, approval webhook token)
 // and must not be redirected to the login screen.
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth", "/api"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/auth",
+  "/api",
+];
 
 /** Refresh the Supabase session and gate the (app) routes behind auth. */
 export async function updateSession(request: NextRequest) {
@@ -55,6 +63,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
+    // Mid-recovery bypass: a user who just redeemed a recovery link holds a
+    // session but may not be an approved/active profile. Let them finish setting
+    // a password instead of trapping them on /pending. Scoped to this exact path
+    // and grants no data access — all app data stays RLS + /pending gated
+    // (T-pwd-04).
+    if (pathname === "/reset-password") return supabaseResponse;
+
     // Admin-gated onboarding: accounts stay blocked until approved. Read the
     // user's own profile status (RLS-scoped) and route accordingly.
     const { data: profile } = await supabase
