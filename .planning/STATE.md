@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-09 - Completed quick task 260709-t3h: dashboard stat-card sparkline removal + donut total relocation
+Last activity: 2026-07-10 - Completed quick task 260710-4d0: forgot/reset/change password flow
 
 Progress: [█████████░] 94%
 
@@ -105,6 +105,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260709-t3h | Dashboard: remove stat-card sparklines, keep numbers; move donut total out of circle | 2026-07-09 | 087cf3a | [260709-t3h-dashboard-remove-stat-card-sparklines-ke](./quick/260709-t3h-dashboard-remove-stat-card-sparklines-ke/) |
+| 260710-4d0 | Password flow: forgot-password page, recovery redemption route, reset-password page, in-app change password | 2026-07-10 | 939f706 | [260710-4d0-password-flow-forgot-password-page-recov](./quick/260710-4d0-password-flow-forgot-password-page-recov/) |
 
 ## Deferred Items
 
