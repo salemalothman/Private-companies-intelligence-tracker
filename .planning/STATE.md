@@ -112,6 +112,7 @@ None yet.
 | fast | Consolidate CF cron triggers to 5 (free-plan limit) | 2026-07-10 | 3926ad2 | (inline) |
 | fast | GitHub Actions CD pipeline + disable Vercel crons | 2026-07-10 | 0aa13cc | (inline) |
 | fast | Gate OpenNext dev init (fix broken next dev) | 2026-07-10 | 83b84bb | (inline) |
+| fast | Fix KPI count-up freezing at ~25% of real values | 2026-07-10 | 7fea4f1 | (inline) |
 
 ## Deferred Items
 
