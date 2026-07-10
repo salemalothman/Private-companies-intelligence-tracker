@@ -44,4 +44,5 @@ supabase/.temp/
 # .dev.vars.example (placeholders) stays tracked since the pattern below is exact.
 .dev.vars
 .open-next/
+.wrangler/
 cloudflare-env.d.ts
