@@ -19,6 +19,11 @@ const nextConfig = {
 
 export default nextConfig;
 
-// Enables Cloudflare bindings (env, R2, etc.) during `next dev` when running the
-// OpenNext/Cloudflare deploy path. No-op for the Vercel/Node build path.
-initOpenNextCloudflareForDev();
+// Enables Cloudflare bindings (env, R2, etc.) during `next dev` — opt-in only.
+// Unconditional init hijacks plain `next dev` middleware handling ("runMiddleware
+// should not be called with OpenNext") now that wrangler `main` is the custom
+// worker entry. Set NEXT_DEV_CLOUDFLARE=1 to develop against workerd bindings;
+// the production OpenNext build (`opennextjs-cloudflare build`) never needs this.
+if (process.env.NEXT_DEV_CLOUDFLARE === "1") {
+  initOpenNextCloudflareForDev();
+}
