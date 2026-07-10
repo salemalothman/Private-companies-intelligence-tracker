@@ -7,6 +7,7 @@ import type {
   Valuation,
 } from "@/lib/types";
 import type {
+  AnalysisSections,
   AnalysisValuation,
   OverviewSections,
 } from "@/lib/agents/deep-dive-types";
@@ -159,7 +160,7 @@ function analysis(p: Partial<CompanyAnalysisRow> = {}): CompanyAnalysisRow {
     user_id: "u",
     generated_at: "2026-07-01T00:00:00Z",
     model: "grok-4.3",
-    sections: FULL_SECTIONS,
+    sections: FULL_SECTIONS as AnalysisSections,
     valuation: FULL_VALUATION,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-01T00:00:00Z",
@@ -279,11 +280,20 @@ describe("moat bars", () => {
 
   it("drops out-of-range scores instead of fabricating a clamped value", () => {
     const sections: OverviewSections = {
-      strategic_moat: { switching_costs: 12, ip: 0.5 },
+      strategic_moat: { switching_costs: 12, network_flywheel: 0.5, ip: 9 },
     };
-    const m = buildCompanyReportModel(company(), analysis({ sections }), [], OPTS);
+    const m = buildCompanyReportModel(company(), analysis({ sections: sections as AnalysisSections }), [], OPTS);
     const moat = section(m.sections, "business_moat");
-    expect(moat.moatBars).toEqual([]);
+    // 12 and 0.5 are outside the honest 1–10 domain → dropped, never clamped.
+    expect(moat.moatBars).toEqual([{ label: "IP", score: 9, fraction: 0.9 }]);
+  });
+
+  it("omits the whole section when no moat data survives clamping", () => {
+    const sections: OverviewSections = {
+      strategic_moat: { switching_costs: 12, ip: 0 },
+    };
+    const m = buildCompanyReportModel(company(), analysis({ sections: sections as AnalysisSections }), [], OPTS);
+    expect(m.sections.some((s) => s.id === "business_moat")).toBe(false);
   });
 });
 
@@ -297,7 +307,7 @@ describe("valuation comps", () => {
     expect(comps.rows[0].year).toBe(2026);
     // 2026 base cell: 100M × (1.3)^0 × 10 = 1B
     expect(comps.rows[0].base).toBe(1_000_000_000);
-    expect(comps.cells[0].base).toBe("$1.0B");
+    expect(comps.cells[0].base).toBe("$1.00B");
   });
 
   it("propagates null base_revenue to — cells, never 0", () => {
@@ -337,7 +347,7 @@ describe("valuation comps", () => {
     );
     expect(comps.provenance.nPeers).toBe(6);
     expect(comps.provenance.nSecVerified).toBe(4);
-    expect(comps.provenance.baseRevenue).toBe("$100.0M");
+    expect(comps.provenance.baseRevenue).toBe("$100.00M");
     expect(comps.provenance.multiples).toEqual({
       p25: "5.0x",
       median: "10.0x",
@@ -360,7 +370,7 @@ describe("IC badge mapping", () => {
       const sections: OverviewSections = {
         ic_conclusion: { rating: rating as "buy" },
       };
-      const m = buildCompanyReportModel(company(), analysis({ sections }), [], OPTS);
+      const m = buildCompanyReportModel(company(), analysis({ sections: sections as AnalysisSections }), [], OPTS);
       const ic = section(m.sections, "ic_conclusion");
       expect(ic.badge).toEqual({ rating, label, color });
     });
@@ -372,7 +382,7 @@ describe("IC badge mapping", () => {
         recommendation: { text: "Hold.", basis: "estimate", confidence: "med" },
       },
     };
-    const m = buildCompanyReportModel(company(), analysis({ sections }), [], OPTS);
+    const m = buildCompanyReportModel(company(), analysis({ sections: sections as AnalysisSections }), [], OPTS);
     expect(section(m.sections, "ic_conclusion").badge).toBeNull();
   });
 });
@@ -408,8 +418,8 @@ describe("model metadata", () => {
     });
     const m = buildCompanyReportModel(c, analysis(), [], OPTS);
     const values = Object.fromEntries(m.snapshot.map((s) => [s.label, s.value]));
-    expect(values["Invested"]).toBe("$5.0M");
-    expect(values["Est. value"]).toBe("$20.0M");
+    expect(values["Invested"]).toBe("$5.00M");
+    expect(values["Est. value"]).toBe("$20.00M");
   });
 
   it("uses the company name and slug in the model header fields", () => {
