@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import { exaCompanyEventsFor } from "@/lib/connectors/exa";
+import { screenCompanyEvent } from "@/lib/enrichment/disambiguation";
 
 type DB = SupabaseClient<Database>;
 
@@ -26,7 +27,9 @@ export async function runExaEventsSync(
   supabase: DB,
   opts: { userId?: string } = {},
 ): Promise<ExaEventsSummary> {
-  let q = supabase.from("companies").select("id, user_id, name");
+  let q = supabase
+    .from("companies")
+    .select("id, user_id, name, country, founded_year");
   if (opts.userId) q = q.eq("user_id", opts.userId);
   const { data: companies, error } = await q;
   if (error)
@@ -53,18 +56,43 @@ export async function runExaEventsSync(
       );
 
       const rows = events
-        .map((e) => ({
-          company_id: c.id,
-          user_id: c.user_id,
-          type: e.type,
-          title: e.title.slice(0, 300),
-          detail: e.detail ?? null,
-          event_date: e.eventDate ?? null,
-          value: e.value ?? null,
-          source: "exa",
-          url: e.url ?? null,
-        }))
-        .filter((r) => !seen.has(`${r.type}|${r.title}|${r.event_date ?? ""}`));
+        // Screen each event against the wrong-entity / generic-report guard.
+        // Tracked portfolio companies are private by default; a dropped event is
+        // skipped, and the guard's returned value replaces a fabricated figure.
+        .map((e) => {
+          const screen = screenCompanyEvent(
+            {
+              name: c.name,
+              country: c.country,
+              founded_year: c.founded_year,
+              isPrivate: true,
+            },
+            {
+              type: e.type,
+              title: e.title,
+              detail: e.detail ?? null,
+              url: e.url ?? null,
+              value: e.value ?? null,
+            },
+          );
+          if (screen.drop) return null;
+          return {
+            company_id: c.id,
+            user_id: c.user_id,
+            type: e.type,
+            title: e.title.slice(0, 300),
+            detail: e.detail ?? null,
+            event_date: e.eventDate ?? null,
+            value: screen.value,
+            source: "exa",
+            url: e.url ?? null,
+          };
+        })
+        .filter(
+          (r): r is NonNullable<typeof r> =>
+            r !== null &&
+            !seen.has(`${r.type}|${r.title}|${r.event_date ?? ""}`),
+        );
       if (!rows.length) continue;
 
       const { error: insErr } = await supabase.from("company_events").insert(rows);

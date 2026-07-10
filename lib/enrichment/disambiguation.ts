@@ -40,6 +40,38 @@ export const COLLISION_RULES: CollisionRule[] = [
 const STOCK_SIGNAL =
   /\b(yahoo finance|stock (price|quote|alert|movement)|share price|ticker|\d{4}\.T\b|TYO:|TSE:|closing price|day's range|market cap of|trading at .* per share on (the )?(tokyo|nasdaq|nyse))\b/i;
 
+/**
+ * Exchange-symbol title patterns (e.g. "NYSE:MOOV", "TSE:4395"). A private
+ * company should never carry an exchange ticker; these siblings extend the
+ * generic public-equity gate beyond the Tokyo-specific cases in STOCK_SIGNAL.
+ */
+const EXCHANGE_SYMBOL =
+  /\b(?:NYSE|NASDAQ|TSE|TYO|LSE|HKG|SEHK|SGX|ASX|TSX|TSXV|KRX|SIX|FRA|ETR|BSE|NSE|SHA|SHE|SZSE|SSE):\s?[A-Za-z0-9]/i;
+
+/** Finance / ticker aggregator domains that only publish public-equity data. */
+const FINANCE_DOMAIN =
+  /\b(?:tradingview\.com|finance\.yahoo\.|marketscreener\.com|stockanalysis\.com|investing\.com|wallmine\.com)\b/i;
+
+/**
+ * Which country an exchange prefix implies — used to catch an event that asserts
+ * a foreign listing contradicting a company's stored HQ country. Conservative:
+ * only exchanges with an unambiguous single home country are mapped.
+ */
+const EXCHANGE_COUNTRY: Record<string, string> = {
+  TSE: "japan",
+  TYO: "japan",
+  LSE: "united kingdom",
+  HKG: "hong kong",
+  SEHK: "hong kong",
+  SGX: "singapore",
+  ASX: "australia",
+  TSX: "canada",
+  TSXV: "canada",
+  KRX: "south korea",
+  BSE: "india",
+  NSE: "india",
+};
+
 export interface BlockResult {
   blocked: boolean;
   reason?: string;
@@ -61,11 +93,115 @@ export function wrongEntitySignal(
       return { blocked: true, reason: r.reason };
     }
   }
-  // A private company should never carry live stock-quote signals.
-  if (opts.isPrivate !== false && STOCK_SIGNAL.test(text)) {
+  // A private company should never carry live stock-quote signals, exchange
+  // tickers, or finance-aggregator (public-equity) sources.
+  if (
+    opts.isPrivate !== false &&
+    (STOCK_SIGNAL.test(text) ||
+      EXCHANGE_SYMBOL.test(text) ||
+      FINANCE_DOMAIN.test(text))
+  ) {
     return { blocked: true, reason: "Public-equity stock signal on a private company" };
   }
   return { blocked: false };
+}
+
+/** Report-ish phrasing that marks a title as a multi-company sector piece. */
+const REPORT_KEYWORDS =
+  /\b(valuations?|sector|market map|landscape|state of|top \d+|ranking|q[1-4]\s?20\d{2})\b/i;
+
+/**
+ * True when a title reads like a generic multi-company report (sector map, "AI
+ * Valuations: Q2 2026", "Top 50 …") rather than a specific event for the tracked
+ * company — i.e. the tracked name is absent AND report keywords are present.
+ * Observational only; no scoring.
+ */
+export function isGenericMultiCompanyReport(
+  companyName: string,
+  title: string,
+  detail?: string | null,
+): boolean {
+  const name = companyName.trim().toLowerCase();
+  const nameInTitle = !!name && title.toLowerCase().includes(name);
+  if (nameInTitle) return false;
+  return REPORT_KEYWORDS.test([title, detail].filter(Boolean).join(" "));
+}
+
+export interface CompanyEventContext {
+  name: string;
+  country?: string | null;
+  founded_year?: number | null;
+  /** Portfolio companies are private by default; pass false for a public marker. */
+  isPrivate?: boolean;
+}
+
+export interface ScreenableEvent {
+  type: "corporate" | "valuation" | "secondary";
+  title: string;
+  detail?: string | null;
+  url?: string | null;
+  value?: number | null;
+}
+
+export interface EventScreenResult {
+  drop: boolean;
+  value: number | null;
+  reason?: string;
+}
+
+/**
+ * Screen one Exa-sourced event before it is stored on a private company's
+ * timeline. Drops wrong-entity hits (foreign exchange tickers / finance domains),
+ * foreign-listing claims that contradict a stored HQ country, and generic
+ * multi-company valuation reports (a figure-less-for-this-company number is
+ * noise). Pure + observational — mirrors `wrongEntitySignal`, no LLM, no scoring.
+ */
+export function screenCompanyEvent(
+  company: CompanyEventContext,
+  event: ScreenableEvent,
+): EventScreenResult {
+  const text = signalText(event);
+
+  // 1. Wrong entity: named collisions + generic public-equity noise.
+  const wrong = wrongEntitySignal(company.name, text, {
+    isPrivate: company.isPrivate,
+  });
+  if (wrong.blocked) return { drop: true, value: null, reason: wrong.reason };
+
+  // 2. Profile contradiction: a stated foreign exchange whose home country
+  //    differs from the company's stored country. Conservative — only fires when
+  //    the country fact is present and the exchange maps to one country.
+  if (company.country) {
+    const country = company.country.trim().toLowerCase();
+    const m = text.match(EXCHANGE_SYMBOL);
+    if (m) {
+      const prefix = m[0].split(":")[0].toUpperCase();
+      const exCountry = EXCHANGE_COUNTRY[prefix];
+      if (exCountry && exCountry !== country) {
+        return {
+          drop: true,
+          value: null,
+          reason: `Foreign ${prefix} listing contradicts stored country ${company.country}`,
+        };
+      }
+    }
+  }
+
+  // 3. Generic multi-company valuation report: a valuation event that names the
+  //    sector, not the company — storing its figure would fabricate a per-company
+  //    valuation, so drop it entirely.
+  if (
+    event.type === "valuation" &&
+    isGenericMultiCompanyReport(company.name, event.title, event.detail)
+  ) {
+    return {
+      drop: true,
+      value: null,
+      reason: "Generic multi-company sector report, not a per-company valuation",
+    };
+  }
+
+  return { drop: false, value: event.value ?? null };
 }
 
 const signalText = (r: {

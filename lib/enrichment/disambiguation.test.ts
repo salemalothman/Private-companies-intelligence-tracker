@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { wrongEntitySignal } from "@/lib/enrichment/disambiguation";
+import {
+  isGenericMultiCompanyReport,
+  screenCompanyEvent,
+  wrongEntitySignal,
+} from "@/lib/enrichment/disambiguation";
 
 describe("wrongEntitySignal — Accrete AI vs Accrete Inc (TYO:4395)", () => {
   it("blocks the Japanese public ticker collision", () => {
@@ -20,5 +24,113 @@ describe("wrongEntitySignal — Accrete AI vs Accrete Inc (TYO:4395)", () => {
   });
   it("flags generic public-equity noise on any private company", () => {
     expect(wrongEntitySignal("moove io", "Moove stock price ticker on NASDAQ trading at $40 per share on the nasdaq").blocked).toBe(true);
+  });
+});
+
+describe("isGenericMultiCompanyReport", () => {
+  it("is true for a sector report that omits the tracked company name", () => {
+    expect(
+      isGenericMultiCompanyReport("Accrete Ai", "AI Valuations: Q2 2026"),
+    ).toBe(true);
+    expect(
+      isGenericMultiCompanyReport("Accrete Ai", "The state of the AI market map"),
+    ).toBe(true);
+    expect(
+      isGenericMultiCompanyReport("Accrete Ai", "Top 50 AI startups ranking"),
+    ).toBe(true);
+  });
+  it("is false when the title references the tracked company", () => {
+    expect(
+      isGenericMultiCompanyReport("Accrete Ai", "Accrete AI valuation reaches $500M"),
+    ).toBe(false);
+  });
+  it("is false for a plain company-specific headline", () => {
+    expect(
+      isGenericMultiCompanyReport("Accrete Ai", "Accrete AI wins DoD contract"),
+    ).toBe(false);
+  });
+});
+
+describe("screenCompanyEvent", () => {
+  const accrete = { name: "Accrete Ai", country: "United States", founded_year: 2017 };
+
+  it("drops the live Accrete Inc. (TSE:4395) TradingView earnings event", () => {
+    const r = screenCompanyEvent(accrete, {
+      type: "corporate",
+      title: "Accrete, Inc. (TSE:4395) Q3 earnings date",
+      detail: "Earnings scheduled for the Tokyo-listed entity",
+      url: "https://www.tradingview.com/symbols/TSE-4395/",
+      value: null,
+    });
+    expect(r.drop).toBe(true);
+    expect(r.value).toBeNull();
+    expect(r.reason).toBeTruthy();
+  });
+
+  it("drops the live windsordrake 'AI Valuations: Q2 2026' report with a $852B value", () => {
+    const r = screenCompanyEvent(accrete, {
+      type: "valuation",
+      title: "AI Valuations: Q2 2026",
+      detail: "Sector-wide multiples across the AI landscape",
+      url: "https://windsordrake.com/ai-valuations-q2-2026",
+      value: 852_000_000_000,
+    });
+    expect(r.drop).toBe(true);
+    expect(r.value).toBeNull();
+  });
+
+  it("drops a foreign exchange-symbol title for a private company (no collision rule)", () => {
+    const r = screenCompanyEvent(
+      { name: "Moove Io", country: "United Kingdom", founded_year: 2020 },
+      {
+        type: "secondary",
+        title: "Moove Corp (NYSE:MOOV) share price update",
+        detail: null,
+        url: "https://finance.yahoo.com/quote/MOOV",
+        value: 42,
+      },
+    );
+    expect(r.drop).toBe(true);
+    expect(r.value).toBeNull();
+  });
+
+  it("drops a foreign exchange origin that contradicts the stored country", () => {
+    const r = screenCompanyEvent(
+      { name: "Ramp", country: "United States", founded_year: 2019 },
+      {
+        type: "corporate",
+        title: "Ramp Holdings (TYO:7150) files annual report in Japan",
+        detail: null,
+        url: null,
+        value: null,
+      },
+    );
+    expect(r.drop).toBe(true);
+  });
+
+  it("passes a legitimate company-specific event with its value intact", () => {
+    const r = screenCompanyEvent(accrete, {
+      type: "valuation",
+      title: "Accrete AI valuation rises to $500M in Series C",
+      detail: "Priced round led by enterprise investors",
+      url: "https://techcrunch.com/accrete-ai-series-c",
+      value: 500_000_000,
+    });
+    expect(r.drop).toBe(false);
+    expect(r.value).toBe(500_000_000);
+  });
+
+  it("still screens ticker signals when profile facts are absent", () => {
+    const r = screenCompanyEvent(
+      { name: "Accrete Ai" },
+      {
+        type: "secondary",
+        title: "Accrete Inc. 4395.T closing price on Tokyo Stock Exchange",
+        detail: null,
+        url: null,
+        value: 10,
+      },
+    );
+    expect(r.drop).toBe(true);
   });
 });
