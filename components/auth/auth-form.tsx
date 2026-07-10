@@ -25,7 +25,14 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export function AuthForm({
+  mode,
+  recoveryError,
+}: {
+  mode: "login" | "signup";
+  /** A recovery-flow message (invalid/expired reset link) from the login URL. */
+  recoveryError?: string;
+}) {
   const action = mode === "login" ? login : signup;
   const [state, formAction] = useActionState<AuthResult | undefined, FormData>(
     action,
@@ -33,6 +40,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   );
 
   const isSignup = mode === "signup";
+  // A submit error supersedes the initial recovery message; only the recovery
+  // case offers the "request a new link" affordance.
+  const shownError = state?.error ?? recoveryError;
+  const showResetLink = !state?.error && !!recoveryError;
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background p-4 sm:p-6">
@@ -93,10 +104,21 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               </div>
             )}
 
-            {state?.error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {state.error}
-              </p>
+            {shownError && (
+              <div
+                role="alert"
+                className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                <p>{shownError}</p>
+                {showResetLink && (
+                  <Link
+                    href="/forgot-password"
+                    className="mt-1 inline-block font-medium underline"
+                  >
+                    Request a new reset link
+                  </Link>
+                )}
+              </div>
             )}
 
             <SubmitButton label={isSignup ? "Create account" : "Sign in"} />
