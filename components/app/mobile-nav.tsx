@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { Logo } from "@/components/app/logo";
+import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -20,7 +21,7 @@ const NAV = [
   { href: "/reports", label: "Reports", icon: FileText },
 ];
 
-/** Sticky top bar for mobile — brand + sign out. Hidden on desktop. */
+/** Sticky top bar for mobile — brand + account actions. Hidden on desktop. */
 export function MobileTopBar() {
   return (
     <header className="pt-safe sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur md:hidden">
@@ -29,15 +30,20 @@ export function MobileTopBar() {
           <Logo className="h-6 w-6 shrink-0" />
           <span className="text-sm font-semibold">Automation Investment</span>
         </Link>
-        <form action={signOut}>
-          <button
-            type="submit"
-            aria-label="Sign out"
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground active:bg-accent"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
-        </form>
+        <div className="flex items-center gap-1">
+          {/* Password rotation for the signed-in user — parity with the desktop
+              sidebar, which mobile has no room for. */}
+          <ChangePasswordDialog />
+          <form action={signOut}>
+            <button
+              type="submit"
+              aria-label="Sign out"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground active:bg-accent"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );

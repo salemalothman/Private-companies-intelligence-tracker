@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendApprovalRequest } from "@/lib/email/approval";
 import { siteUrl } from "@/lib/site-url";
 import { requestOrigin } from "@/lib/request-origin";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 
 export interface AuthResult {
   error?: string;
@@ -42,8 +43,10 @@ export async function signup(
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "");
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    };
   }
 
   const supabase = await createClient();
@@ -109,12 +112,14 @@ export async function signOut() {
  * Request a password-reset email. Deliberately neutral: we ignore the Supabase
  * result (success, error, or unknown email) and ALWAYS return { sent: true } so
  * account existence can never be probed via this endpoint (T-pwd-01). The
- * redirectTo now FOLLOWS the serving host (via requestOrigin) so reset links
- * from the Cloudflare deployment point at workers.dev, Vercel keeps its host,
- * and localhost keeps localhost — falling back to siteUrl() only when no host
- * header exists. It is still server-derived, never user input, closing the
- * open-redirect vector (T-pwd-02 / T-eoe-03); Supabase Auth additionally only
- * honors redirectTo values on its Redirect URLs allowlist.
+ * redirectTo FOLLOWS the serving host (via requestOrigin) so reset links from
+ * the Cloudflare deployment point at workers.dev, Vercel keeps its host, and
+ * localhost keeps localhost — but ONLY when the forwarded host is on
+ * requestOrigin's trusted allowlist (localhost / *.workers.dev / *.vercel.app);
+ * any other (attacker-influenced) host falls back to the canonical siteUrl().
+ * This closes the Host-header open-redirect vector (T-pwd-02 / T-eoe-03);
+ * Supabase Auth additionally only honors redirectTo values on its Redirect URLs
+ * allowlist.
  */
 export async function requestPasswordReset(
   _prev: AuthResult | undefined,
@@ -149,8 +154,10 @@ export async function updatePassword(
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    };
   }
   if (password !== confirm) {
     return { error: "Passwords do not match." };

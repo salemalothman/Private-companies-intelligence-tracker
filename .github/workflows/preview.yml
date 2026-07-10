@@ -19,20 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # Install + gates + OpenNext build (shared composite action).
+      - uses: ./.github/actions/build-and-test
         with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npm run lint
-      - run: npm run test
-
-      - run: npx opennextjs-cloudflare build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase-anon-key: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Upload preview version
         id: preview
@@ -42,12 +33,29 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: versions upload
 
+      # Derive the worker name from wrangler.jsonc so the URL pattern never drifts
+      # from the deployed worker.
+      - name: Read worker name
+        id: wrangler
+        run: |
+          NAME=$(node -e "const fs=require('fs');const raw=fs.readFileSync('wrangler.jsonc','utf8').replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/.*\$/gm,'\$1');console.log(JSON.parse(raw).name)")
+          if [ -z "$NAME" ]; then
+            echo "::error::Could not read worker name from wrangler.jsonc"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Extract preview URL
         id: url
         env:
           CMD_OUTPUT: ${{ steps.preview.outputs.command-output }}
+          WORKER_NAME: ${{ steps.wrangler.outputs.name }}
         run: |
-          URL=$(echo "$CMD_OUTPUT" | grep -o 'https://[a-z0-9-]*-private-companies-tracker[^ ]*\.workers\.dev' | head -1)
+          URL=$(echo "$CMD_OUTPUT" | grep -oE "https://[a-z0-9-]*-${WORKER_NAME}[^ ]*\.workers\.dev" | head -1)
+          if [ -z "$URL" ]; then
+            echo "::error::Could not extract a preview URL for worker '${WORKER_NAME}' from the wrangler output."
+            exit 1
+          fi
           echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL on the PR

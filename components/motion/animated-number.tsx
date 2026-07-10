@@ -75,12 +75,20 @@ export function AnimatedNumber({
   }, [inView, reduced, value]);
 
   return (
-    <span
-      ref={ref}
-      className={cn("inline-block tabular-nums", className)}
-      style={{ minWidth: `${finalText.length}ch` }}
-    >
-      {finalText}
+    <span className={cn("tabular-nums", className)}>
+      {/* The counting figure is decorative-while-animating and would otherwise
+          make a screen reader announce a stream of intermediate (untrue)
+          numbers, so it is aria-hidden. */}
+      <span
+        ref={ref}
+        aria-hidden="true"
+        className="inline-block"
+        style={{ minWidth: `${finalText.length}ch` }}
+      >
+        {finalText}
+      </span>
+      {/* The single source of truth for assistive tech — always the final value. */}
+      <span className="sr-only">{finalText}</span>
     </span>
   );
 }

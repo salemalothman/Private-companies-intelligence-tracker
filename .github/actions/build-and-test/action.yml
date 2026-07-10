@@ -1,0 +1,42 @@
+name: Build and test
+description: >
+  Install dependencies, run the quality gates (tsc, worker tsc, lint, Vitest),
+  and produce the OpenNext Cloudflare bundle. Shared by the deploy and preview
+  workflows so the build chain stays defined in exactly one place. Assumes the
+  repository is already checked out.
+
+inputs:
+  supabase-url:
+    description: NEXT_PUBLIC_SUPABASE_URL used for the OpenNext build.
+    required: true
+  supabase-anon-key:
+    description: NEXT_PUBLIC_SUPABASE_ANON_KEY used for the OpenNext build.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+
+    - run: npm ci
+      shell: bash
+
+    # Quality gates — a failed gate blocks the calling workflow.
+    - run: npx tsc --noEmit
+      shell: bash
+    - run: npx tsc -p worker # typecheck the Workers entrypoint (excluded from root tsc)
+      shell: bash
+    - run: npm run lint
+      shell: bash
+    - run: npm run test
+      shell: bash
+
+    # OpenNext build (Next.js build + Workers bundling).
+    - run: npx opennextjs-cloudflare build
+      shell: bash
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.supabase-url }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase-anon-key }}

@@ -9,66 +9,45 @@
 // The dispatch is a synthetic Request through the generated fetch handler — never
 // a network self-fetch. `global_fetch_strictly_public` (see wrangler.jsonc) makes
 // a Worker fetching its own public hostname unreliable, so we route in-process.
+// The schedule→route mapping and the failure-isolated dispatch loop live in the
+// pure, unit-tested ./cron-dispatch module.
 
-// The generated worker is a gitignored build artifact absent at tsc time; the
-// opennextjs-cloudflare build resolves it. `worker/` is excluded from tsc.
-// @ts-expect-error: resolved by opennextjs-cloudflare build
+// The generated worker is a gitignored build artifact absent at tsc time; its
+// shape is declared in ./open-next-worker.d.ts so `tsc -p worker` resolves this
+// import, and the opennextjs-cloudflare build supplies the real module.
 import generated from "../.open-next/worker.js";
 // Re-export the artifact's Durable Object classes so they stay bound if OpenNext
 // caching DOs are enabled later. Harmless today (no durable_objects binding).
-// @ts-expect-error: resolved by opennextjs-cloudflare build
-export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
+export {
+  DOQueueHandler,
+  DOShardedTagCache,
+  BucketCachePurge,
+} from "../.open-next/worker.js";
+import { dispatchScheduled } from "./cron-dispatch";
 
-// Minimal local Workers types — @cloudflare/workers-types is not installed, and
-// these exist only so the handler reads clearly.
-interface ScheduledController {
-  cron: string;
-}
-interface Ctx {
-  waitUntil(p: Promise<unknown>): void;
-}
 interface Env {
   CRON_SECRET: string;
 }
 
-// Cron expression -> route path(s). Schedules mirror vercel.json, except
-// daily-refresh + news-sentiment share the 06:00 trigger (dispatched
-// sequentially, preserving Vercel's 30-minute ordering) because the Workers
-// free plan caps an account at 5 cron triggers.
-const CRON_ROUTES: Record<string, string[]> = {
-  "0 13 * * 1": ["/api/cron/market-sync"],
-  "0 6 * * *": ["/api/cron/daily-refresh", "/api/cron/news-sentiment"],
-  "0 14 * * 1": ["/api/cron/exa-events"],
-  "0 4 * * 1": ["/api/cron/global-sync"],
-  "0 8 * * 1": ["/api/cron/weekly-digest"],
-};
-
 const defaultExport = {
-  fetch(request: Request, env: Env, ctx: Ctx): Promise<Response> {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Wrapper method (not `generated.fetch` by reference) to avoid any
     // `this`-binding surprise inside the generated handler.
     return generated.fetch(request, env, ctx);
   },
-  async scheduled(controller: ScheduledController, env: Env, ctx: Ctx): Promise<void> {
-    const paths = CRON_ROUTES[controller.cron];
-    if (!paths) {
-      // Unknown/unmapped schedule: log and no-op — never dispatch or throw.
-      console.error("worker: unmapped cron expression:", controller.cron);
-      return;
-    }
-    // The host is arbitrary and never network-fetched; requests are handled
-    // in-process by the generated worker. Bearer matches what the routes verify.
-    // Multiple paths on one trigger run sequentially so co-scheduled jobs
-    // never overlap (daily-refresh must finish before news-sentiment starts).
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    // Route in-process through the generated fetch handler; each cron route is
+    // failure-isolated inside dispatchScheduled so one crash never skips the rest.
     ctx.waitUntil(
-      (async () => {
-        for (const path of paths) {
-          const req = new Request(`https://cron.internal${path}`, {
-            headers: { authorization: `Bearer ${env.CRON_SECRET}` },
-          });
-          await defaultExport.fetch(req, env, ctx);
-        }
-      })(),
+      dispatchScheduled(
+        controller.cron,
+        (req) => defaultExport.fetch(req, env, ctx),
+        env.CRON_SECRET,
+      ),
     );
   },
 };
