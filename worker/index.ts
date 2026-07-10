@@ -31,15 +31,16 @@ interface Env {
   CRON_SECRET: string;
 }
 
-// Cron expression -> route path. Keys copied verbatim from vercel.json so the
-// Cloudflare schedule mirrors Vercel exactly. All six expressions are unique.
-const CRON_ROUTES: Record<string, string> = {
-  "0 13 * * 1": "/api/cron/market-sync",
-  "0 6 * * *": "/api/cron/daily-refresh",
-  "30 6 * * *": "/api/cron/news-sentiment",
-  "0 14 * * 1": "/api/cron/exa-events",
-  "0 4 * * 1": "/api/cron/global-sync",
-  "0 8 * * 1": "/api/cron/weekly-digest",
+// Cron expression -> route path(s). Schedules mirror vercel.json, except
+// daily-refresh + news-sentiment share the 06:00 trigger (dispatched
+// sequentially, preserving Vercel's 30-minute ordering) because the Workers
+// free plan caps an account at 5 cron triggers.
+const CRON_ROUTES: Record<string, string[]> = {
+  "0 13 * * 1": ["/api/cron/market-sync"],
+  "0 6 * * *": ["/api/cron/daily-refresh", "/api/cron/news-sentiment"],
+  "0 14 * * 1": ["/api/cron/exa-events"],
+  "0 4 * * 1": ["/api/cron/global-sync"],
+  "0 8 * * 1": ["/api/cron/weekly-digest"],
 };
 
 const defaultExport = {
@@ -49,18 +50,26 @@ const defaultExport = {
     return generated.fetch(request, env, ctx);
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: Ctx): Promise<void> {
-    const path = CRON_ROUTES[controller.cron];
-    if (!path) {
+    const paths = CRON_ROUTES[controller.cron];
+    if (!paths) {
       // Unknown/unmapped schedule: log and no-op — never dispatch or throw.
       console.error("worker: unmapped cron expression:", controller.cron);
       return;
     }
-    // The host is arbitrary and never network-fetched; the request is handled
+    // The host is arbitrary and never network-fetched; requests are handled
     // in-process by the generated worker. Bearer matches what the routes verify.
-    const req = new Request(`https://cron.internal${path}`, {
-      headers: { authorization: `Bearer ${env.CRON_SECRET}` },
-    });
-    ctx.waitUntil(defaultExport.fetch(req, env, ctx));
+    // Multiple paths on one trigger run sequentially so co-scheduled jobs
+    // never overlap (daily-refresh must finish before news-sentiment starts).
+    ctx.waitUntil(
+      (async () => {
+        for (const path of paths) {
+          const req = new Request(`https://cron.internal${path}`, {
+            headers: { authorization: `Bearer ${env.CRON_SECRET}` },
+          });
+          await defaultExport.fetch(req, env, ctx);
+        }
+      })(),
+    );
   },
 };
 
