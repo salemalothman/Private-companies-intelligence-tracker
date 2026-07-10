@@ -109,12 +109,14 @@ export async function signOut() {
  * Request a password-reset email. Deliberately neutral: we ignore the Supabase
  * result (success, error, or unknown email) and ALWAYS return { sent: true } so
  * account existence can never be probed via this endpoint (T-pwd-01). The
- * redirectTo now FOLLOWS the serving host (via requestOrigin) so reset links
- * from the Cloudflare deployment point at workers.dev, Vercel keeps its host,
- * and localhost keeps localhost — falling back to siteUrl() only when no host
- * header exists. It is still server-derived, never user input, closing the
- * open-redirect vector (T-pwd-02 / T-eoe-03); Supabase Auth additionally only
- * honors redirectTo values on its Redirect URLs allowlist.
+ * redirectTo FOLLOWS the serving host (via requestOrigin) so reset links from
+ * the Cloudflare deployment point at workers.dev, Vercel keeps its host, and
+ * localhost keeps localhost — but ONLY when the forwarded host is on
+ * requestOrigin's trusted allowlist (localhost / *.workers.dev / *.vercel.app);
+ * any other (attacker-influenced) host falls back to the canonical siteUrl().
+ * This closes the Host-header open-redirect vector (T-pwd-02 / T-eoe-03);
+ * Supabase Auth additionally only honors redirectTo values on its Redirect URLs
+ * allowlist.
  */
 export async function requestPasswordReset(
   _prev: AuthResult | undefined,
