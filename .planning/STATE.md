@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-10 - Completed quick task 260710-eoe: Cloudflare cron triggers + host-following auth links
+Last activity: 2026-07-10 - Completed quick task 260710-i69: deep-review remediation (27 findings, 299 tests green)
 
 Progress: [█████████░] 94%
 
@@ -113,6 +113,7 @@ None yet.
 | fast | GitHub Actions CD pipeline + disable Vercel crons | 2026-07-10 | 0aa13cc | (inline) |
 | fast | Gate OpenNext dev init (fix broken next dev) | 2026-07-10 | 83b84bb | (inline) |
 | fast | Fix KPI count-up freezing at ~25% of real values | 2026-07-10 | 7fea4f1 | (inline) |
+| 260710-i69 | Apply deep-review fixes (Critical purge data-loss → Low nits; 27 findings) | 2026-07-10 | bfbc33e | [260710-i69-apply-deep-review-fixes-purge-data-loss-](./quick/260710-i69-apply-deep-review-fixes-purge-data-loss-/) |
 
 ## Deferred Items
 
