@@ -124,8 +124,8 @@ export class PdfCursor {
 
   constructor(
     private readonly doc: PDFDocument,
-    private readonly font: PDFFont,
-    private readonly boldFont: PDFFont,
+    readonly font: PDFFont,
+    readonly boldFont: PDFFont,
     opts: PdfCursorOptions,
   ) {
     this.margin = opts.margin ?? 48;

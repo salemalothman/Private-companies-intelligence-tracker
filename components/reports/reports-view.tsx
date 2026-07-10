@@ -12,7 +12,12 @@ import {
   generateDigestNow,
   updateDigestPrefs,
 } from "@/app/(app)/reports/actions";
-import type { DigestPrefsView, ReportFile } from "@/lib/queries";
+import { CompanyReportCard } from "@/components/reports/company-report-card";
+import type {
+  CompanyAnalysisOption,
+  DigestPrefsView,
+  ReportFile,
+} from "@/lib/queries";
 
 function formatSize(bytes: number): string {
   if (!bytes) return "—";
@@ -66,11 +71,16 @@ function Row({
 export function ReportsView({
   reports,
   prefs,
+  companies,
 }: {
   reports: ReportFile[];
   prefs: DigestPrefsView;
+  companies: CompanyAnalysisOption[];
 }) {
   const router = useRouter();
+  // Group the report list by kind: digests keep their card, memos get theirs.
+  const digests = reports.filter((r) => r.kind === "digest");
+  const memos = reports.filter((r) => r.kind === "memo");
   const [draft, setDraft] = useState<DigestPrefsView>(prefs);
   const [savePending, startSave] = useTransition();
   const [genPending, startGen] = useTransition();
@@ -97,6 +107,7 @@ export function ReportsView({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="space-y-6">
       {/* Generated reports */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -112,13 +123,13 @@ export function ReportsView({
           </Button>
         </CardHeader>
         <CardContent>
-          {reports.length === 0 ? (
+          {digests.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No digests yet. Generate one now, or wait for the scheduled run.
             </p>
           ) : (
             <ul className="divide-y divide-border">
-              {reports.map((r) => (
+              {digests.map((r) => (
                 <li
                   key={r.name}
                   className="flex items-center justify-between gap-3 py-2.5"
@@ -147,6 +158,10 @@ export function ReportsView({
           )}
         </CardContent>
       </Card>
+
+      {/* Per-company IC memos: picker + generated list (kind === "memo"). */}
+      <CompanyReportCard companies={companies} memos={memos} />
+      </div>
 
       {/* Digest configuration */}
       <Card>

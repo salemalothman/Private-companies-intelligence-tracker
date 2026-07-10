@@ -37,6 +37,7 @@ import { Stat } from "@/components/company/groups/shared";
 import { EditOverviewDialog } from "@/components/company/overview-form";
 import { SyncButton } from "@/components/company/sync-button";
 import { DeepDiveButton } from "@/components/company/deep-dive-button";
+import { GenerateMemoButton } from "@/components/company/generate-memo-button";
 import { DeepDiveEmpty } from "@/components/company/confidence-chip";
 import { AddDocumentDialog } from "@/components/company/add-document-dialog";
 import { DeleteCompanyButton } from "@/components/company/delete-company-button";
@@ -265,6 +266,10 @@ export default async function CompanyDetailPage({
           <AddDocumentDialog companyId={company.id} />
           <SyncButton companyId={company.id} />
           <DeepDiveButton companyId={company.id} />
+          <GenerateMemoButton
+            companyId={company.id}
+            hasAnalysis={Boolean(analysis)}
+          />
           <EditOverviewDialog company={company} />
           {/* Hairline quarantine: the destructive action must never sit flush
               against a routine one (accidental-click adjacency). */}
