@@ -9,6 +9,12 @@ import { siteUrl } from "@/lib/site-url";
 
 export interface AuthResult {
   error?: string;
+  // Set by requestPasswordReset — always true on completion so the UI can show
+  // a neutral confirmation without ever leaking whether the account exists.
+  sent?: boolean;
+  // Set by updatePassword — signals the client (reset page / change dialog) to
+  // redirect or close; the action itself never navigates.
+  success?: boolean;
 }
 
 export async function login(
@@ -95,4 +101,57 @@ export async function signOut() {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/login");
+}
+
+/**
+ * Request a password-reset email. Deliberately neutral: we ignore the Supabase
+ * result (success, error, or unknown email) and ALWAYS return { sent: true } so
+ * account existence can never be probed via this endpoint (T-pwd-01). The
+ * redirectTo is server-derived from siteUrl(), never user input, closing the
+ * open-redirect vector (T-pwd-02).
+ */
+export async function requestPasswordReset(
+  _prev: AuthResult | undefined,
+  formData: FormData,
+): Promise<AuthResult> {
+  const email = String(formData.get("email") ?? "");
+
+  try {
+    const redirectTo = `${await siteUrl()}/auth/confirm`;
+    const supabase = await createClient();
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  } catch (e) {
+    // Swallow: never surface success/failure to the caller (no existence leak).
+    console.error("requestPasswordReset failed:", (e as Error).message);
+  }
+
+  return { sent: true };
+}
+
+/**
+ * Set a new password for the current session (recovery session on /reset-password
+ * or the signed-in session from the in-app change dialog). Validates length and
+ * confirmation client-side of Supabase, then updates the user. Never redirects —
+ * the caller decides what to do on { success: true }.
+ */
+export async function updatePassword(
+  _prev: AuthResult | undefined,
+  formData: FormData,
+): Promise<AuthResult> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password.length < 6) {
+    return { error: "Password must be at least 6 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Passwords do not match." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { success: true };
 }
