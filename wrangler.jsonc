@@ -2,11 +2,21 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "private-companies-tracker",
   "account_id": "c218602ac58f5563ef94424e84ff5b75",
-  "main": ".open-next/worker.js",
+  "main": "worker/index.ts",
   "compatibility_date": "2025-05-05",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  "triggers": {
+    "crons": [
+      "0 13 * * 1",
+      "0 6 * * *",
+      "30 6 * * *",
+      "0 14 * * 1",
+      "0 4 * * 1",
+      "0 8 * * 1"
+    ]
   }
 }
