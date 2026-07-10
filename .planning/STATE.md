@@ -110,6 +110,8 @@ None yet.
 | 260710-c6c | Fix chart time axis, wrong-entity event guard, wrangler account_id | 2026-07-10 | 19eba3e | [260710-c6c-fix-chart-time-axis-wrong-entity-event-g](./quick/260710-c6c-fix-chart-time-axis-wrong-entity-event-g/) |
 | 260710-eoe | Cloudflare cron triggers via custom worker entry + auth links follow serving host | 2026-07-10 | f3af08e | [260710-eoe-cloudflare-cron-triggers-via-custom-work](./quick/260710-eoe-cloudflare-cron-triggers-via-custom-work/) |
 | fast | Consolidate CF cron triggers to 5 (free-plan limit) | 2026-07-10 | 3926ad2 | (inline) |
+| fast | GitHub Actions CD pipeline + disable Vercel crons | 2026-07-10 | 0aa13cc | (inline) |
+| fast | Gate OpenNext dev init (fix broken next dev) | 2026-07-10 | 83b84bb | (inline) |
 
 ## Deferred Items
 
