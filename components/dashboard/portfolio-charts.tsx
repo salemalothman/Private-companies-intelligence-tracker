@@ -76,7 +76,7 @@ function ChartCard({
 function mergeSeries(
   valueSeries: PortfolioValuePoint[],
   investedSeries: PortfolioValuePoint[],
-): { date: string; value: number; invested: number }[] {
+): { date: string; ms: number; value: number; invested: number }[] {
   return valueSeries.map((p) => {
     const t = new Date(p.date).getTime();
     let invested = 0;
@@ -84,9 +84,14 @@ function mergeSeries(
       if (new Date(q.date).getTime() <= t) invested = q.value;
       else break;
     }
-    return { date: p.date, value: p.value, invested };
+    // `ms` (epoch) drives a numeric time x-axis so recharts places ticks at true
+    // time positions — avoids the duplicated/irregular YYYY-MM category labels.
+    return { date: p.date, ms: t, value: p.value, invested };
   });
 }
+
+/** Format an epoch-ms x value to a YYYY-MM month label. */
+const monthLabel = (ms: number) => new Date(ms).toISOString().slice(0, 7);
 
 export function PortfolioCharts({
   valueSeries,
@@ -164,9 +169,12 @@ export function PortfolioCharts({
               vertical={false}
             />
             <XAxis
-              dataKey="date"
+              type="number"
+              scale="time"
+              dataKey="ms"
+              domain={["dataMin", "dataMax"]}
               tick={axis}
-              tickFormatter={(d) => String(d).slice(0, 7)}
+              tickFormatter={(ms) => monthLabel(Number(ms))}
               tickLine={false}
               axisLine={false}
             />
@@ -179,6 +187,7 @@ export function PortfolioCharts({
             />
             <Tooltip
               contentStyle={tooltipStyle}
+              labelFormatter={(ms) => monthLabel(Number(ms))}
               formatter={(v, name) => [
                 formatCurrency(Number(v)),
                 name === "invested" ? "Invested (cost basis)" : "Value",
