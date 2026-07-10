@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { animate, useInView, useReducedMotion } from "motion/react";
 import { cn, formatCurrency, formatMultiple, formatPercent } from "@/lib/utils";
 
@@ -49,13 +49,16 @@ export function AnimatedNumber({
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
   const reduced = useReducedMotion();
-  const [played, setPlayed] = useState(false);
+  // Ref, NOT state: setState here would re-run this effect, and React runs the
+  // outgoing effect's cleanup first — controls.stop() would kill the count-up
+  // a frame or two in, freezing the figure at ~25% of its real value.
+  const playedRef = useRef(false);
 
   useEffect(() => {
-    if (!inView || played || reduced || value === 0) return;
+    if (!inView || playedRef.current || reduced || value === 0) return;
     const el = ref.current;
     if (!el) return;
-    setPlayed(true);
+    playedRef.current = true;
     const controls = animate(0, value, {
       duration,
       ease: "circOut",
@@ -69,7 +72,7 @@ export function AnimatedNumber({
     });
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, played, reduced, value]);
+  }, [inView, reduced, value]);
 
   return (
     <span
