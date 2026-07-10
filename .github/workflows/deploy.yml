@@ -18,24 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # Install + gates + OpenNext build (shared composite action).
+      - uses: ./.github/actions/build-and-test
         with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-
-      # Quality gates — a failed gate blocks the deploy
-      - run: npx tsc --noEmit
-      - run: npx tsc -p worker # typecheck the Workers entrypoint (excluded from root tsc)
-      - run: npm run lint
-      - run: npm run test
-
-      # OpenNext build (Next.js build + Workers bundling)
-      - run: npx opennextjs-cloudflare build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase-anon-key: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Deploy
         id: deploy
@@ -45,9 +32,23 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
-      # Post the live URL back onto the commit in the GitHub UI
+      # Derive the worker name from wrangler.jsonc so the status URL never drifts
+      # from the deployed worker.
+      - name: Read worker name
+        id: wrangler
+        run: |
+          NAME=$(node -e "const fs=require('fs');const raw=fs.readFileSync('wrangler.jsonc','utf8').replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/.*\$/gm,'\$1');console.log(JSON.parse(raw).name)")
+          if [ -z "$NAME" ]; then
+            echo "::error::Could not read worker name from wrangler.jsonc"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      # Post the live URL back onto the commit in the GitHub UI.
       - name: Commit status with deployment URL
         uses: actions/github-script@v7
+        env:
+          WORKER_NAME: ${{ steps.wrangler.outputs.name }}
         with:
           script: |
             await github.rest.repos.createCommitStatus({
@@ -57,5 +58,5 @@ jobs:
               state: "success",
               context: "cloudflare/production",
               description: "Deployed to Cloudflare Workers",
-              target_url: "https://private-companies-tracker.salem-alothman.workers.dev",
+              target_url: `https://${process.env.WORKER_NAME}.salem-alothman.workers.dev`,
             });
