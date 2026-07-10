@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-10 - Completed quick task 260710-8rp: OpenNext Cloudflare Workers deploy setup
+Last activity: 2026-07-10 - Completed quick task 260710-c6c: chart time axis + wrong-entity event guard + wrangler account_id
 
 Progress: [█████████░] 94%
 
@@ -107,6 +107,7 @@ None yet.
 | 260709-t3h | Dashboard: remove stat-card sparklines, keep numbers; move donut total out of circle | 2026-07-09 | 087cf3a | [260709-t3h-dashboard-remove-stat-card-sparklines-ke](./quick/260709-t3h-dashboard-remove-stat-card-sparklines-ke/) |
 | 260710-4d0 | Password flow: forgot-password page, recovery redemption route, reset-password page, in-app change password | 2026-07-10 | 939f706 | [260710-4d0-password-flow-forgot-password-page-recov](./quick/260710-4d0-password-flow-forgot-password-page-recov/) |
 | 260710-8rp | Cloudflare Workers deploy via OpenNext adapter: wrangler.jsonc, open-next.config.ts, preview/deploy scripts | 2026-07-10 | 2f6ffcc | [260710-8rp-cloudflare-workers-deploy-via-opennext-a](./quick/260710-8rp-cloudflare-workers-deploy-via-opennext-a/) |
+| 260710-c6c | Fix chart time axis, wrong-entity event guard, wrangler account_id | 2026-07-10 | 19eba3e | [260710-c6c-fix-chart-time-axis-wrong-entity-event-g](./quick/260710-c6c-fix-chart-time-axis-wrong-entity-event-g/) |
 
 ## Deferred Items
 
