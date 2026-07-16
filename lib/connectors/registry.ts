@@ -4,6 +4,7 @@ import { stubConnector } from "@/lib/connectors/stub";
 import { GrokConnector } from "@/lib/connectors/grok";
 import { SecEdgarConnector } from "@/lib/connectors/sec-edgar";
 import { ExaConnector } from "@/lib/connectors/exa";
+import { AktaConnector } from "@/lib/connectors/akta";
 
 /**
  * Returns the set of enabled data connectors. The stub is always available
@@ -29,6 +30,11 @@ export function getConnectors(): DataConnector[] {
   // Exa — web search for news, funding rounds, and valuations across the web.
   if (process.env.EXA_API_KEY) {
     connectors.push(new ExaConnector());
+  }
+
+  // akta.pro — structured private-company profiles + entity-resolved news.
+  if (process.env.AKTA_API_KEY) {
+    connectors.push(new AktaConnector());
   }
 
   // Keyless stub is the fallback only when no live source is configured, so a
