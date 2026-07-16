@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-10 - Completed quick task 260710-i69: deep-review remediation (27 findings, 299 tests green)
+Last activity: 2026-07-16 - Completed quick task 260717-2lq: akta.pro trusted connector (news/profile/financial estimates, akta-wins dedupe, 336 tests green)
 
 Progress: [█████████░] 94%
 
@@ -115,6 +115,7 @@ None yet.
 | fast | Fix KPI count-up freezing at ~25% of real values | 2026-07-10 | 7fea4f1 | (inline) |
 | 260710-i69 | Apply deep-review fixes (Critical purge data-loss → Low nits; 27 findings) | 2026-07-10 | bfbc33e | [260710-i69-apply-deep-review-fixes-purge-data-loss-](./quick/260710-i69-apply-deep-review-fixes-purge-data-loss-/) |
 | 260710-x47 | Per-company research report (IC-memo PDF) in Reports section: pdf-kit extraction, render model + tests, PDF builder/upload, picker UI | 2026-07-10 | 85609d6 | [260710-x47-per-company-research-report-ic-memo-pdf](./quick/260710-x47-per-company-research-report-ic-memo-pdf/) |
+| 260717-2lq | Integrate akta.pro as a trusted data connector (news + profile + financial estimates) with akta-wins dedupe preference | 2026-07-16 | bb37d75 | [260717-2lq-integrate-akta-pro-as-a-trusted-data-con](./quick/260717-2lq-integrate-akta-pro-as-a-trusted-data-con/) |
 
 ## Deferred Items
 
