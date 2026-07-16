@@ -20,6 +20,15 @@
   - Parsing helpers: `lib/connectors/exa-parse.ts` (deal/valuation extraction), `lib/connectors/exa-events-parse.ts` (event classification, date/revenue/share-price parsing) — both have companion `.test.ts` files
   - Also powers the weekly market-cache sweep at `lib/market-cache/exa-sweep.ts`
 
+- **akta.pro (private-company data + news signals)** - `lib/connectors/akta.ts` (`AktaConnector`, id `"akta"`)
+  - REST API base `https://api.akta.pro/api`, authed with an `x-api-key` header
+  - Purpose: structured firmographic profile (`/v1/company/enrichment?sections=firmographic`), entity-resolved news with native AI summary + sentiment + publisher metadata (`/v1/news`, no Grok pass needed), and financial estimates (`/v1/company/enrichment?sections=financial_estimate`); a free `/v1/company/search` resolves the query to akta's uuid/website first
+  - Financial values are estimates, never facts — every mapped valuation/revenue carries an explicit `"akta.pro financial estimate"` basis string (data-integrity constraint)
+  - akta is a tier-1 trusted source: `provider()` normalizes any akta label to `"akta"`, and it wins the duplicate tie-break in both canonical `field()` and ingestion `dedupeBy` when it collides with another source
+  - Funding rounds are NOT sourced from akta (`funding_detail` is Enterprise-only) — rounds keep coming from Grok/Exa/SEC
+  - Auth: `AKTA_API_KEY` env var; gated in `lib/connectors/registry.ts` — only registered when the key is present; every method catches errors and degrades to `null`/`[]` rather than throwing
+  - Deploy target for the key is Cloudflare Workers (`npx wrangler secret put AKTA_API_KEY`), NOT Vercel
+
 - **Anthropic (Claude)** - `lib/documents/extract.ts`, `lib/enrichment/enrich.ts`
   - Direct `fetch` calls to `https://api.anthropic.com/v1/messages` (no SDK dependency — raw REST)
   - Model: `claude-haiku-4-5-20251001`
@@ -94,6 +103,7 @@
 - `XAI_API_KEY` — enables `GrokConnector` (`lib/connectors/grok.ts`); optional, connector skipped if absent
 - `SEC_USER_AGENT` — enables `SecEdgarConnector`; optional, required format `"Name email@domain.com"` per SEC policy
 - `EXA_API_KEY` — enables `ExaConnector` and all standalone Exa helpers; optional
+- `AKTA_API_KEY` — enables `AktaConnector` (`lib/connectors/akta.ts`) for structured profiles + entity-resolved news + financial estimates; optional, connector omitted if absent (sync still runs on Grok/Exa/SEC). Source: akta.pro dashboard → API keys (`x-api-key`). Deploy secret via Cloudflare Workers (`npx wrangler secret put AKTA_API_KEY`), NOT Vercel
 - `ANTHROPIC_API_KEY` — enables LLM document extraction (`lib/documents/extract.ts`) and profile enrichment (`lib/enrichment/enrich.ts`); optional, falls back to heuristic extraction
 - `RESEND_API_KEY` — enables transactional email via Resend (`lib/email/send.ts`); optional, logs instead of sending when absent
 - `EMAIL_FROM` — Resend "from" address; defaults to `onboarding@resend.dev` if unset
