@@ -13,6 +13,9 @@ describe("isTrustedSource", () => {
     for (const s of ["exa", "grok:x", "Manual entry", "private-market aggregate (unverified)", "unverified — primary source pending", ""])
       expect(isTrustedSource(s)).toBe(false);
   });
+  it("trusts akta.pro as a tier-1 private-market source", () => {
+    expect(isTrustedSource("akta.pro")).toBe(true);
+  });
 });
 
 describe("validateTimeline — Replit's true sequence", () => {

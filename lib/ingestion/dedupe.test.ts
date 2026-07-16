@@ -78,6 +78,18 @@ describe("dedupeConnectorRounds", () => {
     expect(out[0].source).toContain("grok:x:social");
   });
 
+  it("keeps the akta row as primary when it collides with another source", () => {
+    // Same valuation + date window → same event; akta wins as primary even
+    // though the other row carries the more explicit round name.
+    const out = dedupeConnectorRounds([
+      r({ round: "Series D", date: "2026-03-11", valuation: 9e9, amountRaised: 1e9, source: "grok:x" }),
+      r({ round: "Undisclosed", date: "2026-03-12", valuation: 9e9, amountRaised: 2e9, source: "akta.pro" }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].amountRaised).toBe(2e9); // akta figure retained as primary
+    expect(out[0].source).toContain("akta.pro");
+  });
+
   it("does not cross-match a raise amount against an equal valuation", () => {
     // $65B raised vs a $65B post-money are different facts — separate keyspaces.
     const out = dedupeConnectorRounds([
