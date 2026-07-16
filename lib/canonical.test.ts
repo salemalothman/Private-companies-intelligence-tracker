@@ -28,6 +28,10 @@ describe("provider", () => {
     expect(provider("techcrunch.com")).toBe("techcrunch.com");
     expect(provider("bloomberg.com")).toBe("bloomberg.com");
   });
+  it("normalizes any akta source to the stable \"akta\" provider key", () => {
+    expect(provider("akta.pro")).toBe("akta");
+    expect(provider("akta.pro:news")).toBe("akta");
+  });
 });
 
 describe("buildCanonicalRecord", () => {
@@ -110,6 +114,18 @@ describe("buildCanonicalRecord", () => {
     expect(rec.revenue.value).toBe(30e9);
     // The diverging tool parses stay visible and still raise the conflict flag.
     expect(rec.valuation.conflict).toBe(true);
+  });
+
+  it("prefers the akta observation when two trusted sources tie on date", () => {
+    const rec = buildCanonicalRecord(
+      company([
+        { post_money: 90e9, date: "2026-05-01", source: "techcrunch.com" },
+        { post_money: 100e9, date: "2026-05-01", source: "akta.pro" },
+      ]),
+    );
+    // Both are tier-1 trusted and same-dated; akta wins the duplicate tie-break.
+    expect(rec.valuation.value).toBe(100e9);
+    expect(rec.valuation.asOf).toBe("2026-05-01");
   });
 
   it("a primary-verified publisher beats the market cache even when older", () => {

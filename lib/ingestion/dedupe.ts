@@ -70,6 +70,12 @@ interface Accessors<T> {
   keys: (t: T) => (string | null | undefined)[];
   merge: (primary: T, dup: T) => T;
   windowDays?: number;
+  /**
+   * Optional source-preference score (higher = kept as primary), applied BEFORE
+   * explicitness/date so a preferred source (e.g. akta) wins a duplicate
+   * collision regardless of round-name explicitness. Defaults to 0 when absent.
+   */
+  prefer?: (t: T) => number;
 }
 
 /**
@@ -105,6 +111,7 @@ export function dedupeBy<T>(items: T[], acc: Accessors<T>): T[] {
     if (g.length === 1) return g[0];
     const sorted = [...g].sort(
       (a, b) =>
+        (acc.prefer?.(b) ?? 0) - (acc.prefer?.(a) ?? 0) ||
         explicitness(acc.round(b)) - explicitness(acc.round(a)) ||
         Date.parse(acc.date(a) ?? "") - Date.parse(acc.date(b) ?? ""),
     );
@@ -123,6 +130,7 @@ export function dedupeConnectorRounds(
   return dedupeBy(rounds, {
     round: (r) => r.round,
     date: (r) => r.date,
+    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
     keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amountRaised)],
     merge: (p, d) => ({
       ...p,
@@ -140,6 +148,7 @@ export function dedupeFundingRows(rows: FundingRoundRow[]): FundingRoundRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
+    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
     keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amount_raised)],
     merge: (p, d) => ({
       ...p,
@@ -158,6 +167,7 @@ export function dedupeValuationRows(rows: ValuationRow[]): ValuationRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
+    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
     keys: (r) => [moneyKey("v", r.post_money)],
     merge: (p, d) => ({
       ...p,

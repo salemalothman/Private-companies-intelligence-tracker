@@ -51,6 +51,9 @@ export function provider(source: string | null | undefined): string {
   if (s.startsWith("pdf:")) return "document";
   if (s.startsWith("url:")) return "web";
   if (s.includes("agdillon") || s.includes("ag dillon")) return "agdillon";
+  // Normalize akta.pro (and any akta:* label) to a stable "akta" key BEFORE the
+  // isPublisherDomain fallthrough would otherwise keep "akta.pro" as a bare domain.
+  if (s.includes("akta")) return "akta";
   if (isSecFiling(s)) return "sec-edgar";
   if (s.includes("private-market") || s.includes("aggregate")) return "aggregate";
   if (s.includes("unverified")) return "unverified";
@@ -89,8 +92,13 @@ function field(observations: SourceObservation[]): CanonicalField {
   // verified or market-consensus one exists.
   const bestTier = Math.min(...valued.map((o) => tier(o.source)));
   const pool = valued.filter((o) => tier(o.source) === bestTier);
-  const canon = [...pool].sort((a, b) =>
-    (b.date ?? "").localeCompare(a.date ?? ""),
+  // Most-recent-dated wins; on a date tie the akta observation is preferred
+  // (akta is the same-domain private-company source we trust to break duplicates).
+  const canon = [...pool].sort(
+    (a, b) =>
+      (b.date ?? "").localeCompare(a.date ?? "") ||
+      (provider(b.source) === "akta" ? 1 : 0) -
+        (provider(a.source) === "akta" ? 1 : 0),
   )[0];
   const v = canon.value as number;
   const canonTime = canon.date ? Date.parse(canon.date) : null;
