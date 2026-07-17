@@ -118,6 +118,7 @@ None yet.
 | 260717-2lq | Integrate akta.pro as a trusted data connector (news + profile + financial estimates) with akta-wins dedupe preference | 2026-07-16 | bb37d75 | [260717-2lq-integrate-akta-pro-as-a-trusted-data-con](./quick/260717-2lq-integrate-akta-pro-as-a-trusted-data-con/) |
 | fast | Upgrade xAI Grok model grok-4.3 → grok-4.5 (connector, deep-dive agent, test fixture) | 2026-07-16 | 028e73c | (inline) |
 | 260717-5fr | Akta 3-step analysis workflow: industry-resolved competitor discovery merged into sync (akta-wins), deep-search grounding for deep-dive + news persistence | 2026-07-17 | 767dd1b | [260717-5fr-akta-3-step-analysis-workflow-industry-r](./quick/260717-5fr-akta-3-step-analysis-workflow-industry-r/) |
+| fast | akta live-API fixes: User-Agent header (Cloudflare 1010 guard) + mapper alignment (ai_summary/published_date/publisher-domain/estimate bands), live-verified with real key | 2026-07-17 | c98732d | (inline) |
 
 ## Deferred Items
 
