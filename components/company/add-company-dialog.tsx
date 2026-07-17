@@ -7,6 +7,8 @@ import { createCompany, enrichCompany } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CompanyTypeahead } from "@/components/company/company-typeahead";
+import type { CompanySuggestion } from "@/lib/connectors/akta";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   Dialog,
@@ -134,6 +136,21 @@ export function AddCompanyDialog() {
     setF((prev) => ({ ...prev, [key]: val }));
   }
 
+  // Fill the form from a picked typeahead suggestion. Picked fields are treated
+  // as user-set (removed from autoFilled) so a later re-enrichment never clobbers
+  // an explicit choice. Free-form type-and-submit stays unchanged.
+  function handlePickSuggestion(s: CompanySuggestion) {
+    autoFilled.current.delete("name");
+    autoFilled.current.delete("website");
+    autoFilled.current.delete("sector");
+    setF((prev) => ({
+      ...prev,
+      name: s.name,
+      website: s.website ? s.website : prev.website,
+      sector: s.category ? s.category : prev.sector,
+    }));
+  }
+
   function reset() {
     setF(EMPTY);
     setError(null);
@@ -225,15 +242,15 @@ export function AddCompanyDialog() {
                 )}
               </div>
               <div className="relative flex-1">
-                <Input
+                <CompanyTypeahead
                   value={f.name}
-                  onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
+                  onChange={(v) => setF((p) => ({ ...p, name: v }))}
+                  onSelect={handlePickSuggestion}
                   placeholder="OpenAI"
-                  autoComplete="organization"
                   autoFocus
                 />
                 {enriching && (
-                  <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs text-muted-foreground">
+                  <span className="pointer-events-none absolute -bottom-4 left-0 flex items-center gap-1 text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" /> enriching…
                   </span>
                 )}
