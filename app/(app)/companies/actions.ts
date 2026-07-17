@@ -8,6 +8,11 @@ import { ingestCompany } from "@/lib/ingestion/orchestrator";
 import { verifyFinancialsFor } from "@/lib/agents/financials";
 import { refreshCompetitorsFor, companyHint } from "@/lib/competitors/refresh";
 import { hasLiveConnectors } from "@/lib/connectors/registry";
+import {
+  searchAktaCompanies,
+  toPrivateSuggestions,
+  type CompanySuggestion,
+} from "@/lib/connectors/akta";
 import { classifyNews } from "@/lib/news/classify";
 import {
   enrichCompanyProfile,
@@ -48,6 +53,28 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return { supabase, user };
+}
+
+/**
+ * Live private-only company search for the Add Company typeahead. Bridges the
+ * server-only akta key to the client: returns mapped {@link CompanySuggestion}s,
+ * never the key. Auth-gated; a <2-char query returns an empty list (not an error
+ * — the client polls per keystroke). The query is trimmed and length-capped to 80
+ * before the call (tampering/DoS guard), and any akta failure degrades to an
+ * empty list so an outage never surfaces an error toast on every keystroke.
+ */
+export async function searchCompaniesAction(
+  query: string,
+): Promise<{ suggestions?: CompanySuggestion[]; error?: string }> {
+  const { user } = await requireUser();
+  if (!user) return { error: "Not authenticated." };
+  const q = query.trim().slice(0, 80);
+  if (q.length < 2) return { suggestions: [] };
+  try {
+    return { suggestions: toPrivateSuggestions(await searchAktaCompanies(q)) };
+  } catch {
+    return { suggestions: [] };
+  }
 }
 
 /** Auto-enrich the Add Company form from just the company name. */
