@@ -91,3 +91,57 @@ describe("validateTimeline — Replit's true sequence", () => {
     expect(anomalies.find((a) => a.entry.id === "x")?.action).toBe("flag");
   });
 });
+
+describe("Accrete incident — pdf trust + upward-outlier spike guard", () => {
+  it("trusts pdf: and url: document sources by prefix (case-insensitive)", () => {
+    expect(isTrustedSource("pdf:Deal_Overview_-_Accrete_.pdf")).toBe(true);
+    expect(isTrustedSource("url:https://techcrunch.com/x")).toBe(true);
+  });
+
+  it("keeps existing untrusted labels untrusted", () => {
+    for (const s of ["exa", "grok:x", "Manual entry", "private-market aggregate (unverified)", "unverified — primary source pending", ""])
+      expect(isTrustedSource(s)).toBe(false);
+  });
+
+  it("strips an $852B untrusted spike while keeping the pdf-sourced rounds", () => {
+    const { keep, anomalies } = validateTimeline([
+      { id: "p1", date: "2025-01-01", post_money: 6.25e8, source: "pdf:Deal_Overview_-_Accrete_.pdf" },
+      { id: "p2", date: "2025-06-01", post_money: 6.5e8, source: "pdf:Deal_Overview_-_Accrete_.pdf" },
+      { id: "spike", date: "2025-12-01", post_money: 8.52e11, source: "exa" }, // $852B — >20x the $650M max
+    ]);
+    const stripped = anomalies.filter((a) => a.action === "strip").map((a) => a.entry.id);
+    expect(stripped).toEqual(["spike"]);
+    expect(keep.map((k) => k.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("rejects the $852B spike at write time against the established pdf set", () => {
+    const existing: TimelineEntry[] = [
+      { date: "2025-01-01", post_money: 6.25e8, source: "pdf:Deal_Overview_-_Accrete_.pdf" },
+      { date: "2025-06-01", post_money: 6.5e8, source: "pdf:Deal_Overview_-_Accrete_.pdf" },
+    ];
+    const { accepted, rejected } = filterIngestValuations(existing, [
+      { date: "2025-12-01", post_money: 8.52e11, source: "exa" },
+    ]);
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reasons.join(" ")).toMatch(/spike/i);
+  });
+
+  it("keeps a lone untrusted high valuation when there is nothing to compare against", () => {
+    const { keep, anomalies } = validateTimeline([
+      { id: "lone", date: "2025-12-01", post_money: 8.52e11, source: "exa" },
+    ]);
+    expect(keep.map((k) => k.id)).toEqual(["lone"]);
+    expect(anomalies.find((a) => a.entry.id === "lone")?.action).toBe("flag");
+  });
+
+  it("never strips a trusted publisher-domain high valuation by the spike rule", () => {
+    const { keep, anomalies } = validateTimeline([
+      { id: "tc", date: "2025-01-01", post_money: 6.5e8, source: "techcrunch.com" },
+      { id: "bb", date: "2025-06-01", post_money: 2e10, source: "bloomberg.com" }, // $20B — >20x, but trusted
+    ]);
+    const stripped = anomalies.filter((a) => a.action === "strip").map((a) => a.entry.id);
+    expect(stripped).toEqual([]);
+    expect(keep.map((k) => k.id).sort()).toEqual(["bb", "tc"]);
+  });
+});
