@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-16 - Completed quick task 260717-2lq: akta.pro trusted connector (news/profile/financial estimates, akta-wins dedupe, 336 tests green)
+Last activity: 2026-07-17 - Completed quick task 260717-5fr: akta 3-step analysis workflow (industry competitor discovery, deep-search grounding, 351 tests green)
 
 Progress: [█████████░] 94%
 
@@ -117,6 +117,7 @@ None yet.
 | 260710-x47 | Per-company research report (IC-memo PDF) in Reports section: pdf-kit extraction, render model + tests, PDF builder/upload, picker UI | 2026-07-10 | 85609d6 | [260710-x47-per-company-research-report-ic-memo-pdf](./quick/260710-x47-per-company-research-report-ic-memo-pdf/) |
 | 260717-2lq | Integrate akta.pro as a trusted data connector (news + profile + financial estimates) with akta-wins dedupe preference | 2026-07-16 | bb37d75 | [260717-2lq-integrate-akta-pro-as-a-trusted-data-con](./quick/260717-2lq-integrate-akta-pro-as-a-trusted-data-con/) |
 | fast | Upgrade xAI Grok model grok-4.3 → grok-4.5 (connector, deep-dive agent, test fixture) | 2026-07-16 | 028e73c | (inline) |
+| 260717-5fr | Akta 3-step analysis workflow: industry-resolved competitor discovery merged into sync (akta-wins), deep-search grounding for deep-dive + news persistence | 2026-07-17 | 767dd1b | [260717-5fr-akta-3-step-analysis-workflow-industry-r](./quick/260717-5fr-akta-3-step-analysis-workflow-industry-r/) |
 
 ## Deferred Items
 
