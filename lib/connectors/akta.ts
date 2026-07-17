@@ -49,25 +49,35 @@ interface AktaRawProfile {
   country?: string;
   founded_year?: number;
   description?: string;
+  company_description?: string;
+  company_description_short?: string;
   founders?: string[];
 }
 
 interface AktaRawNewsItem {
   title?: string;
   summary?: string;
+  ai_summary?: string;
   sentiment?: string;
   url?: string;
   date?: string;
   published_at?: string;
+  published_date?: string;
   publisher?: { domain?: string; name?: string } | string | null;
   source_domain?: string;
 }
 
+/** akta financial estimates arrive as range bands, e.g. {code:"1B-5B", label:"$1B-$5B"}. */
+interface AktaEstimateBand {
+  code?: string;
+  label?: string;
+}
+
 interface AktaRawFinancial {
   revenue?: number;
-  revenue_estimate?: number;
+  revenue_estimate?: number | AktaEstimateBand;
   valuation?: number;
-  valuation_estimate?: number;
+  valuation_estimate?: number | AktaEstimateBand;
   valuation_date?: string;
   as_of?: string;
 }
@@ -118,10 +128,63 @@ function mapSentiment(
   return v === "positive" || v === "neutral" || v === "negative" ? v : undefined;
 }
 
-/** Prefer akta's structured publisher domain; fall back to the source domain. */
+/** A domain-like token is what isTrustedSource treats as a real publisher. */
+const DOMAIN_RE = /[a-z0-9-]+\.[a-z]{2,}/i;
+
+/**
+ * Prefer akta's structured publisher domain; fall back to the article URL's
+ * hostname, then the source domain. In practice akta's `publisher` is a display
+ * name ("SmartCompany"), which would never pass the trusted-source domain check
+ * — the article URL is the reliable domain carrier.
+ */
 function publisherDomain(item: AktaRawNewsItem): string | undefined {
-  if (typeof item.publisher === "string") return clean(item.publisher.trim());
-  return clean(item.publisher?.domain ?? item.source_domain);
+  const fromString =
+    typeof item.publisher === "string" ? item.publisher.trim() : undefined;
+  if (fromString && DOMAIN_RE.test(fromString)) return fromString;
+  const structured =
+    typeof item.publisher === "object" ? item.publisher?.domain : undefined;
+  if (structured) return structured;
+  if (item.url) {
+    try {
+      return new URL(item.url).hostname.replace(/^www\./, "");
+    } catch {
+      // fall through to source_domain
+    }
+  }
+  return clean(item.source_domain);
+}
+
+/**
+ * Parse an akta estimate band into a transparent number: "$1B-$5B" → the band
+ * midpoint; "$25B+" / "OVER-25B" → the band floor; "UNDER-10M" → half the cap.
+ * Returns the number plus the human band label so callers can keep the range
+ * visible in the basis string — the midpoint is never presented as a precise
+ * figure. Plain numbers pass through with no label.
+ */
+export function parseEstimateBand(
+  v: number | AktaEstimateBand | null | undefined,
+): { value: number; label?: string } | null {
+  if (typeof v === "number") return Number.isFinite(v) ? { value: v } : null;
+  if (!v || typeof v !== "object") return null;
+  const text = (v.label ?? v.code ?? "").toString().trim();
+  if (!text) return null;
+  const MULT: Record<string, number> = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
+  const nums = [...text.matchAll(/\$?\s*([\d.]+)\s*([KMBT])?/gi)]
+    .map((m) => {
+      const n = Number(m[1]);
+      const mult = MULT[(m[2] ?? "").toUpperCase()] ?? 1;
+      return Number.isFinite(n) ? n * mult : null;
+    })
+    .filter((n): n is number => n != null && n > 0);
+  if (nums.length === 0) return null;
+  const upper = /under|below|<|less/i.test(text);
+  const open = /\+|over|above|>/i.test(text);
+  let value: number;
+  if (nums.length >= 2) value = (nums[0] + nums[1]) / 2;
+  else if (upper) value = nums[0] / 2;
+  else value = nums[0]; // single bound: open-ended floor, or exact
+  void open;
+  return { value, label: text };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +202,11 @@ export function mapAktaProfile(
     sector: clean(data.product_category ?? data.industry),
     country: clean(data.country),
     foundedYear: clean(data.founded_year),
-    description: clean(data.description),
+    description: clean(
+      data.description ??
+        data.company_description ??
+        data.company_description_short,
+    ),
     founders: data.founders && data.founders.length ? data.founders : undefined,
   };
 }
@@ -161,8 +228,8 @@ export function mapAktaNews(
       title,
       source: publisherDomain(it) ?? SOURCE,
       url: clean(it.url),
-      date: isoDate(it.date ?? it.published_at),
-      summary: clean(it.summary?.trim()),
+      date: isoDate(it.date ?? it.published_at ?? it.published_date),
+      summary: clean((it.summary ?? it.ai_summary)?.trim()),
       sentiment: mapSentiment(it.sentiment),
     });
   }
@@ -179,16 +246,23 @@ export function mapAktaFinancial(
   data: AktaRawFinancial | null | undefined,
 ): Omit<ConnectorCompetitor, "name"> | null {
   if (!data) return null;
-  const valuation = clean(data.valuation ?? data.valuation_estimate);
-  const revenue = clean(data.revenue ?? data.revenue_estimate);
+  const valuation = parseEstimateBand(data.valuation ?? data.valuation_estimate);
+  const revenue = parseEstimateBand(data.revenue ?? data.revenue_estimate);
   if (valuation == null && revenue == null) return null;
-  const ESTIMATE_BASIS = "akta.pro financial estimate";
+  // Band values are midpoints/floors, never precise figures — keep the human
+  // range label in the basis so the UI shows exactly what akta reported.
+  const basisFor = (b: { label?: string } | null): string | undefined =>
+    b == null
+      ? undefined
+      : b.label
+        ? `akta.pro financial estimate (${b.label} band)`
+        : "akta.pro financial estimate";
   return {
-    valuation,
+    valuation: valuation?.value,
     valuationDate: clean(data.valuation_date ?? data.as_of),
-    revenue,
-    revenueBasis: revenue != null ? ESTIMATE_BASIS : undefined,
-    basis: valuation != null ? ESTIMATE_BASIS : undefined,
+    revenue: revenue?.value,
+    revenueBasis: basisFor(revenue),
+    basis: basisFor(valuation),
     source: SOURCE,
   };
 }

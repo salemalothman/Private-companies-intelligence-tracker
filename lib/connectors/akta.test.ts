@@ -223,3 +223,81 @@ describe("normalizeDeepSearchArticles", () => {
     expect(normalizeDeepSearchArticles(undefined)).toEqual([]);
   });
 });
+
+// Fixtures below mirror the exact shapes observed from the live akta API on
+// 2026-07-17 (Canva, uuid 00000l1) — the docs don't publish these field names.
+describe("live API shapes (2026-07-17)", () => {
+  it("maps firmographic company_description and live news fields", () => {
+    const profile = mapAktaProfile({
+      name: "Canva",
+      legal_name: "Canva",
+      website: "http://www.canva.com",
+      company_type: "Private",
+      founded_year: 2013,
+      company_description: "Canva is an online visual communication platform.",
+      headcount_range: "5001-10000",
+      operating_status: "Active",
+      ownership_category: "Privately Held",
+    } as Parameters<typeof mapAktaProfile>[0]);
+    expect(profile?.description).toBe(
+      "Canva is an online visual communication platform.",
+    );
+    expect(profile?.foundedYear).toBe(2013);
+  });
+
+  it("maps live news: ai_summary, published_date, display-name publisher → url domain", () => {
+    const out = mapAktaNews([
+      {
+        title: "Canva wants your vibe-coded sites to not look vibe-coded",
+        ai_summary: "Canva launched a website beautifier.",
+        sentiment: "Neutral",
+        publisher: "SmartCompany",
+        published_date: "2026-07-17T00:53:19",
+        url: "https://www.smartcompany.com.au/technology/canva-beautifier/",
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].summary).toBe("Canva launched a website beautifier.");
+    expect(out[0].date).toBe("2026-07-17");
+    expect(out[0].sentiment).toBe("neutral");
+    // Display name "SmartCompany" is not a domain — derive from the URL.
+    expect(out[0].source).toBe("smartcompany.com.au");
+  });
+
+  it("falls back to akta.pro when neither publisher nor url yields a domain", () => {
+    const out = mapAktaNews([{ title: "T", publisher: "SomeOutlet" }]);
+    expect(out[0].source).toBe("akta.pro");
+  });
+
+  it("parses live financial_estimate bands into transparent midpoints/floors", () => {
+    const fin = mapAktaFinancial({
+      revenue_estimate: { code: "1B-5B", label: "$1B-$5B" },
+      valuation_estimate: { code: "OVER-25B", label: "$25B+" },
+    });
+    expect(fin?.revenue).toBe(3e9); // midpoint of $1B–$5B
+    expect(fin?.valuation).toBe(25e9); // floor of the open-ended band
+    expect(fin?.revenueBasis).toBe(
+      "akta.pro financial estimate ($1B-$5B band)",
+    );
+    expect(fin?.basis).toBe("akta.pro financial estimate ($25B+ band)");
+  });
+
+  it("halves UNDER bands and still accepts plain numbers", () => {
+    const fin = mapAktaFinancial({
+      revenue_estimate: { code: "UNDER-10M", label: "Under $10M" },
+      valuation_estimate: 1_500_000_000,
+    });
+    expect(fin?.revenue).toBe(5e6);
+    expect(fin?.valuation).toBe(1.5e9);
+    expect(fin?.basis).toBe("akta.pro financial estimate");
+  });
+
+  it("returns null when bands are unparseable", () => {
+    expect(
+      mapAktaFinancial({
+        revenue_estimate: { code: "", label: "" },
+        valuation_estimate: { label: "N/A" },
+      }),
+    ).toBeNull();
+  });
+});
