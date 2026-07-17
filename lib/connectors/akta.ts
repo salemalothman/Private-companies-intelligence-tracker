@@ -80,6 +80,36 @@ interface AktaSearchHit {
   company_status?: string;
 }
 
+interface AktaIndustryHit {
+  code?: string | number;
+  industry_name?: string;
+  similarity?: number;
+}
+
+/**
+ * One entity mention inside an akta industry-news article. akta has surfaced the
+ * mention under a few different field names across tiers/versions; we accept all
+ * plausible shapes leniently rather than pin one (tampering guard — a shape drift
+ * degrades to no competitors, never a throw).
+ */
+const aktaMentionSchema = z
+  .object({
+    name: z.string().optional(),
+    company_name: z.string().optional(),
+    uuid: z.string().optional(),
+  })
+  .passthrough();
+
+/** An industry-news article as seen by the mention extractor — mentions may live
+ * under any of three field names, each an array of {@link aktaMentionSchema}. */
+const aktaIndustryArticleSchema = z
+  .object({
+    companies: z.array(aktaMentionSchema).optional(),
+    company_mentions: z.array(aktaMentionSchema).optional(),
+    mentions: z.array(aktaMentionSchema).optional(),
+  })
+  .passthrough();
+
 /** Normalize akta's sentiment string to the connector union, else undefined. */
 function mapSentiment(
   s?: string,
@@ -163,6 +193,87 @@ export function mapAktaFinancial(
   };
 }
 
+/**
+ * akta industry-search hits → a comma-separated code list for the /v1/news
+ * `industry` filter. Keeps only hits at/above the similarity floor (default 0.45
+ * — below that the match is too loose to trust as the target's real industry) and
+ * caps the list (default 3) so one over-broad search never fans the news query
+ * out across dozens of industries. Empty / malformed input → "".
+ */
+export function resolveIndustryCodes(
+  hits: AktaIndustryHit[] | null | undefined,
+  opts: { floor?: number; cap?: number } = {},
+): string {
+  const floor = opts.floor ?? 0.45;
+  const cap = opts.cap ?? 3;
+  if (!Array.isArray(hits)) return "";
+  return hits
+    .filter(
+      (h) =>
+        typeof h.similarity === "number" && h.similarity >= floor && h.code != null,
+    )
+    .map((h) => String(h.code).trim())
+    .filter((c) => c.length > 0)
+    .slice(0, cap)
+    .join(",");
+}
+
+/**
+ * akta industry-news articles → competitor list, entity-resolved from the
+ * articles' own company mentions (akta already links each mention to a company).
+ * Accepts the three plausible mention field shapes leniently, excludes the target
+ * company (case-insensitive), and ranks the remaining companies by mention
+ * frequency (most-mentioned first). Every row is basis/source-tagged as an
+ * akta.pro industry-news mention. Malformed / empty input → [] (never throws).
+ */
+export function extractIndustryMentions(
+  articles: unknown,
+  targetName: string,
+): ConnectorCompetitor[] {
+  if (!Array.isArray(articles)) return [];
+  const target = targetName.trim().toLowerCase();
+  // Preserve first-seen order for stable tie-breaking; count for the ranking.
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const raw of articles) {
+    const parsed = aktaIndustryArticleSchema.safeParse(raw);
+    if (!parsed.success) continue;
+    const a = parsed.data;
+    const mentions = [
+      ...(a.companies ?? []),
+      ...(a.company_mentions ?? []),
+      ...(a.mentions ?? []),
+    ];
+    for (const m of mentions) {
+      const name = (m.name ?? m.company_name ?? "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (key === target) continue;
+      const prev = counts.get(key);
+      if (prev) prev.count += 1;
+      else counts.set(key, { name, count: 1 });
+    }
+  }
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count)
+    .map((c) => ({
+      name: c.name,
+      basis: "akta.pro industry-news mention",
+      source: SOURCE,
+    }));
+}
+
+/**
+ * Raw akta deep-search articles → ConnectorNewsItem[]. Same normalization as
+ * mapAktaNews (native summary + sentiment, publisher-domain source falling back
+ * to "akta.pro", untitled dropped) — named distinctly because it is the seam the
+ * deep-dive grounding step depends on.
+ */
+export function normalizeDeepSearchArticles(
+  articles: AktaRawNewsItem[] | null | undefined,
+): ConnectorNewsItem[] {
+  return mapAktaNews(articles);
+}
+
 // ---------------------------------------------------------------------------
 // HTTP shell.
 // ---------------------------------------------------------------------------
@@ -203,14 +314,70 @@ function section(data: unknown, name: string): unknown {
   return data;
 }
 
+/**
+ * Free company search — resolves a query to akta's uuid/website for reuse.
+ * Module-level (not just a class method) so the standalone deep-search entry
+ * point can reuse the exact same resolution. Returns null on any miss/failure.
+ */
+async function resolveAktaCompany(query: string): Promise<AktaSearchHit | null> {
+  const data = await aktaGet("/v1/company/search", { query });
+  if (!Array.isArray(data) || data.length === 0) return null;
+  return (data as AktaSearchHit[])[0] ?? null;
+}
+
+/** Hard cap on akta /v1/news calls per deep-search (credits/denial guard). */
+const DEEP_SEARCH_NEWS_CALL_CAP = 2;
+
+/**
+ * Step 3 of akta's workflow — topic-based deep search, run ONLY during deep-dive
+ * generation. Resolves the company, then runs at most
+ * {@link DEEP_SEARCH_NEWS_CALL_CAP} topic-scoped /v1/news calls, merges + title-
+ * dedupes the articles, and normalizes them to ConnectorNewsItem[]. Absent key /
+ * unresolved company / no topics → [] (never throws — matches aktaGet's contract).
+ */
+export async function aktaDeepSearch(
+  companyQuery: string,
+  topics: string[],
+): Promise<ConnectorNewsItem[]> {
+  const company = await resolveAktaCompany(companyQuery);
+  if (!company?.uuid) return [];
+  const uniqueTopics = Array.from(
+    new Set(topics.map((t) => t.trim()).filter((t) => t.length > 0)),
+  ).slice(0, DEEP_SEARCH_NEWS_CALL_CAP);
+  if (uniqueTopics.length === 0) return [];
+  const results = await Promise.all(
+    uniqueTopics.map((query) =>
+      aktaGet("/v1/news", {
+        query,
+        company: company.uuid as string,
+        limit: "10",
+        group_articles: "true",
+      }),
+    ),
+  );
+  const raw: AktaRawNewsItem[] = [];
+  for (const data of results) {
+    const items = Array.isArray(data) ? data : section(data, "articles");
+    if (Array.isArray(items)) raw.push(...(items as AktaRawNewsItem[]));
+  }
+  // Dedupe by lowercased title so overlapping topics don't double-persist.
+  const seen = new Set<string>();
+  const out: ConnectorNewsItem[] = [];
+  for (const item of normalizeDeepSearchArticles(raw)) {
+    const key = item.title.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 export class AktaConnector implements DataConnector {
   readonly id = "akta";
 
   /** Free company search — resolves a query to akta's uuid/website for reuse. */
   private async resolveCompany(query: string): Promise<AktaSearchHit | null> {
-    const data = await aktaGet("/v1/company/search", { query });
-    if (!Array.isArray(data) || data.length === 0) return null;
-    return (data as AktaSearchHit[])[0] ?? null;
+    return resolveAktaCompany(query);
   }
 
   async fetchCompanyProfile(
@@ -244,6 +411,47 @@ export class AktaConnector implements DataConnector {
     });
     const items = Array.isArray(data) ? data : section(data, "articles");
     return mapAktaNews((Array.isArray(items) ? items : []) as AktaRawNewsItem[]);
+  }
+
+  /**
+   * Step 2 of akta's workflow — industry-resolved competitor discovery. Resolves
+   * the company (free) → resolves its industry codes via /v1/industry/search
+   * (free) → ONE /v1/news call scoped to those industries → entity-resolved
+   * competitor mentions ranked by frequency. Absent key / no company / no
+   * industry codes / no articles → []. HARD cost guard: exactly one /v1/news call.
+   */
+  async fetchCompetitors(
+    query: string,
+    hint?: string,
+  ): Promise<ConnectorCompetitor[]> {
+    const company = await this.resolveCompany(query);
+    if (!company) return [];
+    const resolvedName = company.name ?? query;
+    const industryQuery = (
+      company.product_category ??
+      hint ??
+      resolvedName
+    ).trim();
+    if (!industryQuery) return [];
+    const industryData = await aktaGet("/v1/industry/search", {
+      query: industryQuery,
+    });
+    const hits = Array.isArray(industryData)
+      ? industryData
+      : section(industryData, "industries");
+    const codes = resolveIndustryCodes(
+      (Array.isArray(hits) ? hits : []) as AktaIndustryHit[],
+    );
+    if (!codes) return [];
+    const newsData = await aktaGet("/v1/news", {
+      industry: codes,
+      limit: "25",
+      group_articles: "true",
+    });
+    const articles = Array.isArray(newsData)
+      ? newsData
+      : section(newsData, "articles");
+    return extractIndustryMentions(articles, resolvedName);
   }
 
   async fetchValuationMetric(

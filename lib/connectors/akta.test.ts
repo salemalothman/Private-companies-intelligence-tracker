@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractIndustryMentions,
   mapAktaFinancial,
   mapAktaNews,
   mapAktaProfile,
+  normalizeDeepSearchArticles,
+  resolveIndustryCodes,
 } from "@/lib/connectors/akta";
 
 describe("mapAktaProfile", () => {
@@ -101,5 +104,122 @@ describe("mapAktaFinancial", () => {
   it("returns null when no financial estimate is available", () => {
     expect(mapAktaFinancial(null)).toBeNull();
     expect(mapAktaFinancial({})).toBeNull();
+  });
+});
+
+describe("resolveIndustryCodes", () => {
+  it("keeps hits at/above the similarity floor, capped and comma-joined", () => {
+    const codes = resolveIndustryCodes([
+      { code: "5415", industry_name: "Software", similarity: 0.9 },
+      { code: "5417", industry_name: "R&D", similarity: 0.5 },
+      { code: "5182", industry_name: "Data", similarity: 0.45 },
+      { code: "9999", industry_name: "Noise", similarity: 0.44 },
+      { code: "1111", industry_name: "Extra", similarity: 0.8 },
+    ]);
+    // 0.44 dropped (below floor); capped at 3 codes.
+    expect(codes).toBe("5415,5417,5182");
+  });
+
+  it("honors custom floor/cap and coerces numeric codes", () => {
+    const codes = resolveIndustryCodes(
+      [
+        { code: 100, similarity: 0.7 },
+        { code: 200, similarity: 0.6 },
+      ],
+      { floor: 0.65, cap: 5 },
+    );
+    expect(codes).toBe("100");
+  });
+
+  it("returns an empty string for empty / malformed input", () => {
+    expect(resolveIndustryCodes(null)).toBe("");
+    expect(resolveIndustryCodes(undefined)).toBe("");
+    expect(resolveIndustryCodes([])).toBe("");
+    expect(resolveIndustryCodes([{ industry_name: "no code", similarity: 0.9 }])).toBe("");
+  });
+});
+
+describe("extractIndustryMentions", () => {
+  const basisRe = /industry-news mention/i;
+
+  it("extracts mentions under the `companies` field, ranked by frequency", () => {
+    const out = extractIndustryMentions(
+      [
+        { companies: [{ name: "Rival A" }, { name: "Rival B" }] },
+        { companies: [{ name: "Rival A" }] },
+      ],
+      "Target Co",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Rival A", "Rival B"]);
+    expect(out[0].source).toMatch(/akta/i);
+    expect(out[0].basis).toMatch(basisRe);
+  });
+
+  it("extracts mentions under the `company_mentions` field", () => {
+    const out = extractIndustryMentions(
+      [{ company_mentions: [{ company_name: "Peer X", uuid: "u1" }] }],
+      "Target Co",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Peer X"]);
+  });
+
+  it("extracts mentions under the `mentions` field", () => {
+    const out = extractIndustryMentions(
+      [{ mentions: [{ name: "Peer Y" }, { name: "Peer Y" }, { name: "Peer Z" }] }],
+      "Target Co",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Peer Y", "Peer Z"]);
+  });
+
+  it("excludes the target company (case-insensitive) and unnamed mentions", () => {
+    const out = extractIndustryMentions(
+      [{ companies: [{ name: "target co" }, { name: "  " }, { name: "Real Peer" }] }],
+      "Target Co",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Real Peer"]);
+  });
+
+  it("returns [] for empty / malformed input without throwing", () => {
+    expect(extractIndustryMentions([], "T")).toEqual([]);
+    expect(extractIndustryMentions(null, "T")).toEqual([]);
+    expect(extractIndustryMentions(undefined, "T")).toEqual([]);
+    expect(extractIndustryMentions([{ companies: "not-an-array" }], "T")).toEqual([]);
+    expect(extractIndustryMentions([42, "junk", {}], "T")).toEqual([]);
+  });
+});
+
+describe("normalizeDeepSearchArticles", () => {
+  it("normalizes raw articles to news items with a publisher-domain source", () => {
+    const out = normalizeDeepSearchArticles([
+      {
+        title: "Target ships v2",
+        summary: "Native summary.",
+        sentiment: "positive",
+        url: "https://theverge.com/x",
+        date: "2026-06-02T09:00:00Z",
+        publisher: { domain: "theverge.com" },
+      },
+    ]);
+    expect(out).toEqual([
+      {
+        title: "Target ships v2",
+        source: "theverge.com",
+        url: "https://theverge.com/x",
+        date: "2026-06-02",
+        summary: "Native summary.",
+        sentiment: "positive",
+      },
+    ]);
+  });
+
+  it("falls back to akta.pro and drops untitled / empty input", () => {
+    const out = normalizeDeepSearchArticles([
+      { title: "No publisher", sentiment: "neutral" },
+      { title: "   " },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].source).toBe("akta.pro");
+    expect(normalizeDeepSearchArticles(null)).toEqual([]);
+    expect(normalizeDeepSearchArticles(undefined)).toEqual([]);
   });
 });
