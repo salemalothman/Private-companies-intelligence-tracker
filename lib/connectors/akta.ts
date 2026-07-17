@@ -293,17 +293,17 @@ export function resolveIndustryCodes(
 }
 
 /**
- * akta industry-news articles → competitor list, entity-resolved from the
- * articles' own company mentions (akta already links each mention to a company).
- * Accepts the three plausible mention field shapes leniently, excludes the target
- * company (case-insensitive), and ranks the remaining companies by mention
- * frequency (most-mentioned first). Every row is basis/source-tagged as an
- * akta.pro industry-news mention. Malformed / empty input → [] (never throws).
+ * akta industry-news articles → company mentions ranked by frequency. Accepts the
+ * three plausible mention field shapes leniently, excludes the target company
+ * (case-insensitive), drops unnamed mentions, and returns `{ name, count }` sorted
+ * most-mentioned first with first-seen order as the tie-break. This is the pure
+ * counting core shared by {@link extractIndustryMentions} and the relevance-
+ * filtered discovery pipeline. Malformed / empty input → [] (never throws).
  */
-export function extractIndustryMentions(
+export function rankIndustryMentions(
   articles: unknown,
   targetName: string,
-): ConnectorCompetitor[] {
+): Array<{ name: string; count: number }> {
   if (!Array.isArray(articles)) return [];
   const target = targetName.trim().toLowerCase();
   // Preserve first-seen order for stable tie-breaking; count for the ranking.
@@ -327,10 +327,148 @@ export function extractIndustryMentions(
       else counts.set(key, { name, count: 1 });
     }
   }
-  return Array.from(counts.values())
+  // Array.sort is stable in Node 20, so equal-count rows keep first-seen order.
+  return Array.from(counts.values()).sort((a, b) => b.count - a.count);
+}
+
+/**
+ * akta industry-news articles → competitor list, entity-resolved from the
+ * articles' own company mentions (akta already links each mention to a company).
+ * Thin wrapper over {@link rankIndustryMentions} that tags every ranked mention
+ * with the byte-for-byte akta.pro industry-news basis/source. Behavior-preserving:
+ * the mapping is identical to the pre-refactor extractor. Empty input → [].
+ */
+export function extractIndustryMentions(
+  articles: unknown,
+  targetName: string,
+): ConnectorCompetitor[] {
+  return rankIndustryMentions(articles, targetName).map((c) => ({
+    name: c.name,
+    basis: "akta.pro industry-news mention",
+    source: SOURCE,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Relevance filtering — pure, HTTP-free precision layer over ranked mentions.
+// ---------------------------------------------------------------------------
+
+/** One ranked mention enriched with its free-resolve firmographic fields. */
+export interface ResolvedMention {
+  name: string;
+  count: number;
+  product_category?: string;
+  company_status?: string;
+}
+
+/** Options for {@link filterRelevantMentions}. */
+export interface RelevanceOptions {
+  /** Minimum industry-news article mentions to survive (default 2). */
+  minMentions?: number;
+  /** Token-Jaccard floor for a category match when no token is shared (default 0.3). */
+  threshold?: number;
+}
+
+/**
+ * Generic category words that carry no discriminating signal — sharing one of
+ * these between two categories must NOT count as a relevance match, or every
+ * "* Software" company would look comparable to every other.
+ */
+const CATEGORY_STOPWORDS = new Set([
+  "software",
+  "platform",
+  "solutions",
+  "services",
+  "technology",
+  "technologies",
+  "inc",
+  "co",
+  "corp",
+  "company",
+  "the",
+  "and",
+  "a",
+  "an",
+]);
+
+/**
+ * Company statuses that mean the entity is no longer an operating peer. Matched
+ * leniently: unknown/undefined and "private"/"public" are kept, only clearly-dead
+ * states are dropped, so a thin status field never over-prunes discovery.
+ */
+const DEAD_STATUSES = new Set([
+  "acquired",
+  "delisted",
+  "closed",
+  "defunct",
+  "dead",
+]);
+
+/** Lowercase, split on non-alphanumerics, drop stopwords + empties → token set. */
+function categoryTokens(category: string | undefined): Set<string> {
+  if (!category) return new Set();
+  return new Set(
+    category
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 0 && !CATEGORY_STOPWORDS.has(t)),
+  );
+}
+
+/** Token-set Jaccard similarity (|∩| / |∪|); 0 when either side is empty. */
+function tokenJaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter += 1;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+/**
+ * Precision filter over ranked-and-resolved industry-news mentions. Keeps only
+ * plausibly-comparable peers by layering three cheap, pure gates over the free
+ * firmographic resolve — adds NO billable calls:
+ *   1. Min mentions: a candidate seen in fewer than `minMentions` (default 2)
+ *      articles is usually incidental → dropped.
+ *   2. Verifiability: a candidate with no `product_category` is unresolvable →
+ *      dropped.
+ *   3. Liveness: a clearly-dead `company_status` → dropped (lenient otherwise).
+ *   4. Category similarity: keep when the candidate shares >= 1 substantive token
+ *      with the target category OR the token-Jaccard >= `threshold` (default 0.3).
+ *      A target category with no substantive tokens is treated leniently (survive
+ *      on mention count alone) so a thin target category never zeroes discovery.
+ * Survivors are re-sorted by mention count (desc) and tagged with the unchanged
+ * akta.pro industry-news basis/source. Empty / malformed input → [] (never throws).
+ */
+export function filterRelevantMentions(
+  resolved: ResolvedMention[],
+  targetCategory: string,
+  opts: RelevanceOptions = {},
+): ConnectorCompetitor[] {
+  if (!Array.isArray(resolved)) return [];
+  const minMentions = opts.minMentions ?? 2;
+  const threshold = opts.threshold ?? 0.3;
+  const targetTokens = categoryTokens(targetCategory);
+  return resolved
+    .filter(
+      (r): r is ResolvedMention =>
+        !!r && typeof r.name === "string" && r.name.trim().length > 0,
+    )
+    .filter((r) => (r.count ?? 0) >= minMentions)
+    .filter((r) => !DEAD_STATUSES.has((r.company_status ?? "").trim().toLowerCase()))
+    .filter((r) => {
+      const cat = (r.product_category ?? "").trim();
+      if (!cat) return false; // unverifiable → drop
+      // Thin target category → be lenient, keep on mention count alone.
+      if (targetTokens.size === 0) return true;
+      const candTokens = categoryTokens(cat);
+      if (candTokens.size === 0) return false;
+      for (const t of candTokens) if (targetTokens.has(t)) return true;
+      return tokenJaccard(targetTokens, candTokens) >= threshold;
+    })
     .sort((a, b) => b.count - a.count)
-    .map((c) => ({
-      name: c.name,
+    .map((r) => ({
+      name: r.name.trim(),
       basis: "akta.pro industry-news mention",
       source: SOURCE,
     }));
@@ -407,6 +545,14 @@ async function resolveAktaCompany(query: string): Promise<AktaSearchHit | null> 
 
 /** Hard cap on akta /v1/news calls per deep-search (credits/denial guard). */
 const DEEP_SEARCH_NEWS_CALL_CAP = 2;
+
+/**
+ * Hard cap on the FREE /v1/company/search resolves the competitor relevance
+ * filter issues per fetchCompetitors run. These cost 0 credits but still hit the
+ * network, so we bound the fan-out — the top-mentioned candidates are the only
+ * ones worth verifying against product category.
+ */
+const RELEVANCE_RESOLVE_CAP = 10;
 
 /**
  * Step 3 of akta's workflow — topic-based deep search, run ONLY during deep-dive
@@ -497,8 +643,11 @@ export class AktaConnector implements DataConnector {
    * Step 2 of akta's workflow — industry-resolved competitor discovery. Resolves
    * the company (free) → resolves its industry codes via /v1/industry/search
    * (free) → ONE /v1/news call scoped to those industries → entity-resolved
-   * competitor mentions ranked by frequency. Absent key / no company / no
-   * industry codes / no articles → []. HARD cost guard: exactly one /v1/news call.
+   * competitor mentions ranked by frequency → a precision pass that keeps only
+   * plausibly-comparable peers. Absent key / no company / no industry codes / no
+   * articles → []. HARD cost guards: exactly one billable /v1/news call, and the
+   * FREE /v1/company/search resolves that feed the relevance filter are capped at
+   * {@link RELEVANCE_RESOLVE_CAP} candidates (0 credits, best-effort, never throws).
    */
   async fetchCompetitors(
     query: string,
@@ -507,14 +656,14 @@ export class AktaConnector implements DataConnector {
     const company = await this.resolveCompany(query);
     if (!company) return [];
     const resolvedName = company.name ?? query;
-    const industryQuery = (
+    const targetCategory = (
       company.product_category ??
       hint ??
       resolvedName
     ).trim();
-    if (!industryQuery) return [];
+    if (!targetCategory) return [];
     const industryData = await aktaGet("/v1/industry/search", {
-      query: industryQuery,
+      query: targetCategory,
     });
     const hits = Array.isArray(industryData)
       ? industryData
@@ -523,6 +672,7 @@ export class AktaConnector implements DataConnector {
       (Array.isArray(hits) ? hits : []) as AktaIndustryHit[],
     );
     if (!codes) return [];
+    // The ONE billable call: industry-scoped news. Everything below is free.
     const newsData = await aktaGet("/v1/news", {
       industry: codes,
       limit: "25",
@@ -531,7 +681,36 @@ export class AktaConnector implements DataConnector {
     const articles = Array.isArray(newsData)
       ? newsData
       : section(newsData, "articles");
-    return extractIndustryMentions(articles, resolvedName);
+
+    // Gate to >= 2 mentions and cap the candidate set BEFORE any resolve, so the
+    // free /v1/company/search fan-out can never exceed RELEVANCE_RESOLVE_CAP.
+    const candidates = rankIndustryMentions(articles, resolvedName)
+      .filter((c) => c.count >= 2)
+      .slice(0, RELEVANCE_RESOLVE_CAP);
+    if (candidates.length === 0) return [];
+
+    // Free (0-credit) firmographic resolves, best-effort + isolated per candidate:
+    // any miss/failure maps to null and is dropped — never adds a /v1/news call.
+    const resolved = (
+      await Promise.all(
+        candidates.map(async (c): Promise<ResolvedMention | null> => {
+          try {
+            const hit = await resolveAktaCompany(c.name);
+            if (!hit) return null;
+            return {
+              name: c.name,
+              count: c.count,
+              product_category: hit.product_category,
+              company_status: hit.company_status,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((r): r is ResolvedMention => r != null);
+
+    return filterRelevantMentions(resolved, targetCategory);
   }
 
   async fetchValuationMetric(
