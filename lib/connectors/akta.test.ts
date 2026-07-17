@@ -635,3 +635,25 @@ describe("toPrivateSuggestions (private-only typeahead mapper)", () => {
     ).toEqual([]);
   });
 });
+
+describe("field-local schema degradation (post-review hardening)", () => {
+  it("keeps valid revenue when valuation_estimate is malformed", () => {
+    const fin = mapAktaFinancial({
+      revenue: 50_000_000,
+      valuation_estimate: "N/A",
+    } as unknown as Parameters<typeof mapAktaFinancial>[0]);
+    expect(fin?.revenue).toBe(50_000_000);
+    expect(fin?.valuation).toBeUndefined();
+  });
+
+  it("keeps the profile when founders is malformed", () => {
+    const p = mapAktaProfile({
+      name: "Acme",
+      founded_year: "2019",
+      founders: [42],
+    } as unknown as Parameters<typeof mapAktaProfile>[0]);
+    expect(p?.name).toBe("Acme");
+    expect(p?.foundedYear).toBe(2019);
+    expect(p?.founders).toBeUndefined();
+  });
+});

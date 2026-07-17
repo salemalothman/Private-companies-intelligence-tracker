@@ -68,11 +68,13 @@ const aktaRawProfileSchema = z
     product_category: z.string().nullish(),
     industry: z.string().nullish(),
     country: z.string().nullish(),
-    founded_year: z.coerce.number().nullish(),
+    // .catch keeps failures FIELD-LOCAL: one malformed value degrades to null
+    // instead of failing the whole object and discarding valid sibling fields.
+    founded_year: z.coerce.number().nullish().catch(null),
     description: z.string().nullish(),
     company_description: z.string().nullish(),
     company_description_short: z.string().nullish(),
-    founders: z.array(z.string()).nullish(),
+    founders: z.array(z.string()).nullish().catch(null),
   })
   .passthrough();
 type AktaRawProfile = z.infer<typeof aktaRawProfileSchema>;
@@ -109,15 +111,18 @@ type AktaEstimateBand = z.infer<typeof aktaEstimateBandSchema>;
 // An estimate field is EITHER a range band OR a (possibly string-encoded)
 // number. Band is tried first so an object is never mis-coerced to NaN; a number
 // / numeric string falls through to z.coerce.number().
+// .catch(null) keeps a malformed estimate FIELD-LOCAL (e.g. "N/A") — the
+// sibling fields still parse instead of the whole record degrading to null.
 const aktaEstimateFieldSchema = z
   .union([aktaEstimateBandSchema, z.coerce.number()])
-  .nullish();
+  .nullish()
+  .catch(null);
 
 const aktaRawFinancialSchema = z
   .object({
-    revenue: z.coerce.number().nullish(),
+    revenue: z.coerce.number().nullish().catch(null),
     revenue_estimate: aktaEstimateFieldSchema,
-    valuation: z.coerce.number().nullish(),
+    valuation: z.coerce.number().nullish().catch(null),
     valuation_estimate: aktaEstimateFieldSchema,
     valuation_date: z.string().nullish(),
     as_of: z.string().nullish(),

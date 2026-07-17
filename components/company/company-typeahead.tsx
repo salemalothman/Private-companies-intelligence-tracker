@@ -101,17 +101,24 @@ export const CompanyTypeahead = forwardRef<
       // Ignore stale responses — a newer keystroke already superseded this one.
       if (mySeq !== seq.current) return;
       const list = res.suggestions ?? [];
-      // Cache, dropping the oldest entry once we hit the ~50-entry cap.
-      if (cache.current.size >= 50) {
-        const oldest = cache.current.keys().next().value;
-        if (oldest !== undefined) cache.current.delete(oldest);
+      // Cache non-empty results only: an empty list may be a transient akta
+      // failure or the server throttle's degraded response — pinning it would
+      // show "no results" forever for a query that actually has matches.
+      if (list.length > 0) {
+        // Drop the oldest entry once we hit the ~50-entry cap.
+        if (cache.current.size >= 50) {
+          const oldest = cache.current.keys().next().value;
+          if (oldest !== undefined) cache.current.delete(oldest);
+        }
+        cache.current.set(key, list);
       }
-      cache.current.set(key, list);
       setLoading(false);
       setSuggestions(list);
       setActiveIndex(-1);
       setOpen(true);
-    }, 250);
+      // 350ms sits above the server action's 300ms per-user throttle floor, so
+      // a natural typing cadence never gets a request throttled to empty.
+    }, 350);
     return () => clearTimeout(timer);
   }, [value]);
 
@@ -144,6 +151,9 @@ export const CompanyTypeahead = forwardRef<
     setSuggestions([]);
     setOpen(false);
     setActiveIndex(-1);
+    // The seq bump above orphans any in-flight fetch (its setLoading(false)
+    // never runs), so clear the spinner here.
+    setLoading(false);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -208,7 +218,9 @@ export const CompanyTypeahead = forwardRef<
               {loading ? "Searching…" : "No private companies found."}
             </p>
           ) : (
-            <ul id={listboxId} role="listbox" aria-label="Company suggestions">
+            // div, not ul: option buttons must be DIRECT children of the
+            // listbox for ARIA ownership, and ul only permits li children.
+            <div id={listboxId} role="listbox" aria-label="Company suggestions">
               {suggestions.map((s, i) => {
                 const host = hostFromWebsite(s.website);
                 const brief = s.category ?? host ?? "";
@@ -245,7 +257,7 @@ export const CompanyTypeahead = forwardRef<
                   </button>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
       )}
