@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-17 - Valuation spike guard + progress timers + private-only guardrail (383 tests green); Accrete $852B outlier stripped via hardened sweep
+Last activity: 2026-07-17 - Private-only company typeahead shipped (390 tests green)
 
 Progress: [█████████░] 94%
 
@@ -122,6 +122,7 @@ None yet.
 | 260717-7g6 | Tighten akta competitor relevance: comparison-query pool + free-resolve category gate, live-tuned (16 noisy → Figma/Leonardo AI for Canva) | 2026-07-17 | 7b75e86 | [260717-7g6-tighten-akta-competitor-mention-relevanc](./quick/260717-7g6-tighten-akta-competitor-mention-relevanc/) |
 | 260717-9co | Valuation spike guard (pdf:/url: trust + 20x upward-outlier strip) + estimated-time-remaining countdown UI for Sync/Deep-dive; hardened sweep stripped Accrete $852B outlier | 2026-07-17 | 1e1f92f | [260717-9co-add-data-sanity-validation-for-implausib](./quick/260717-9co-add-data-sanity-validation-for-implausib/) |
 | fast | Privately-held guardrail: akta primary-company resolution skips public/delisted hits (competitor resolves unrestricted) | 2026-07-17 | 1e1f92f | (inline) |
+| 260717-ayw | Private-only company typeahead in Add Company: akta-backed autocomplete (logo/name/URL/category), public companies excluded | 2026-07-17 | (merge) | [260717-ayw-typeahead-company-search-dropdown-in-add](./quick/260717-ayw-typeahead-company-search-dropdown-in-add/) |
 
 ## Deferred Items
 
