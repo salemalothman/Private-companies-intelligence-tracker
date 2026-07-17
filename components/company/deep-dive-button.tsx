@@ -6,6 +6,7 @@ import { m } from "motion/react";
 import { Check, Sparkles } from "lucide-react";
 import { runDeepDiveAction } from "@/app/(app)/companies/actions";
 import { Button } from "@/components/ui/button";
+import { ProgressCountdown, recordObservedDuration } from "@/components/company/progress-countdown";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,6 +32,7 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState(0);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startRef = useRef<number | null>(null);
 
   // Advance the staged label while the action runs; reset when it settles.
   useEffect(() => {
@@ -52,11 +54,18 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
   function run() {
     setError(null);
     setDone(false);
+    startRef.current = Date.now();
     start(async () => {
       const res = await runDeepDiveAction(companyId);
       if (res.error) {
         setError(res.error);
       } else {
+        // Record the observed run time so the countdown adapts next time —
+        // only on success, never on the error path.
+        if (startRef.current != null) {
+          recordObservedDuration("deep-dive", Date.now() - startRef.current);
+          startRef.current = null;
+        }
         setDone(true);
         router.refresh();
         doneTimer.current = setTimeout(() => setDone(false), 2000);
@@ -67,48 +76,51 @@ export function DeepDiveButton({ companyId }: { companyId: string }) {
   const label = pending ? STAGES[stage] : done ? "Generated" : "Run deep-dive";
 
   return (
-    <div className="flex items-center gap-2">
-      {error && (
-        <span role="alert" className="text-xs text-destructive">
-          {error}
-        </span>
-      )}
-      {/* variant="mono": the designated primary in the company header — the
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        {error && (
+          <span role="alert" className="text-xs text-destructive">
+            {error}
+          </span>
+        )}
+        {/* variant="mono": the designated primary in the company header — the
           white/ink-outline treatment shared by Add company and Generate now,
           so every surface's primary speaks one language. Neighbouring actions
           stay hairline-outline/ghost so nothing competes (one-primary rule). */}
-      <Button
-        size="sm"
-        variant="mono"
-        onClick={run}
-        disabled={pending}
-        title="Generate a grounded deep-dive analysis for this company"
-      >
-        {done ? (
-          // Spring pop on success; the check inherits the button's text color,
-          // so it stays legible through mono's hover inversion (ink on white,
-          // white on ink). Label ("Generated") carries the state for
-          // reduced-motion users.
-          <m.span
-            className="inline-flex"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 600, damping: 20 }}
-          >
-            <Check className="h-3.5 w-3.5" />
-          </m.span>
-        ) : (
-          <Sparkles className={cn("h-3.5 w-3.5", pending && "animate-pulse")} />
-        )}
-        <span
-          role="progressbar"
-          aria-live="polite"
-          aria-busy={pending}
-          aria-label={pending ? label : undefined}
+        <Button
+          size="sm"
+          variant="mono"
+          onClick={run}
+          disabled={pending}
+          title="Generate a grounded deep-dive analysis for this company"
         >
-          {label}
-        </span>
-      </Button>
+          {done ? (
+            // Spring pop on success; the check inherits the button's text color,
+            // so it stays legible through mono's hover inversion (ink on white,
+            // white on ink). Label ("Generated") carries the state for
+            // reduced-motion users.
+            <m.span
+              className="inline-flex"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 600, damping: 20 }}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </m.span>
+          ) : (
+            <Sparkles className={cn("h-3.5 w-3.5", pending && "animate-pulse")} />
+          )}
+          <span
+            role="progressbar"
+            aria-live="polite"
+            aria-busy={pending}
+            aria-label={pending ? label : undefined}
+          >
+            {label}
+          </span>
+        </Button>
+      </div>
+      <ProgressCountdown running={pending} kind="deep-dive" />
     </div>
   );
 }
