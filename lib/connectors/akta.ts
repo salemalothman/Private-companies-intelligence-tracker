@@ -539,11 +539,43 @@ function section(data: unknown, name: string): unknown {
  * Free company search — resolves a query to akta's uuid/website for reuse.
  * Module-level (not just a class method) so the standalone deep-search entry
  * point can reuse the exact same resolution. Returns null on any miss/failure.
+ *
+ * `privateOnly` applies the app's holdings guardrail: this tracker holds
+ * privately held companies only, so when resolving the PRIMARY (tracked)
+ * company we must never bind to a public-market entity — a "public" match is
+ * either the wrong real-world entity or a company this app doesn't cover.
+ * Competitor-candidate resolves pass `privateOnly: false`: the competitive
+ * landscape legitimately includes public peers (e.g. Figma).
  */
-async function resolveAktaCompany(query: string): Promise<AktaSearchHit | null> {
+async function resolveAktaCompany(
+  query: string,
+  opts: { privateOnly?: boolean } = {},
+): Promise<AktaSearchHit | null> {
   const data = await aktaGet("/v1/company/search", { query });
   if (!Array.isArray(data) || data.length === 0) return null;
-  return (data as AktaSearchHit[])[0] ?? null;
+  const hits = data as AktaSearchHit[];
+  return opts.privateOnly ? pickPrimaryCompanyHit(hits) : (hits[0] ?? null);
+}
+
+/** Statuses that mark a public-market entity — never a valid PRIMARY match. */
+const PUBLIC_MARKET_STATUSES = new Set(["public", "delisted"]);
+
+/**
+ * First search hit eligible to be the tracked (primary) company: skips hits
+ * whose company_status marks a public-market entity; unknown/missing statuses
+ * stay eligible (lenient — a thin status field must never zero out resolution).
+ * Pure and exported for HTTP-free tests.
+ */
+export function pickPrimaryCompanyHit(
+  hits: AktaSearchHit[] | null | undefined,
+): AktaSearchHit | null {
+  if (!Array.isArray(hits)) return null;
+  return (
+    hits.find(
+      (h) =>
+        !PUBLIC_MARKET_STATUSES.has((h?.company_status ?? "").trim().toLowerCase()),
+    ) ?? null
+  );
 }
 
 /** Hard cap on akta /v1/news calls per deep-search (credits/denial guard). */
@@ -568,7 +600,7 @@ export async function aktaDeepSearch(
   companyQuery: string,
   topics: string[],
 ): Promise<ConnectorNewsItem[]> {
-  const company = await resolveAktaCompany(companyQuery);
+  const company = await resolveAktaCompany(companyQuery, { privateOnly: true });
   if (!company?.uuid) return [];
   const uniqueTopics = Array.from(
     new Set(topics.map((t) => t.trim()).filter((t) => t.length > 0)),
@@ -604,9 +636,12 @@ export async function aktaDeepSearch(
 export class AktaConnector implements DataConnector {
   readonly id = "akta";
 
-  /** Free company search — resolves a query to akta's uuid/website for reuse. */
+  /**
+   * Free company search — resolves the TRACKED company, so the privately-held
+   * guardrail applies (public-market hits are never a valid primary match).
+   */
   private async resolveCompany(query: string): Promise<AktaSearchHit | null> {
-    return resolveAktaCompany(query);
+    return resolveAktaCompany(query, { privateOnly: true });
   }
 
   async fetchCompanyProfile(

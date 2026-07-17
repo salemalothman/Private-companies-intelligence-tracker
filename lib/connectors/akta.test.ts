@@ -6,6 +6,7 @@ import {
   mapAktaNews,
   mapAktaProfile,
   normalizeDeepSearchArticles,
+  pickPrimaryCompanyHit,
   rankIndustryMentions,
   resolveIndustryCodes,
 } from "@/lib/connectors/akta";
@@ -449,5 +450,56 @@ describe("live API shapes (2026-07-17)", () => {
         valuation_estimate: { label: "N/A" },
       }),
     ).toBeNull();
+  });
+});
+
+describe("pickPrimaryCompanyHit (privately-held guardrail)", () => {
+  it("skips public-market hits and binds to the first private hit", () => {
+    const hit = pickPrimaryCompanyHit([
+      { uuid: "pub1", name: "Acme Corp", company_status: "public" },
+      { uuid: "del1", name: "Acme Ltd", company_status: "delisted" },
+      { uuid: "priv1", name: "Acme", company_status: "private" },
+    ]);
+    expect(hit?.uuid).toBe("priv1");
+  });
+
+  it("returns null when every hit is a public-market entity", () => {
+    expect(
+      pickPrimaryCompanyHit([
+        { uuid: "a", company_status: "public" },
+        { uuid: "b", company_status: "delisted" },
+      ]),
+    ).toBeNull();
+  });
+
+  it("keeps unknown/missing statuses eligible (lenient)", () => {
+    expect(pickPrimaryCompanyHit([{ uuid: "u1" }])?.uuid).toBe("u1");
+    expect(
+      pickPrimaryCompanyHit([{ uuid: "u2", company_status: "unknown" }])?.uuid,
+    ).toBe("u2");
+    expect(
+      pickPrimaryCompanyHit([{ uuid: "a1", company_status: "acquired" }])?.uuid,
+    ).toBe("a1");
+  });
+
+  it("returns null for empty/malformed input", () => {
+    expect(pickPrimaryCompanyHit([])).toBeNull();
+    expect(pickPrimaryCompanyHit(null)).toBeNull();
+    expect(pickPrimaryCompanyHit(undefined)).toBeNull();
+  });
+
+  it("competitor filtering still keeps PUBLIC peers (guardrail is primary-only)", () => {
+    const out = filterRelevantMentions(
+      [
+        {
+          name: "Figma",
+          count: 1,
+          product_category: "Ui Design Collaboration Software",
+          company_status: "public",
+        },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Figma"]);
   });
 });
