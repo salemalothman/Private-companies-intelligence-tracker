@@ -82,7 +82,7 @@ interface AktaRawFinancial {
   as_of?: string;
 }
 
-interface AktaSearchHit {
+export interface AktaSearchHit {
   uuid?: string;
   name?: string;
   website?: string;
@@ -576,6 +576,67 @@ export function pickPrimaryCompanyHit(
         !PUBLIC_MARKET_STATUSES.has((h?.company_status ?? "").trim().toLowerCase()),
     ) ?? null
   );
+}
+
+/**
+ * A private-company search suggestion for the Add Company typeahead — the UI-
+ * facing projection of an {@link AktaSearchHit}. No `logo` field: the logo is
+ * derived client-side from `website` (Clearbit + monogram fallback), so the
+ * server never fetches or stores a logo URL.
+ */
+export interface CompanySuggestion {
+  uuid?: string;
+  name: string;
+  website?: string;
+  category?: string;
+}
+
+/**
+ * List-returning sibling of {@link pickPrimaryCompanyHit}: maps akta search hits
+ * to the typeahead's private-only suggestions. Applies the SAME public-market
+ * exclusion (reusing {@link PUBLIC_MARKET_STATUSES}) — this tracker holds private
+ * entities only, so "public"/"delisted" hits are dropped while private/acquired/
+ * unknown/missing statuses stay eligible (lenient — a thin status field must
+ * never over-prune). Nameless hits are dropped, `product_category` becomes
+ * `category` (undefined when blank), and the output is capped (default 8) with
+ * akta's input order preserved. Non-array / empty input → [] (never throws).
+ */
+export function toPrivateSuggestions(
+  hits: AktaSearchHit[] | null | undefined,
+  opts: { cap?: number } = {},
+): CompanySuggestion[] {
+  if (!Array.isArray(hits)) return [];
+  const cap = opts.cap ?? 8;
+  const out: CompanySuggestion[] = [];
+  for (const h of hits) {
+    if (PUBLIC_MARKET_STATUSES.has((h?.company_status ?? "").trim().toLowerCase())) {
+      continue;
+    }
+    const name = (h?.name ?? "").trim();
+    if (!name) continue;
+    out.push({
+      uuid: clean(h.uuid),
+      name,
+      website: clean(h.website),
+      category: clean(h.product_category?.trim() || undefined),
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+/**
+ * Free company search returning the FULL hit list (not just the primary) for the
+ * Add Company typeahead. Mirrors resolveAktaCompany's array-guard: any miss /
+ * non-array payload / absent key degrades to [] (never throws). Intentionally
+ * does NOT filter — the pure {@link toPrivateSuggestions} mapper applies the
+ * private-only exclusion, so it stays HTTP-free and unit-testable.
+ */
+export async function searchAktaCompanies(
+  query: string,
+): Promise<AktaSearchHit[]> {
+  const data = await aktaGet("/v1/company/search", { query });
+  return Array.isArray(data) ? (data as AktaSearchHit[]) : [];
 }
 
 /** Hard cap on akta /v1/news calls per deep-search (credits/denial guard). */
