@@ -26,16 +26,24 @@ const DUP_TOLERANCE = 0.02; // values within 2% of a verified figure = duplicate
 // marks past the old $500B assumption (SpaceX $1.77T, Anthropic $1T, OpenAI
 // $852B), which this was silently stripping as "parse errors".
 const MAX_PLAUSIBLE = 3e12;
+// a legitimate round is never 20x the last known valuation — an untrusted
+// figure above this is an outlier/parse-leak, not growth (Accrete: an $852B
+// "exa" row sat 1300x above the real ~$650M mark and won canonicalization).
+const SPIKE_MULTIPLE = 20;
 
 /**
  * Reasons an entry is invalid against a set of trusted reference entries.
  * Implausible outliers are rejected from any source; untrusted entries are also
- * rejected when they break monotonic growth (in either direction) or duplicate
- * a verified figure.
+ * rejected when they break monotonic growth (in either direction), duplicate a
+ * verified figure, or spike absurdly above the highest known valuation.
+ * `otherRefs` are ALL other dated entries (any source) — the spike guard falls
+ * back to these when no trusted refs exist so an untrusted outlier is still
+ * caught against its untrusted peers.
  */
 function rejectionReasons(
   entry: { date: string; post_money: number; source: string | null },
   trustedRefs: { date: string; post_money: number }[],
+  otherRefs: { post_money: number }[],
 ): string[] {
   const reasons: string[] = [];
   const v = entry.post_money;
@@ -47,6 +55,13 @@ function rejectionReasons(
       reasons.push("valuation falls below an earlier verified round (untrusted down-round)");
     if (trustedRefs.some((o) => Math.abs(o.post_money - v) <= v * DUP_TOLERANCE))
       reasons.push("unverified duplicate of a verified figure");
+    // Upward-outlier guard: trusted-preferred comparison pool. When there is
+    // nothing to compare against (maxOther === 0), push nothing — never
+    // fabricate a rejection with no reference point.
+    const pool = trustedRefs.length ? trustedRefs : otherRefs;
+    const maxOther = pool.reduce((m, o) => Math.max(m, o.post_money), 0);
+    if (maxOther > 0 && v > SPIKE_MULTIPLE * maxOther)
+      reasons.push("implausible spike — exceeds 20x the highest known valuation");
   }
   return reasons;
 }
@@ -80,8 +95,13 @@ export function isTrustedSource(source: string | null | undefined): boolean {
   if (s.startsWith("manual") || s.includes("aggregate") || s.includes("unverified"))
     return false;
   if (isSecFiling(s)) return true;
-  // Lenient: any embedded domain-like token, so document sources (pdf:deck.pdf)
-  // and bare publisher domains both count as primary-verified.
+  // Document sources (pdf:deck.pdf, url:https://…) are primary-verified by
+  // prefix — the domain-regex below is defeated by filenames like
+  // "Deal_Overview_-_Accrete_.pdf" (the "_.pdf" underscore breaks the token),
+  // which under-trusted a real deck and let an untrusted exa row outrank it.
+  if (s.startsWith("pdf:") || s.startsWith("url:")) return true;
+  // Lenient: any embedded domain-like token, so bare publisher domains count
+  // as primary-verified.
   return /[a-z0-9-]+\.[a-z]{2,}/.test(s);
 }
 
@@ -97,6 +117,8 @@ export function validateTimeline(entries: TimelineEntry[]): TimelineResult {
   const trustedRefs = entries
     .filter((e) => e.date && e.post_money != null && isTrustedSource(e.source))
     .map((e) => ({ date: e.date as string, post_money: e.post_money as number }));
+  // Every dated entry (any source) — the spike guard's fallback comparison pool.
+  const dated = entries.filter((e) => e.date && e.post_money != null);
 
   for (const e of entries) {
     if (!(e.date && e.post_money != null)) {
@@ -112,7 +134,12 @@ export function validateTimeline(entries: TimelineEntry[]): TimelineResult {
     const refs = trustedRefs.filter(
       (o) => !(o.date === entry.date && o.post_money === entry.post_money && isTrustedSource(e.source)),
     );
-    const reasons = rejectionReasons(entry, refs);
+    // Every OTHER dated entry (exclude self by identity so a value never
+    // compares against itself).
+    const otherRefs = dated
+      .filter((o) => o !== e)
+      .map((o) => ({ post_money: o.post_money as number }));
+    const reasons = rejectionReasons(entry, refs, otherRefs);
 
     if (reasons.length) {
       anomalies.push({ entry: e, reasons, action: "strip" });
@@ -147,6 +174,11 @@ export function filterIngestValuations<
   const trustedRefs = existing
     .filter((e) => e.date && e.post_money != null && isTrustedSource(e.source))
     .map((e) => ({ date: e.date as string, post_money: e.post_money as number }));
+  // All established dated entries — candidates spike against the set as a whole
+  // (trusted-preferred via the pool logic in rejectionReasons).
+  const otherRefs = existing
+    .filter((e) => e.date && e.post_money != null)
+    .map((e) => ({ post_money: e.post_money as number }));
   const accepted: T[] = [];
   const rejected: { entry: T; reasons: string[] }[] = [];
 
@@ -158,6 +190,7 @@ export function filterIngestValuations<
     const reasons = rejectionReasons(
       { date: c.date, post_money: c.post_money, source: c.source },
       trustedRefs,
+      otherRefs,
     );
     if (reasons.length) rejected.push({ entry: c, reasons });
     else accepted.push(c);
