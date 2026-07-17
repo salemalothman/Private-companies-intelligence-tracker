@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { Loader2 } from "lucide-react";
 import { searchCompaniesAction } from "@/app/(app)/companies/actions";
 import type { CompanySuggestion } from "@/lib/connectors/akta";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, hostFromWebsite } from "@/lib/utils";
 
 type CompanyTypeaheadProps = {
   value: string;
@@ -15,18 +22,18 @@ type CompanyTypeaheadProps = {
   autoFocus?: boolean;
 };
 
-/** Bare hostname from a website URL, for building a Clearbit logo URL. */
-function hostFromUrl(website: string | undefined): string | null {
-  if (!website) return null;
-  try {
-    const u = new URL(
-      website.startsWith("http") ? website : `https://${website}`,
-    );
-    return u.hostname.replace(/^www\./, "") || null;
-  } catch {
-    return null;
-  }
-}
+/**
+ * Imperative handle exposed to the parent so it can coordinate the Escape key:
+ * Radix's DialogContent listens for Escape on the document capture phase and
+ * closes the dialog unless the event is `defaultPrevented`. The parent queries
+ * {@link isOpen} in its `onEscapeKeyDown` and, when the dropdown is showing,
+ * prevents the dialog close and calls {@link close} instead (first Escape closes
+ * the dropdown, second closes the dialog).
+ */
+export type CompanyTypeaheadHandle = {
+  isOpen: () => boolean;
+  close: () => void;
+};
 
 /**
  * Debounced private-only company search input for the Add Company flow. As the
@@ -36,41 +43,72 @@ function hostFromUrl(website: string | undefined): string | null {
  * companies are excluded server-side. Selecting a row fills the parent form;
  * free-form typing + submit are unaffected (the input still drives `value`).
  */
-export function CompanyTypeahead({
-  value,
-  onChange,
-  onSelect,
-  placeholder,
-  autoFocus,
-}: CompanyTypeaheadProps) {
+export const CompanyTypeahead = forwardRef<
+  CompanyTypeaheadHandle,
+  CompanyTypeaheadProps
+>(function CompanyTypeahead(
+  { value, onChange, onSelect, placeholder, autoFocus },
+  ref,
+) {
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+
+  // Stable, unique ids for the WAI-ARIA combobox wiring (listbox + options).
+  const baseId = useId();
+  const listboxId = `${baseId}-listbox`;
+  const optionId = (i: number) => `${baseId}-opt-${i}`;
 
   // Monotonic request sequence: only the latest fire may commit results, so a
   // slow earlier response can never overwrite a newer one (out-of-order guard).
   const seq = useRef(0);
   // Close-on-blur is delayed so a row's mousedown/click still registers.
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The name we just committed via pick(): suppress the re-open the parent's
+  // programmatic value change would otherwise trigger. Cleared on user edit.
+  const lastPicked = useRef<string | null>(null);
+  // Small bounded client cache (trimmed-lowercase query -> results) so repeat
+  // queries (e.g. backspacing) resolve instantly without a server round-trip.
+  const cache = useRef<Map<string, CompanySuggestion[]>>(new Map());
 
   useEffect(() => {
     const q = value.trim();
+    // Value was set programmatically by pick() — do not fetch or re-open.
+    if (value === lastPicked.current) return;
     if (q.length < 2) {
+      // Invalidate any in-flight response so it can't commit after we clear.
+      seq.current++;
       setSuggestions([]);
       setLoading(false);
       setOpen(false);
       setActiveIndex(-1);
       return;
     }
+    const key = q.toLowerCase();
     const mySeq = ++seq.current;
+    const cached = cache.current.get(key);
+    if (cached) {
+      setLoading(false);
+      setSuggestions(cached);
+      setActiveIndex(-1);
+      setOpen(true);
+      return;
+    }
     setLoading(true);
     const timer = setTimeout(async () => {
       const res = await searchCompaniesAction(q);
       // Ignore stale responses — a newer keystroke already superseded this one.
       if (mySeq !== seq.current) return;
+      const list = res.suggestions ?? [];
+      // Cache, dropping the oldest entry once we hit the ~50-entry cap.
+      if (cache.current.size >= 50) {
+        const oldest = cache.current.keys().next().value;
+        if (oldest !== undefined) cache.current.delete(oldest);
+      }
+      cache.current.set(key, list);
       setLoading(false);
-      setSuggestions(res.suggestions ?? []);
+      setSuggestions(list);
       setActiveIndex(-1);
       setOpen(true);
     }, 250);
@@ -83,7 +121,25 @@ export function CompanyTypeahead({
     };
   }, []);
 
+  const showDropdown = open && value.trim().length >= 2;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      isOpen: () => showDropdown,
+      close: () => {
+        setOpen(false);
+        setActiveIndex(-1);
+      },
+    }),
+    [showDropdown],
+  );
+
   function pick(suggestion: CompanySuggestion) {
+    // Record the picked name so the parent's programmatic value update doesn't
+    // immediately re-open the dropdown, and invalidate any in-flight search.
+    lastPicked.current = suggestion.name;
+    seq.current++;
     onSelect(suggestion);
     setSuggestions([]);
     setOpen(false);
@@ -99,10 +155,13 @@ export function CompanyTypeahead({
       e.preventDefault();
       setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
     } else if (e.key === "Enter") {
-      const target = activeIndex >= 0 ? suggestions[activeIndex] : suggestions[0];
-      if (target) {
+      // Only commit when a row is actually highlighted; otherwise just close
+      // the dropdown and leave the typed value untouched (no [0] fallback).
+      if (activeIndex >= 0 && suggestions[activeIndex]) {
         e.preventDefault();
-        pick(target);
+        pick(suggestions[activeIndex]);
+      } else {
+        setOpen(false);
       }
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -110,13 +169,15 @@ export function CompanyTypeahead({
     }
   }
 
-  const showDropdown = open && value.trim().length >= 2;
-
   return (
     <div className="relative">
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          // Any user edit re-arms search after a pick.
+          lastPicked.current = null;
+          onChange(e.target.value);
+        }}
         onKeyDown={onKeyDown}
         onFocus={() => {
           if (value.trim().length >= 2 && suggestions.length > 0) setOpen(true);
@@ -127,6 +188,13 @@ export function CompanyTypeahead({
         placeholder={placeholder}
         autoComplete="off"
         autoFocus={autoFocus}
+        role="combobox"
+        aria-expanded={showDropdown}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        aria-activedescendant={
+          showDropdown && activeIndex >= 0 ? optionId(activeIndex) : undefined
+        }
       />
       {loading && (
         <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center text-muted-foreground">
@@ -140,39 +208,41 @@ export function CompanyTypeahead({
               {loading ? "Searching…" : "No private companies found."}
             </p>
           ) : (
-            <ul role="listbox">
+            <ul id={listboxId} role="listbox" aria-label="Company suggestions">
               {suggestions.map((s, i) => {
-                const host = hostFromUrl(s.website);
+                const host = hostFromWebsite(s.website);
                 const brief = s.category ?? host ?? "";
                 return (
-                  <li key={s.uuid ?? `${s.name}-${i}`} role="option" aria-selected={i === activeIndex}>
-                    <button
-                      type="button"
-                      // onMouseDown (not onClick) so the pick fires before the
-                      // input's blur-close timer hides the row.
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        pick(s);
-                      }}
-                      onMouseEnter={() => setActiveIndex(i)}
-                      className={cn(
-                        "flex w-full items-center gap-3 px-3 py-2 text-left touch-action-manipulation",
-                        i === activeIndex ? "bg-accent" : "hover:bg-accent/60",
-                      )}
-                    >
-                      <SuggestionLogo name={s.name} host={host} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {s.name}
-                        </span>
-                        {brief && (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {brief}
-                          </span>
-                        )}
+                  <button
+                    key={s.uuid ?? `${s.name}-${i}`}
+                    type="button"
+                    role="option"
+                    id={optionId(i)}
+                    aria-selected={i === activeIndex}
+                    // onMouseDown (not onClick) so the pick fires before the
+                    // input's blur-close timer hides the row.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      pick(s);
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-3 py-2 text-left",
+                      i === activeIndex ? "bg-accent" : "hover:bg-accent/60",
+                    )}
+                  >
+                    <SuggestionLogo name={s.name} host={host} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {s.name}
                       </span>
-                    </button>
-                  </li>
+                      {brief && (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {brief}
+                        </span>
+                      )}
+                    </span>
+                  </button>
                 );
               })}
             </ul>
@@ -181,7 +251,7 @@ export function CompanyTypeahead({
       )}
     </div>
   );
-}
+});
 
 /**
  * Row logo block: a Clearbit logo derived from the suggestion's hostname, with a

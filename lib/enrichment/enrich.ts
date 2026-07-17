@@ -1,6 +1,7 @@
 import "server-only";
 import { getConnectors } from "@/lib/connectors/registry";
 import { fetchUrlContent } from "@/lib/documents/fetch-url";
+import { hostFromWebsite } from "@/lib/utils";
 
 export interface EnrichedProfile {
   sector?: string;
@@ -12,17 +13,6 @@ export interface EnrichedProfile {
   logoUrl?: string;
 }
 
-/** Bare registrable domain from a website URL ("https://www.openai.com/x" -> "openai.com"). */
-function domainOf(website?: string): string | null {
-  if (!website) return null;
-  try {
-    const u = new URL(website.startsWith("http") ? website : `https://${website}`);
-    return u.hostname.replace(/^www\./, "") || null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * High-fidelity brand logo from the company's domain via Clearbit's keyless
  * Logo API. The URL is constructed (not fetched) here — the browser <img>
@@ -30,7 +20,7 @@ function domainOf(website?: string): string | null {
  * the asset client-side and avoids a server round-trip on every keystroke.
  */
 function resolveLogo(website?: string): string | undefined {
-  const domain = domainOf(website);
+  const domain = hostFromWebsite(website);
   return domain ? `https://logo.clearbit.com/${domain}` : undefined;
 }
 

@@ -6,6 +6,23 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Bare hostname from a website URL — protocol-defaulted (so bare "openai.com"
+ * parses), `www.` stripped, null when absent or unparseable. One client-safe
+ * copy shared by the logo/favicon builders across the typeahead, Add Company
+ * dialog, and enrichment, replacing the several inline duplicates that had
+ * drifted. (sanitize-sources.ts keeps its own normalizer — different semantics.)
+ */
+export function hostFromWebsite(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    return u.hostname.replace(/^www\./, "") || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Format a number as compact USD, e.g. 1_200_000 -> "$1.20M".
  *
  * Implemented manually rather than via Intl `notation: "compact"`, whose output
