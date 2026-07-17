@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   extractIndustryMentions,
+  filterRelevantMentions,
   mapAktaFinancial,
   mapAktaNews,
   mapAktaProfile,
   normalizeDeepSearchArticles,
+  rankIndustryMentions,
   resolveIndustryCodes,
 } from "@/lib/connectors/akta";
 
@@ -185,6 +187,147 @@ describe("extractIndustryMentions", () => {
     expect(extractIndustryMentions(undefined, "T")).toEqual([]);
     expect(extractIndustryMentions([{ companies: "not-an-array" }], "T")).toEqual([]);
     expect(extractIndustryMentions([42, "junk", {}], "T")).toEqual([]);
+  });
+});
+
+describe("rankIndustryMentions", () => {
+  it("counts mentions across all three field shapes, ranked most-mentioned first", () => {
+    const ranked = rankIndustryMentions(
+      [
+        { companies: [{ name: "Rival A" }, { name: "Rival B" }] },
+        { company_mentions: [{ company_name: "Rival A" }] },
+        { mentions: [{ name: "Rival A" }, { name: "Rival C" }] },
+      ],
+      "Target Co",
+    );
+    expect(ranked).toEqual([
+      { name: "Rival A", count: 3 },
+      { name: "Rival B", count: 1 },
+      { name: "Rival C", count: 1 },
+    ]);
+  });
+
+  it("excludes the target (case-insensitive) and unnamed mentions", () => {
+    const ranked = rankIndustryMentions(
+      [{ companies: [{ name: "target co" }, { name: "  " }, { name: "Real Peer" }] }],
+      "Target Co",
+    );
+    expect(ranked).toEqual([{ name: "Real Peer", count: 1 }]);
+  });
+
+  it("returns [] for empty / malformed input without throwing", () => {
+    expect(rankIndustryMentions([], "T")).toEqual([]);
+    expect(rankIndustryMentions(null, "T")).toEqual([]);
+    expect(rankIndustryMentions(undefined, "T")).toEqual([]);
+    expect(rankIndustryMentions([{ companies: "not-an-array" }], "T")).toEqual([]);
+  });
+
+  it("extractIndustryMentions delegates to rankIndustryMentions with unchanged labels", () => {
+    const articles = [
+      { companies: [{ name: "Rival A" }, { name: "Rival B" }] },
+      { companies: [{ name: "Rival A" }] },
+    ];
+    const ranked = rankIndustryMentions(articles, "Target Co");
+    const extracted = extractIndustryMentions(articles, "Target Co");
+    expect(extracted).toEqual(
+      ranked.map((c) => ({
+        name: c.name,
+        basis: "akta.pro industry-news mention",
+        source: "akta.pro",
+      })),
+    );
+  });
+});
+
+describe("filterRelevantMentions", () => {
+  const basis = "akta.pro industry-news mention";
+
+  it("Test A — drops single-mention candidates, keeps count >= 2", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "Once", count: 1, product_category: "Design Software" },
+        { name: "Twice", count: 2, product_category: "Design Software" },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out.map((c) => c.name)).toEqual(["Twice"]);
+  });
+
+  it("Test B — drops candidates whose product_category is empty/undefined (unverifiable)", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "NoCat", count: 5 },
+        { name: "EmptyCat", count: 5, product_category: "   " },
+        { name: "HasCat", count: 5, product_category: "Design Software" },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out.map((c) => c.name)).toEqual(["HasCat"]);
+  });
+
+  it("Test C — drops clearly-dead statuses, keeps private/public/undefined leniently", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "Acquired Co", count: 5, product_category: "Design Software", company_status: "Acquired" },
+        { name: "Defunct Co", count: 5, product_category: "Design Software", company_status: "defunct" },
+        { name: "Private Co", count: 5, product_category: "Design Software", company_status: "Private" },
+        { name: "Public Co", count: 5, product_category: "Design Software", company_status: "public" },
+        { name: "Unknown Co", count: 5, product_category: "Design Software" },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out.map((c) => c.name)).toEqual([
+      "Private Co",
+      "Public Co",
+      "Unknown Co",
+    ]);
+  });
+
+  it("Test D — Canva noise (NVIDIA, Netflix, university) dropped for zero category overlap", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "NVIDIA", count: 6, product_category: "GPU & AI Hardware" },
+        { name: "Netflix", count: 4, product_category: "Streaming Video" },
+        { name: "State University", count: 3, product_category: "Higher Education" },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("Test E — comparable candidates survive with preserved ranking and labels", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "Figma", count: 3, product_category: "Interface Design Software" },
+        { name: "Adobe", count: 7, product_category: "Design Software" },
+      ],
+      "Graphic Design Software",
+    );
+    expect(out).toEqual([
+      { name: "Adobe", basis, source: "akta.pro" },
+      { name: "Figma", basis, source: "akta.pro" },
+    ]);
+  });
+
+  it("is lenient (keeps on count alone) when the target category has no substantive tokens", () => {
+    const out = filterRelevantMentions(
+      [
+        { name: "Peer A", count: 2, product_category: "GPU Hardware" },
+        { name: "Peer B", count: 1, product_category: "Streaming Video" },
+      ],
+      "Software", // only a stopword → empty target token set
+    );
+    expect(out.map((c) => c.name)).toEqual(["Peer A"]);
+  });
+
+  it("returns [] for empty / malformed input without throwing", () => {
+    expect(filterRelevantMentions([], "Design")).toEqual([]);
+    expect(
+      filterRelevantMentions(
+        null as unknown as Parameters<typeof filterRelevantMentions>[0],
+        "Design",
+      ),
+    ).toEqual([]);
   });
 });
 
