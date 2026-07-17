@@ -9,6 +9,9 @@ import { latestValuation, valuationAmount } from "@/lib/metrics";
 import { nameKey } from "@/lib/market-cache/parse";
 import { clampRating } from "@/lib/agents/deep-dive-types";
 import { clampGrowth } from "@/lib/valuation/comps";
+import { aktaDeepSearch } from "@/lib/connectors/akta";
+import { applyMappedIngest } from "@/lib/ingestion/apply";
+import type { ConnectorNewsItem } from "@/lib/connectors/types";
 import type {
   AnalysisSections,
   AnalysisValuation,
@@ -633,6 +636,33 @@ export function summarizeCachedGrounding(cached: {
   return sections.join("\n\n");
 }
 
+/** Max akta deep-search articles folded into the prompt (completion budget). */
+const DEEP_SEARCH_GROUNDING_CAP = 8;
+
+/**
+ * Serialize akta deep-search articles into one compact source-tagged grounding
+ * block. Every free-text field is run through groundingText() (the same UNTRUSTED
+ * sanitizer used for cached facts) so a crafted article title/summary cannot
+ * embed newlines and forge its own `basis: fact` bullet (threat T-5fr-02). Empty
+ * input → "" so runDeepDive omits the block entirely (no empty header).
+ */
+export function summarizeDeepSearchNews(articles: ConnectorNewsItem[]): string {
+  if (articles.length === 0) return "";
+  const lines = articles
+    .slice(0, DEEP_SEARCH_GROUNDING_CAP)
+    .map((a) => {
+      const date = a.date ? ` (${groundingText(a.date)})` : "";
+      const url = a.url ? ` <${groundingText(a.url)}>` : "";
+      const summary = a.summary ? ` — ${groundingText(a.summary)}` : "";
+      return (
+        `- akta.pro news (source: ${groundingText(a.source)}): ` +
+        `${groundingText(a.title)}${date}${url}${summary}`
+      );
+    })
+    .join("\n");
+  return `akta deep-search articles (akta.pro news facts — cite the URL):\n${lines}`;
+}
+
 /**
  * The honest "no proposal" growth: nulls, never fabricated zeros (same rule as
  * `base_revenue.value`). Persisted only when the model omitted the growth object
@@ -797,13 +827,49 @@ export async function runDeepDive(
     peers,
   );
 
+  // Step 1c — akta deep search (step 3 of akta's workflow), on-demand ONLY here.
+  // Derive 1-2 topics IN CODE from the profile and pull entity-resolved akta news;
+  // it both grounds the Grok pass (source-tagged evidence) AND is persisted as
+  // deduped news rows. Gated implicitly on AKTA_API_KEY (aktaDeepSearch no-ops → []
+  // when absent). Cost guard: aktaDeepSearch caps itself at 2 news calls. All
+  // best-effort — a failure here never fails the deep-dive generation.
+  const deepSearchTopics = [
+    `${company.name} product reviews market position`,
+    ...(company.sector ? [`${company.sector} ${company.name}`] : []),
+  ];
+  let deepSearchNews: ConnectorNewsItem[] = [];
+  try {
+    deepSearchNews = await aktaDeepSearch(company.name, deepSearchTopics);
+  } catch (e) {
+    console.error("runDeepDive.aktaDeepSearch:", (e as Error).message);
+  }
+  if (deepSearchNews.length > 0) {
+    // Persist via applyMappedIngest — dedupes by title against existing news and
+    // applies akta's native sentiment + publisher-domain source. NEVER raw-insert
+    // (respects the "no direct table mutation outside applyMappedIngest" rule).
+    try {
+      await applyMappedIngest(supabase, company.id, {
+        fundingRounds: [],
+        valuations: [],
+        news: deepSearchNews,
+      });
+    } catch (e) {
+      console.error("runDeepDive.persistDeepSearch:", (e as Error).message);
+    }
+  }
+
   // Step 2 — structured Grok call for the narrative + growth-rate proposal,
   // retried once. Each attempt returns null (never throws) on a soft parse/schema
   // failure; a thrown error is a hard network/model failure we log and retry.
   const inAppGrounding = summarizeGrounding(company, canonical, ranking);
-  const grounding = cachedGrounding
-    ? `${inAppGrounding}\n\nCACHED SOURCE-TAGGED FACTS:\n${cachedGrounding}`
-    : inAppGrounding;
+  const deepSearchBlock = summarizeDeepSearchNews(deepSearchNews);
+  const grounding = [
+    inAppGrounding,
+    cachedGrounding ? `CACHED SOURCE-TAGGED FACTS:\n${cachedGrounding}` : "",
+    deepSearchBlock,
+  ]
+    .filter((s) => s.length > 0)
+    .join("\n\n");
   const prompt =
     `${buildPrompt(grounding)}\n\n` +
     `Respond with ONLY minified JSON matching this shape — no prose, no ` +
