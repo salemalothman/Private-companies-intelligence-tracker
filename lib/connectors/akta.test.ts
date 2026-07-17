@@ -5,10 +5,10 @@ import {
   mapAktaFinancial,
   mapAktaNews,
   mapAktaProfile,
+  mergeMentionPools,
   normalizeDeepSearchArticles,
   pickPrimaryCompanyHit,
   rankIndustryMentions,
-  resolveIndustryCodes,
   toPrivateSuggestions,
 } from "@/lib/connectors/akta";
 
@@ -49,6 +49,23 @@ describe("mapAktaProfile", () => {
     expect(mapAktaProfile(undefined)).toBeNull();
     expect(mapAktaProfile({})).toBeNull();
   });
+
+  it("coerces a string founded_year to a number at the zod boundary", () => {
+    const profile = mapAktaProfile({ name: "Coerce Co", founded_year: "2019" });
+    expect(profile?.foundedYear).toBe(2019);
+  });
+
+  it("drops a javascript: website but keeps bare domains and http(s) URLs", () => {
+    expect(
+      mapAktaProfile({ name: "Evil", website: "javascript:alert(1)" })?.website,
+    ).toBeUndefined();
+    expect(
+      mapAktaProfile({ name: "Bare", website: "acme.example" })?.website,
+    ).toBe("acme.example");
+    expect(
+      mapAktaProfile({ name: "Https", website: "https://acme.example" })?.website,
+    ).toBe("https://acme.example");
+  });
 });
 
 describe("mapAktaNews", () => {
@@ -88,6 +105,16 @@ describe("mapAktaNews", () => {
     expect(mapAktaNews(null)).toEqual([]);
     expect(mapAktaNews(undefined)).toEqual([]);
   });
+
+  it("strips non-http(s) article URLs (XSS guard) but keeps the item", () => {
+    const out = mapAktaNews([
+      { title: "Evil link", url: "javascript:alert(1)" },
+      { title: "Good link", url: "https://techcrunch.com/x" },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0].url).toBeUndefined();
+    expect(out[1].url).toBe("https://techcrunch.com/x");
+  });
 });
 
 describe("mapAktaFinancial", () => {
@@ -108,38 +135,6 @@ describe("mapAktaFinancial", () => {
   it("returns null when no financial estimate is available", () => {
     expect(mapAktaFinancial(null)).toBeNull();
     expect(mapAktaFinancial({})).toBeNull();
-  });
-});
-
-describe("resolveIndustryCodes", () => {
-  it("keeps hits at/above the similarity floor, capped and comma-joined", () => {
-    const codes = resolveIndustryCodes([
-      { code: "5415", industry_name: "Software", similarity: 0.9 },
-      { code: "5417", industry_name: "R&D", similarity: 0.5 },
-      { code: "5182", industry_name: "Data", similarity: 0.45 },
-      { code: "9999", industry_name: "Noise", similarity: 0.44 },
-      { code: "1111", industry_name: "Extra", similarity: 0.8 },
-    ]);
-    // 0.44 dropped (below floor); capped at 3 codes.
-    expect(codes).toBe("5415,5417,5182");
-  });
-
-  it("honors custom floor/cap and coerces numeric codes", () => {
-    const codes = resolveIndustryCodes(
-      [
-        { code: 100, similarity: 0.7 },
-        { code: 200, similarity: 0.6 },
-      ],
-      { floor: 0.65, cap: 5 },
-    );
-    expect(codes).toBe("100");
-  });
-
-  it("returns an empty string for empty / malformed input", () => {
-    expect(resolveIndustryCodes(null)).toBe("");
-    expect(resolveIndustryCodes(undefined)).toBe("");
-    expect(resolveIndustryCodes([])).toBe("");
-    expect(resolveIndustryCodes([{ industry_name: "no code", similarity: 0.9 }])).toBe("");
   });
 });
 
@@ -238,6 +233,57 @@ describe("rankIndustryMentions", () => {
         source: "akta.pro",
       })),
     );
+  });
+});
+
+describe("mergeMentionPools", () => {
+  // One article mentioning each listed name once.
+  const article = (...names: string[]) => ({
+    companies: names.map((name) => ({ name })),
+  });
+
+  it("applies the asymmetric 7/3 split of the resolve budget (cap 10)", () => {
+    // 8 distinct comparison-pool names — only the top 7 may take slots.
+    const comparison = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"].map(
+      (n) => article(n),
+    );
+    // 4 distinct company-pool names — only the top 3 may take slots.
+    const companyOwn = [article("K1", "K2", "K3", "K4")];
+    const out = mergeMentionPools(comparison, companyOwn, "Target Co", 10);
+    expect(out).toHaveLength(10);
+    const names = out.map((c) => c.name);
+    expect(names).toContain("C7");
+    expect(names).not.toContain("C8"); // 8th comparison name over the 7 cap
+    expect(names).toContain("K3");
+    expect(names).not.toContain("K4"); // 4th company name over the 3 cap
+  });
+
+  it("crowd-out regression: 9x-mention mega-caps in the company pool cannot evict a 1-mention comparison peer", () => {
+    const companyOwn = Array.from({ length: 9 }, () =>
+      article("MegaCorp", "BigCo"),
+    );
+    const comparison = [article("Figma")];
+    const out = mergeMentionPools(comparison, companyOwn, "Target Co", 10);
+    const names = out.map((c) => c.name);
+    // The single-mention genuine peer keeps its comparison-pool slot.
+    expect(names).toContain("Figma");
+    expect(names).toContain("MegaCorp");
+  });
+
+  it("sums counts for a name seen in BOTH pools (case-insensitive dedupe)", () => {
+    const comparison = [article("Rival A"), article("Rival A"), article("Solo")];
+    const companyOwn = [article("rival a")];
+    const out = mergeMentionPools(comparison, companyOwn, "Target Co", 10);
+    expect(out).toEqual([
+      { name: "Rival A", count: 3 }, // 2 comparison + 1 company, summed
+      { name: "Solo", count: 1 },
+    ]);
+  });
+
+  it("unwraps the {articles: [...]} envelope shape and tolerates junk", () => {
+    const comparison = { articles: [article("Peer X")] };
+    const out = mergeMentionPools(comparison, "junk", "Target Co", 10);
+    expect(out).toEqual([{ name: "Peer X", count: 1 }]);
   });
 });
 

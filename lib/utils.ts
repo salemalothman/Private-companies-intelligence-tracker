@@ -23,6 +23,27 @@ export function hostFromWebsite(raw: string | null | undefined): string | null {
 }
 
 /**
+ * Return `raw` only if it is a syntactically valid absolute http/https URL,
+ * else undefined. An XSS guard for any value that may end up in an `href` or be
+ * re-rendered: `javascript:`, `data:`, `vbscript:`, and protocol-relative
+ * (`//evil`) or scheme-less (`evil.com`) strings all return undefined, so only a
+ * benign http(s) URL survives. Valid http(s) URLs pass through byte-identical
+ * (aside from surrounding-whitespace trimming) — behavior-preserving for the
+ * real news/article URLs the connectors emit.
+ */
+export function safeHttpUrl(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const s = raw.trim();
+  if (!s) return undefined;
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:" ? s : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Format a number as compact USD, e.g. 1_200_000 -> "$1.20M".
  *
  * Implemented manually rather than via Intl `notation: "compact"`, whose output

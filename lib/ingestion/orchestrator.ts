@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Company } from "@/lib/types";
+import { safeHttpUrl } from "@/lib/utils";
 import { getConnectors } from "@/lib/connectors/registry";
 import { mapConnectorResults, type ConnectorBatchResult } from "@/lib/ingestion/map";
 import { applyMappedIngest } from "@/lib/ingestion/apply";
@@ -78,7 +79,15 @@ export async function ingestCompany(
     description?: string;
     founders?: string[];
   } = {};
-  if (!company.website && mapped.profilePatch.website) patch.website = mapped.profilePatch.website;
+  // Defense-in-depth URL-scheme guard on the connector-supplied website before
+  // it lands in the profile: bare domains ("openai.com") are legitimate and pass
+  // through, but a SCHEMED value must be http(s) — a javascript:/data: "website"
+  // from any connector is dropped rather than stored.
+  const patchWebsite = mapped.profilePatch.website?.trim();
+  const websiteSafe =
+    patchWebsite &&
+    (!/^[a-z][a-z0-9+.-]*:/i.test(patchWebsite) || safeHttpUrl(patchWebsite));
+  if (!company.website && patchWebsite && websiteSafe) patch.website = patchWebsite;
   if (!company.sector && mapped.profilePatch.sector) patch.sector = mapped.profilePatch.sector;
   if (!company.country && mapped.profilePatch.country) patch.country = mapped.profilePatch.country;
   if (!company.founded_year && mapped.profilePatch.foundedYear)

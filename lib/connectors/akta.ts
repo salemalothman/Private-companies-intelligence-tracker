@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { safeHttpUrl } from "@/lib/utils";
 import type {
   ConnectorCompanyProfile,
   ConnectorCompetitor,
@@ -36,65 +37,104 @@ const clean = <T>(v: T | null | undefined): T | undefined =>
 const isoDate = (d?: string | null): string | undefined =>
   d ? d.slice(0, 10) : undefined;
 
-// ---------------------------------------------------------------------------
-// Raw akta payload shapes (snake_case) — only read inside the pure mappers so
-// the rest of the app never touches akta's field names directly.
-// ---------------------------------------------------------------------------
-
-interface AktaRawProfile {
-  name?: string;
-  website?: string;
-  product_category?: string;
-  industry?: string;
-  country?: string;
-  founded_year?: number;
-  description?: string;
-  company_description?: string;
-  company_description_short?: string;
-  founders?: string[];
+/**
+ * Website-field variant of the safeHttpUrl XSS guard. Company websites are
+ * legitimately bare domains ("acme.example" — enrichment and akta both emit
+ * them), so scheme-less strings pass through untouched; anything CARRYING a
+ * scheme must be http(s) (a javascript:/data: "website" is dropped). This keeps
+ * valid values byte-identical while closing the executable-scheme hole.
+ */
+function safeWebsite(raw: string | null | undefined): string | undefined {
+  if (raw == null) return undefined;
+  const s = raw.trim();
+  if (!s) return undefined;
+  return /^[a-z][a-z0-9+.-]*:/i.test(s) ? safeHttpUrl(s) : s;
 }
 
-interface AktaRawNewsItem {
-  title?: string;
-  summary?: string;
-  ai_summary?: string;
-  sentiment?: string;
-  url?: string;
-  date?: string;
-  published_at?: string;
-  published_date?: string;
-  publisher?: { domain?: string; name?: string } | string | null;
-  source_domain?: string;
-}
+// ---------------------------------------------------------------------------
+// Raw akta payload shapes (snake_case). Defined as LENIENT zod schemas rather
+// than hand-written interfaces so every akta boundary safe-parses the untrusted
+// wire payload instead of blind-casting it: all fields optional + nullable,
+// `.passthrough()` keeps unknown keys, and `z.coerce.number()` tolerates akta
+// sending a numeric field as a string (e.g. founded_year "2019" → 2019). A parse
+// failure degrades to null/[] exactly as before — the schemas are lenient
+// supersets, so behavior is preserved for well-formed payloads.
+// ---------------------------------------------------------------------------
+
+const aktaRawProfileSchema = z
+  .object({
+    name: z.string().nullish(),
+    website: z.string().nullish(),
+    product_category: z.string().nullish(),
+    industry: z.string().nullish(),
+    country: z.string().nullish(),
+    founded_year: z.coerce.number().nullish(),
+    description: z.string().nullish(),
+    company_description: z.string().nullish(),
+    company_description_short: z.string().nullish(),
+    founders: z.array(z.string()).nullish(),
+  })
+  .passthrough();
+type AktaRawProfile = z.infer<typeof aktaRawProfileSchema>;
+
+const aktaRawNewsItemSchema = z
+  .object({
+    title: z.string().nullish(),
+    summary: z.string().nullish(),
+    ai_summary: z.string().nullish(),
+    sentiment: z.string().nullish(),
+    url: z.string().nullish(),
+    date: z.string().nullish(),
+    published_at: z.string().nullish(),
+    published_date: z.string().nullish(),
+    publisher: z
+      .union([
+        z
+          .object({ domain: z.string().nullish(), name: z.string().nullish() })
+          .passthrough(),
+        z.string(),
+      ])
+      .nullish(),
+    source_domain: z.string().nullish(),
+  })
+  .passthrough();
+type AktaRawNewsItem = z.infer<typeof aktaRawNewsItemSchema>;
 
 /** akta financial estimates arrive as range bands, e.g. {code:"1B-5B", label:"$1B-$5B"}. */
-interface AktaEstimateBand {
-  code?: string;
-  label?: string;
-}
+const aktaEstimateBandSchema = z
+  .object({ code: z.string().nullish(), label: z.string().nullish() })
+  .passthrough();
+type AktaEstimateBand = z.infer<typeof aktaEstimateBandSchema>;
 
-interface AktaRawFinancial {
-  revenue?: number;
-  revenue_estimate?: number | AktaEstimateBand;
-  valuation?: number;
-  valuation_estimate?: number | AktaEstimateBand;
-  valuation_date?: string;
-  as_of?: string;
-}
+// An estimate field is EITHER a range band OR a (possibly string-encoded)
+// number. Band is tried first so an object is never mis-coerced to NaN; a number
+// / numeric string falls through to z.coerce.number().
+const aktaEstimateFieldSchema = z
+  .union([aktaEstimateBandSchema, z.coerce.number()])
+  .nullish();
 
-export interface AktaSearchHit {
-  uuid?: string;
-  name?: string;
-  website?: string;
-  product_category?: string;
-  company_status?: string;
-}
+const aktaRawFinancialSchema = z
+  .object({
+    revenue: z.coerce.number().nullish(),
+    revenue_estimate: aktaEstimateFieldSchema,
+    valuation: z.coerce.number().nullish(),
+    valuation_estimate: aktaEstimateFieldSchema,
+    valuation_date: z.string().nullish(),
+    as_of: z.string().nullish(),
+  })
+  .passthrough();
+type AktaRawFinancial = z.infer<typeof aktaRawFinancialSchema>;
 
-interface AktaIndustryHit {
-  code?: string | number;
-  industry_name?: string;
-  similarity?: number;
-}
+const aktaSearchHitSchema = z
+  .object({
+    uuid: z.string().nullish(),
+    name: z.string().nullish(),
+    website: z.string().nullish(),
+    product_category: z.string().nullish(),
+    company_status: z.string().nullish(),
+  })
+  .passthrough();
+export type AktaSearchHit = z.infer<typeof aktaSearchHitSchema>;
 
 /**
  * One entity mention inside an akta industry-news article. akta has surfaced the
@@ -178,12 +218,10 @@ export function parseEstimateBand(
     .filter((n): n is number => n != null && n > 0);
   if (nums.length === 0) return null;
   const upper = /under|below|<|less/i.test(text);
-  const open = /\+|over|above|>/i.test(text);
   let value: number;
   if (nums.length >= 2) value = (nums[0] + nums[1]) / 2;
   else if (upper) value = nums[0] / 2;
-  else value = nums[0]; // single bound: open-ended floor, or exact
-  void open;
+  else value = nums[0]; // single bound: open-ended floor ("$25B+"), or exact
   return { value, label: text };
 }
 
@@ -191,23 +229,23 @@ export function parseEstimateBand(
 // Pure mappers — exported so they're unit-testable without any HTTP.
 // ---------------------------------------------------------------------------
 
-/** akta firmographic JSON → ConnectorCompanyProfile (null when nameless/empty). */
-export function mapAktaProfile(
-  data: AktaRawProfile | null | undefined,
-): ConnectorCompanyProfile | null {
-  if (!data || !data.name) return null;
+/** akta firmographic JSON → ConnectorCompanyProfile (null when nameless/empty
+ * or the payload fails the lenient firmographic schema). */
+export function mapAktaProfile(data: unknown): ConnectorCompanyProfile | null {
+  const parsed = aktaRawProfileSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const d = parsed.data;
+  if (!d.name) return null;
   return {
-    name: data.name,
-    website: clean(data.website),
-    sector: clean(data.product_category ?? data.industry),
-    country: clean(data.country),
-    foundedYear: clean(data.founded_year),
+    name: d.name,
+    website: safeWebsite(d.website),
+    sector: clean(d.product_category ?? d.industry),
+    country: clean(d.country),
+    foundedYear: clean(d.founded_year),
     description: clean(
-      data.description ??
-        data.company_description ??
-        data.company_description_short,
+      d.description ?? d.company_description ?? d.company_description_short,
     ),
-    founders: data.founders && data.founders.length ? data.founders : undefined,
+    founders: d.founders && d.founders.length ? d.founders : undefined,
   };
 }
 
@@ -216,21 +254,24 @@ export function mapAktaProfile(
  * Source is the article's publisher domain from akta metadata, falling back to
  * "akta.pro" (itself a trusted tier-1 source). Untitled items are dropped.
  */
-export function mapAktaNews(
-  items: AktaRawNewsItem[] | null | undefined,
-): ConnectorNewsItem[] {
+export function mapAktaNews(items: unknown): ConnectorNewsItem[] {
   if (!Array.isArray(items)) return [];
   const out: ConnectorNewsItem[] = [];
-  for (const it of items) {
+  for (const raw of items) {
+    const parsed = aktaRawNewsItemSchema.safeParse(raw);
+    if (!parsed.success) continue;
+    const it = parsed.data;
     const title = (it.title ?? "").trim();
     if (!title) continue;
     out.push({
       title,
       source: publisherDomain(it) ?? SOURCE,
-      url: clean(it.url),
+      // XSS guard: only a valid http(s) URL survives — a javascript:/data: URL
+      // (or a scheme-less string) is dropped rather than stored as a live link.
+      url: safeHttpUrl(it.url),
       date: isoDate(it.date ?? it.published_at ?? it.published_date),
       summary: clean((it.summary ?? it.ai_summary)?.trim()),
-      sentiment: mapSentiment(it.sentiment),
+      sentiment: mapSentiment(it.sentiment ?? undefined),
     });
   }
   return out;
@@ -243,11 +284,13 @@ export function mapAktaNews(
  * valuation nor a revenue figure is present.
  */
 export function mapAktaFinancial(
-  data: AktaRawFinancial | null | undefined,
+  data: unknown,
 ): Omit<ConnectorCompetitor, "name"> | null {
-  if (!data) return null;
-  const valuation = parseEstimateBand(data.valuation ?? data.valuation_estimate);
-  const revenue = parseEstimateBand(data.revenue ?? data.revenue_estimate);
+  const parsed = aktaRawFinancialSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const d = parsed.data;
+  const valuation = parseEstimateBand(d.valuation ?? d.valuation_estimate);
+  const revenue = parseEstimateBand(d.revenue ?? d.revenue_estimate);
   if (valuation == null && revenue == null) return null;
   // Band values are midpoints/floors, never precise figures — keep the human
   // range label in the basis so the UI shows exactly what akta reported.
@@ -259,37 +302,12 @@ export function mapAktaFinancial(
         : "akta.pro financial estimate";
   return {
     valuation: valuation?.value,
-    valuationDate: clean(data.valuation_date ?? data.as_of),
+    valuationDate: clean(d.valuation_date ?? d.as_of),
     revenue: revenue?.value,
     revenueBasis: basisFor(revenue),
     basis: basisFor(valuation),
     source: SOURCE,
   };
-}
-
-/**
- * akta industry-search hits → a comma-separated code list for the /v1/news
- * `industry` filter. Keeps only hits at/above the similarity floor (default 0.45
- * — below that the match is too loose to trust as the target's real industry) and
- * caps the list (default 3) so one over-broad search never fans the news query
- * out across dozens of industries. Empty / malformed input → "".
- */
-export function resolveIndustryCodes(
-  hits: AktaIndustryHit[] | null | undefined,
-  opts: { floor?: number; cap?: number } = {},
-): string {
-  const floor = opts.floor ?? 0.45;
-  const cap = opts.cap ?? 3;
-  if (!Array.isArray(hits)) return "";
-  return hits
-    .filter(
-      (h) =>
-        typeof h.similarity === "number" && h.similarity >= floor && h.code != null,
-    )
-    .map((h) => String(h.code).trim())
-    .filter((c) => c.length > 0)
-    .slice(0, cap)
-    .join(",");
 }
 
 /**
@@ -363,7 +381,8 @@ export interface ResolvedMention {
 
 /** Options for {@link filterRelevantMentions}. */
 export interface RelevanceOptions {
-  /** Minimum industry-news article mentions to survive (default 2). */
+  /** Minimum industry-news article mentions to survive (default 1 — frequency
+   * ranks, the category gate filters). */
   minMentions?: number;
   /** Token-Jaccard floor for a category match when no token is shared (default 0.3). */
   threshold?: number;
@@ -484,7 +503,7 @@ export function filterRelevantMentions(
  * deep-dive grounding step depends on.
  */
 export function normalizeDeepSearchArticles(
-  articles: AktaRawNewsItem[] | null | undefined,
+  articles: unknown,
 ): ConnectorNewsItem[] {
   return mapAktaNews(articles);
 }
@@ -493,10 +512,42 @@ export function normalizeDeepSearchArticles(
 // HTTP shell.
 // ---------------------------------------------------------------------------
 
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+// -- Rate limiter: a tiny module-level counting semaphore so we never open more
+// than MAX_CONCURRENT_AKTA requests to akta at once (competitor discovery +
+// deep-search fan out dozens of resolves; without this they'd burst the API and
+// invite 429s). release() hands the freed slot straight to the next waiter so
+// the held-slot count stays flat rather than thrashing. Untested I/O-coordination
+// state per house convention (aktaGet's whole HTTP shell is unit-test-exempt).
+const MAX_CONCURRENT_AKTA = 5;
+let aktaActive = 0;
+const aktaWaiters: Array<() => void> = [];
+
+function acquireAktaSlot(): Promise<void> {
+  return new Promise((resolve) => {
+    if (aktaActive < MAX_CONCURRENT_AKTA) {
+      aktaActive++;
+      resolve();
+    } else {
+      aktaWaiters.push(resolve);
+    }
+  });
+}
+
+function releaseAktaSlot(): void {
+  const next = aktaWaiters.shift();
+  if (next) next(); // hand the slot straight over — active count unchanged
+  else aktaActive--;
+}
+
 /**
  * GET the akta REST base + path with the x-api-key header and return the
  * envelope's `data` payload. On ANY failure (no key, network, non-2xx, malformed
  * envelope) return null — never throw (graceful-degradation + tampering guard).
+ * Bounded by the module semaphore (max 5 concurrent); a 429 is retried ONCE after
+ * a ~1s back-off before degrading to null.
  */
 async function aktaGet(
   path: string,
@@ -504,23 +555,31 @@ async function aktaGet(
 ): Promise<unknown | null> {
   const key = process.env.AKTA_API_KEY;
   if (!key) return null;
+  await acquireAktaSlot();
   try {
     const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${AKTA_BASE}${path}?${qs}`, {
-      headers: {
-        "x-api-key": key,
-        // akta.pro sits behind Cloudflare bot protection, which 403s (error
-        // 1010) any request without a User-Agent — the Workers runtime fetch
-        // sends none by default, so an explicit product UA is load-bearing.
-        "User-Agent": "PrivateCompaniesTracker/1.0",
-      },
-    });
+    const url = `${AKTA_BASE}${path}?${qs}`;
+    const headers = {
+      "x-api-key": key,
+      // akta.pro sits behind Cloudflare bot protection, which 403s (error
+      // 1010) any request without a User-Agent — the Workers runtime fetch
+      // sends none by default, so an explicit product UA is load-bearing.
+      "User-Agent": "PrivateCompaniesTracker/1.0",
+    };
+    let res = await fetch(url, { headers });
+    // Rate-limited: back off ~1s and retry exactly once, then degrade to null.
+    if (res.status === 429) {
+      await sleep(1000);
+      res = await fetch(url, { headers });
+    }
     if (!res.ok) return null;
     const parsed = envelopeSchema.safeParse(await res.json());
     return parsed.success ? parsed.data.data : null;
   } catch (e) {
     console.error("aktaGet:", (e as Error).message);
     return null;
+  } finally {
+    releaseAktaSlot();
   }
 }
 
@@ -547,14 +606,44 @@ function section(data: unknown, name: string): unknown {
  * Competitor-candidate resolves pass `privateOnly: false`: the competitive
  * landscape legitimately includes public peers (e.g. Figma).
  */
+async function resolveAktaCompanyUncached(
+  query: string,
+  privateOnly: boolean,
+): Promise<AktaSearchHit | null> {
+  const data = await aktaGet("/v1/company/search", { query });
+  const parsed = z.array(aktaSearchHitSchema).safeParse(data);
+  if (!parsed.success || parsed.data.length === 0) return null;
+  const hits = parsed.data;
+  return privateOnly ? pickPrimaryCompanyHit(hits) : (hits[0] ?? null);
+}
+
+// Memoize the free /v1/company/search resolve: competitor discovery resolves the
+// same names repeatedly (target + each candidate, sometimes concurrently). We
+// cache the in-flight PROMISE keyed on privateOnly+normalized-query so concurrent
+// callers share one network trip, with a ~5-minute TTL checked on read (no
+// timers). A rejected promise is evicted so a transient failure isn't cached;
+// a resolved null (genuine miss) is cached for the TTL like any other result.
+const RESOLVE_TTL_MS = 5 * 60 * 1000;
+const resolveCache = new Map<
+  string,
+  { at: number; promise: Promise<AktaSearchHit | null> }
+>();
+
 async function resolveAktaCompany(
   query: string,
   opts: { privateOnly?: boolean } = {},
 ): Promise<AktaSearchHit | null> {
-  const data = await aktaGet("/v1/company/search", { query });
-  if (!Array.isArray(data) || data.length === 0) return null;
-  const hits = data as AktaSearchHit[];
-  return opts.privateOnly ? pickPrimaryCompanyHit(hits) : (hits[0] ?? null);
+  const privateOnly = opts.privateOnly ?? false;
+  const key = `${privateOnly}:${query.trim().toLowerCase()}`;
+  const hit = resolveCache.get(key);
+  if (hit && Date.now() - hit.at < RESOLVE_TTL_MS) return hit.promise;
+  const promise = resolveAktaCompanyUncached(query, privateOnly);
+  resolveCache.set(key, { at: Date.now(), promise });
+  // Evict on rejection so a failed lookup isn't cached (only if still current).
+  promise.catch(() => {
+    if (resolveCache.get(key)?.promise === promise) resolveCache.delete(key);
+  });
+  return promise;
 }
 
 /** Statuses that mark a public-market entity — never a valid PRIMARY match. */
@@ -636,7 +725,8 @@ export async function searchAktaCompanies(
   query: string,
 ): Promise<AktaSearchHit[]> {
   const data = await aktaGet("/v1/company/search", { query });
-  return Array.isArray(data) ? (data as AktaSearchHit[]) : [];
+  const parsed = z.array(aktaSearchHitSchema).safeParse(data);
+  return parsed.success ? parsed.data : [];
 }
 
 /** Hard cap on akta /v1/news calls per deep-search (credits/denial guard). */
@@ -677,10 +767,9 @@ export async function aktaDeepSearch(
       }),
     ),
   );
-  const raw: AktaRawNewsItem[] = [];
+  const raw: unknown[] = [];
   for (const data of results) {
-    const items = Array.isArray(data) ? data : section(data, "articles");
-    if (Array.isArray(items)) raw.push(...(items as AktaRawNewsItem[]));
+    raw.push(...toArticles(data));
   }
   // Dedupe by lowercased title so overlapping topics don't double-persist.
   const seen = new Set<string>();
@@ -692,6 +781,53 @@ export async function aktaDeepSearch(
     out.push(item);
   }
   return out;
+}
+
+/** Extract the article array from a raw akta /v1/news payload (either a bare
+ * array or an object with an `articles` array) — [] for anything else. */
+function toArticles(d: unknown): unknown[] {
+  if (Array.isArray(d)) return d;
+  const s = section(d, "articles");
+  return Array.isArray(s) ? s : [];
+}
+
+/**
+ * Merge the two akta news pools — the semantic comparison-query pool and the
+ * target's own-news pool — into one ranked candidate list for the relevance
+ * filter. Ranks each pool independently (via {@link rankIndustryMentions}), then
+ * takes the top slice of the resolve budget from EACH so neither crowds the other
+ * out: the comparison pool (where genuine, often single-mention peers surface)
+ * gets ceil(70%) of `cap`, the company-news pool the remainder. Rationale from
+ * live testing (2026-07-17, Canva): grouped syndicated stories can flood the
+ * company-news pool with 9x mentions of unrelated mega-caps, and an even split
+ * let 2-count tangential names evict a 1-count real peer (Figma) — the asymmetric
+ * split reserves the comparison pool's slots. Counts for a name seen in BOTH
+ * pools are SUMMED; survivors are sorted by merged count (desc) and capped at
+ * `cap`. Pure (no HTTP) — exported so the split/crowd-out/dedupe behavior is
+ * directly unit-testable.
+ */
+export function mergeMentionPools(
+  comparison: unknown,
+  companyOwn: unknown,
+  targetName: string,
+  cap: number,
+): Array<{ name: string; count: number }> {
+  const comparisonCap = Math.ceil(cap * 0.7);
+  const companyCap = cap - comparisonCap;
+  const merged = new Map<string, { name: string; count: number }>();
+  const takePool = (data: unknown, poolCap: number): void => {
+    for (const c of rankIndustryMentions(toArticles(data), targetName).slice(
+      0,
+      poolCap,
+    )) {
+      const prev = merged.get(c.name.toLowerCase());
+      if (prev) prev.count += c.count;
+      else merged.set(c.name.toLowerCase(), { name: c.name, count: c.count });
+    }
+  };
+  takePool(comparison, comparisonCap); // comparison-query pool (stronger signal)
+  takePool(companyOwn, companyCap);
+  return [...merged.values()].sort((a, b) => b.count - a.count).slice(0, cap);
 }
 
 export class AktaConnector implements DataConnector {
@@ -715,7 +851,7 @@ export class AktaConnector implements DataConnector {
       company: ref,
       sections: "firmographic",
     });
-    return mapAktaProfile(section(data, "firmographic") as AktaRawProfile | null);
+    return mapAktaProfile(section(data, "firmographic"));
   }
 
   async fetchFundingRounds(): Promise<ConnectorFundingRound[]> {
@@ -734,20 +870,27 @@ export class AktaConnector implements DataConnector {
       limit: "15",
       group_articles: "true",
     });
-    const items = Array.isArray(data) ? data : section(data, "articles");
-    return mapAktaNews((Array.isArray(items) ? items : []) as AktaRawNewsItem[]);
+    return mapAktaNews(toArticles(data));
   }
 
   /**
-   * Step 2 of akta's workflow — competitor discovery. Resolves the company
-   * (free) → resolves its industry codes via /v1/industry/search (free) → TWO
-   * billable /v1/news calls (the target's own news for co-mentions, the
-   * strongest peer signal; plus industry-scoped news for breadth) →
-   * entity-resolved mentions merged with a co-mention boost → a precision pass
-   * that keeps only plausibly-comparable peers. Absent key / no company / no
-   * articles → []. HARD cost guards: at most two billable /v1/news calls, and
-   * the FREE /v1/company/search resolves that feed the relevance filter are
-   * capped at {@link RELEVANCE_RESOLVE_CAP} candidates (best-effort, never throws).
+   * Step 2 of akta's workflow — competitor discovery. Actual flow:
+   * (1) resolve the company via the free /v1/company/search;
+   * (2) TWO billable /v1/news calls — the target's OWN news (co-mentions in
+   *     comparison pieces / market roundups are a strong peer signal) plus a
+   *     semantic comparison query ("X competitors alternatives comparison"),
+   *     which live testing (2026-07-17, Canva) showed is where real peers get
+   *     named. The comparison query runs UNCONSTRAINED: adding the `industry`
+   *     filter ANDs the filters and returned zero articles, and industry-only
+   *     news skewed to tangential mega-caps;
+   * (3) merge the two mention pools with an asymmetric 7/3 resolve-budget split
+   *     via {@link mergeMentionPools};
+   * (4) free (0-credit) /v1/company/search resolves for the merged candidates;
+   * (5) the {@link filterRelevantMentions} relevance pass keeps only
+   *     plausibly-comparable peers.
+   * Absent key / no company / no articles → []. HARD cost guards: at most TWO
+   * billable /v1/news calls, and the free resolves are capped at
+   * {@link RELEVANCE_RESOLVE_CAP} candidates (best-effort, never throws).
    */
   async fetchCompetitors(
     query: string,
@@ -762,22 +905,14 @@ export class AktaConnector implements DataConnector {
       resolvedName
     ).trim();
     if (!targetCategory) return [];
-    // Two billable news calls, HARD CAP — that is the entire discovery cost:
-    //   a) the target's OWN news: co-mentioned companies (comparison pieces,
-    //      market roundups) are a strong peer signal;
-    //   b) a semantic comparison query ("X competitors alternatives...") —
-    //      live testing (2026-07-17, Canva) showed this is where real peers
-    //      get named (Figma, Affinity, Leonardo AI). Constraining it with the
-    //      `industry` filter ANDs the filters and returned ZERO articles, and
-    //      industry-only news skewed to tangential mega-caps — so the
-    //      comparison query intentionally runs unconstrained.
-    // Both run best-effort; either failing degrades to the other's candidates.
+    // The two billable news calls (the entire discovery cost). Both run
+    // best-effort; either failing degrades to the other's candidates.
     const comparisonParams: Record<string, string> = {
       query: `${resolvedName} competitors alternatives comparison`,
       limit: "25",
       group_articles: "true",
     };
-    const [companyNewsData, industryNewsData] = await Promise.all([
+    const [companyNewsData, comparisonNewsData] = await Promise.all([
       company.uuid
         ? aktaGet("/v1/news", {
             company: company.uuid,
@@ -787,42 +922,18 @@ export class AktaConnector implements DataConnector {
         : Promise.resolve(null),
       aktaGet("/v1/news", comparisonParams),
     ]);
-    const toArticles = (d: unknown): unknown[] => {
-      if (Array.isArray(d)) return d;
-      const s = section(d, "articles");
-      return Array.isArray(s) ? s : [];
-    };
 
-    // Rank each pool independently and take the top half of the resolve budget
-    // from EACH — neither pool may crowd out the other (live testing: grouped
-    // syndicated stories can flood the company-news pool with 9x mentions of
-    // unrelated mega-caps, which would otherwise consume every resolve slot
-    // before a once-mentioned genuine peer from a comparison article gets one).
-    // The category-similarity gate in filterRelevantMentions does the actual
-    // filtering; counts only order candidates. Capped BEFORE any resolve so the
-    // free /v1/company/search fan-out can never exceed RELEVANCE_RESOLVE_CAP.
-    // Asymmetric split: the comparison-query pool is the stronger signal and
-    // its genuine peers often carry only 1 mention, so it gets the larger share
-    // of the resolve budget (7/3 of 10) — live testing showed a 5/5 split let
-    // 2-count tangential names (Anthropic, Teva) squeeze out a 1-count Figma.
-    const COMPARISON_POOL_CAP = Math.ceil(RELEVANCE_RESOLVE_CAP * 0.7);
-    const COMPANY_POOL_CAP = RELEVANCE_RESOLVE_CAP - COMPARISON_POOL_CAP;
-    const merged = new Map<string, { name: string; count: number }>();
-    const takePool = (data: unknown, cap: number): void => {
-      for (const c of rankIndustryMentions(toArticles(data), resolvedName).slice(
-        0,
-        cap,
-      )) {
-        const prev = merged.get(c.name.toLowerCase());
-        if (prev) prev.count += c.count;
-        else merged.set(c.name.toLowerCase(), { name: c.name, count: c.count });
-      }
-    };
-    takePool(industryNewsData, COMPARISON_POOL_CAP); // comparison-query pool
-    takePool(companyNewsData, COMPANY_POOL_CAP);
-    const candidates = [...merged.values()]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, RELEVANCE_RESOLVE_CAP);
+    // Pool merge (pure, unit-tested in mergeMentionPools): 7/3 asymmetric split
+    // of the resolve budget so the comparison pool's often-single-mention real
+    // peers can't be crowded out by syndicated mega-cap noise in the company
+    // pool; capped BEFORE any resolve so the free /v1/company/search fan-out
+    // can never exceed RELEVANCE_RESOLVE_CAP.
+    const candidates = mergeMentionPools(
+      comparisonNewsData,
+      companyNewsData,
+      resolvedName,
+      RELEVANCE_RESOLVE_CAP,
+    );
     if (candidates.length === 0) return [];
 
     // Free (0-credit) firmographic resolves, best-effort + isolated per candidate:
@@ -836,8 +947,8 @@ export class AktaConnector implements DataConnector {
             return {
               name: c.name,
               count: c.count,
-              product_category: hit.product_category,
-              company_status: hit.company_status,
+              product_category: clean(hit.product_category),
+              company_status: clean(hit.company_status),
             };
           } catch {
             return null;
@@ -859,8 +970,6 @@ export class AktaConnector implements DataConnector {
       company: ref,
       sections: "financial_estimate",
     });
-    return mapAktaFinancial(
-      section(data, "financial_estimate") as AktaRawFinancial | null,
-    );
+    return mapAktaFinancial(section(data, "financial_estimate"));
   }
 }

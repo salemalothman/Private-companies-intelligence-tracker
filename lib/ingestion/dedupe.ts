@@ -1,5 +1,6 @@
 import type { ConnectorFundingRound } from "@/lib/connectors/types";
 import type { FundingRoundRow, ValuationRow } from "@/lib/types";
+import { isAktaSource } from "@/lib/canonical";
 
 /**
  * Funding-round / valuation de-duplication.
@@ -130,7 +131,9 @@ export function dedupeConnectorRounds(
   return dedupeBy(rounds, {
     round: (r) => r.round,
     date: (r) => r.date,
-    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
+    // akta emits no funding rounds today (fetchFundingRounds returns []); the
+    // akta-prefer hook is kept for when it does, and uses the strict predicate.
+    prefer: (r) => (isAktaSource(r.source) ? 1 : 0),
     keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amountRaised)],
     merge: (p, d) => ({
       ...p,
@@ -148,7 +151,8 @@ export function dedupeFundingRows(rows: FundingRoundRow[]): FundingRoundRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
-    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
+    // akta emits no funding rounds today; hook kept for parity, strict predicate.
+    prefer: (r) => (isAktaSource(r.source) ? 1 : 0),
     keys: (r) => [moneyKey("v", r.valuation), moneyKey("a", r.amount_raised)],
     merge: (p, d) => ({
       ...p,
@@ -167,7 +171,7 @@ export function dedupeValuationRows(rows: ValuationRow[]): ValuationRow[] {
   return dedupeBy(rows, {
     round: (r) => r.round,
     date: (r) => r.date,
-    prefer: (r) => (/akta/i.test(r.source ?? "") ? 1 : 0),
+    prefer: (r) => (isAktaSource(r.source) ? 1 : 0),
     keys: (r) => [moneyKey("v", r.post_money)],
     merge: (p, d) => ({
       ...p,

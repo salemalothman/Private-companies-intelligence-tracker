@@ -6,6 +6,7 @@ import { SecEdgarConnector } from "@/lib/connectors/sec-edgar";
 import type { ConnectorCompetitor } from "@/lib/connectors/types";
 import { lookupMarketValuations } from "@/lib/market-cache/lookup";
 import { nameKey } from "@/lib/market-cache/parse";
+import { isAktaSource } from "@/lib/canonical";
 
 /**
  * Source label for a figure copied out of the weekly market cache. MUST carry
@@ -79,11 +80,6 @@ export interface CompetitorDiscovery {
   self: Omit<ConnectorCompetitor, "name"> | null;
 }
 
-/** True when a connector competitor/metric row originated from akta.pro. */
-function isAktaSourced(row: { source?: string }): boolean {
-  return (row.source ?? "").toLowerCase().includes("akta");
-}
-
 /**
  * Collapse the target's own valuation-metric observations from every
  * competitor-capable connector into a single self record. akta's estimate is
@@ -96,7 +92,7 @@ function pickSelfMetric(
   observations: Array<Omit<ConnectorCompetitor, "name">>,
 ): CompetitorDiscovery["self"] {
   if (observations.length === 0) return null;
-  return observations.find(isAktaSourced) ?? observations[0];
+  return observations.find((o) => isAktaSource(o.source)) ?? observations[0];
 }
 
 /**
@@ -137,33 +133,39 @@ export async function discoverCompetitors(
   // Registry order puts the primary (Grok) source first. Only the primary gets
   // the single empty-set retry — a real company almost always has peers, so a
   // transient empty response is worth one more call. akta is NOT retried (cost
-  // guard: at most one akta news call per discovery run).
+  // guard: at most two billable akta news calls per discovery run).
   const primary = sources[0];
-  const perSource = await Promise.all(
-    sources.map(async (c) => {
-      try {
-        let list = (await c.fetchCompetitors(companyName, hint)) ?? [];
-        if (list.length === 0 && c === primary && c.id !== "akta") {
-          list = (await c.fetchCompetitors(companyName, hint)) ?? [];
-        }
-        return list;
-      } catch {
-        return [] as ConnectorCompetitor[];
-      }
-    }),
-  );
 
-  // Gather the target's own metric from EVERY implementer (best-effort, isolated
-  // failures), unless the cache already answered it (cache-hit-wins-over-live).
-  const selfObservations = targetCache
-    ? []
-    : (
-        await Promise.all(
+  // Competitor discovery and the target's own valuation-metric fetch have no
+  // data dependency — run both fan-outs concurrently in one outer Promise.all
+  // (each per-call try/catch already isolates a single source's failure). The
+  // self-metric fetch is skipped entirely when the market cache already answered
+  // it (cache-hit-wins-over-live).
+  const [perSource, selfObsRaw] = await Promise.all([
+    Promise.all(
+      sources.map(async (c) => {
+        try {
+          let list = (await c.fetchCompetitors(companyName, hint)) ?? [];
+          if (list.length === 0 && c === primary && c.id !== "akta") {
+            list = (await c.fetchCompetitors(companyName, hint)) ?? [];
+          }
+          return list;
+        } catch {
+          return [] as ConnectorCompetitor[];
+        }
+      }),
+    ),
+    targetCache
+      ? Promise.resolve<Array<Omit<ConnectorCompetitor, "name"> | null>>([])
+      : Promise.all(
           metricSources.map((c) =>
             c.fetchValuationMetric(companyName).catch(() => null),
           ),
-        )
-      ).filter((m): m is Omit<ConnectorCompetitor, "name"> => m != null);
+        ),
+  ]);
+  const selfObservations = selfObsRaw.filter(
+    (m): m is Omit<ConnectorCompetitor, "name"> => m != null,
+  );
 
   const self: CompetitorDiscovery["self"] = targetCache
     ? {
@@ -186,7 +188,7 @@ export async function discoverCompetitors(
       const key = c.name.trim().toLowerCase();
       if (!key || key === target) continue;
       const existing = byName.get(key);
-      if (!existing || (isAktaSourced(c) && !isAktaSourced(existing))) {
+      if (!existing || (isAktaSource(c.source) && !isAktaSource(existing.source))) {
         byName.set(key, c);
       }
     }
