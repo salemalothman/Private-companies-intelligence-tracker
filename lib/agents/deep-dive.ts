@@ -839,7 +839,14 @@ export async function runDeepDive(
   ];
   let deepSearchNews: ConnectorNewsItem[] = [];
   try {
-    deepSearchNews = await aktaDeepSearch(company.name, deepSearchTopics);
+    // Resolve by stored website when we have one — akta auto-detects website
+    // queries and they bind unambiguously, while a name search can pick the
+    // wrong real-world entity (live: "moove io" → "Moove It" consultancy
+    // instead of moove.io).
+    deepSearchNews = await aktaDeepSearch(
+      company.website ?? company.name,
+      deepSearchTopics,
+    );
   } catch (e) {
     console.error("runDeepDive.aktaDeepSearch:", (e as Error).message);
   }
