@@ -9,6 +9,7 @@ import {
   pickPrimaryCompanyHit,
   rankIndustryMentions,
   resolveIndustryCodes,
+  toPrivateSuggestions,
 } from "@/lib/connectors/akta";
 
 describe("mapAktaProfile", () => {
@@ -501,5 +502,90 @@ describe("pickPrimaryCompanyHit (privately-held guardrail)", () => {
       "Graphic Design Software",
     );
     expect(out.map((c) => c.name)).toEqual(["Figma"]);
+  });
+});
+
+describe("toPrivateSuggestions (private-only typeahead mapper)", () => {
+  it("drops public/delisted hits and keeps private/acquired/unknown/missing", () => {
+    const out = toPrivateSuggestions([
+      { uuid: "pub", name: "Acme Public", company_status: "public" },
+      { uuid: "del", name: "Acme Delisted", company_status: "delisted" },
+      { uuid: "priv", name: "Acme Private", company_status: "private" },
+      { uuid: "acq", name: "Acme Acquired", company_status: "acquired" },
+      { uuid: "unk", name: "Acme Unknown", company_status: "unknown" },
+      { uuid: "miss", name: "Acme Missing" },
+    ]);
+    expect(out.map((s) => s.uuid)).toEqual(["priv", "acq", "unk", "miss"]);
+  });
+
+  it("is case-insensitive and tolerant of whitespace on the status", () => {
+    const out = toPrivateSuggestions([
+      { uuid: "pub", name: "Loud Public", company_status: " PUBLIC " },
+      { uuid: "priv", name: "Quiet Private", company_status: " Private " },
+    ]);
+    expect(out.map((s) => s.uuid)).toEqual(["priv"]);
+  });
+
+  it("drops hits with no non-empty name", () => {
+    const out = toPrivateSuggestions([
+      { uuid: "a", name: "  ", company_status: "private" },
+      { uuid: "b", company_status: "private" },
+      { uuid: "c", name: "Real Co", company_status: "private" },
+    ]);
+    expect(out.map((s) => s.uuid)).toEqual(["c"]);
+  });
+
+  it("maps product_category to category and blanks to undefined, drops logo", () => {
+    const out = toPrivateSuggestions([
+      { uuid: "a", name: "HasCat", website: "acme.example", product_category: "Design Software" },
+      { uuid: "b", name: "BlankCat", product_category: "   " },
+    ]);
+    expect(out[0]).toEqual({
+      uuid: "a",
+      name: "HasCat",
+      website: "acme.example",
+      category: "Design Software",
+    });
+    expect(out[1].category).toBeUndefined();
+    expect("logo" in out[0]).toBe(false);
+  });
+
+  it("caps output at 8 by default, preserving input order", () => {
+    const hits = Array.from({ length: 12 }, (_, i) => ({
+      uuid: `u${i}`,
+      name: `Co ${i}`,
+      company_status: "private",
+    }));
+    const out = toPrivateSuggestions(hits);
+    expect(out).toHaveLength(8);
+    expect(out.map((s) => s.uuid)).toEqual([
+      "u0",
+      "u1",
+      "u2",
+      "u3",
+      "u4",
+      "u5",
+      "u6",
+      "u7",
+    ]);
+  });
+
+  it("honors a custom cap", () => {
+    const hits = Array.from({ length: 5 }, (_, i) => ({
+      uuid: `u${i}`,
+      name: `Co ${i}`,
+    }));
+    expect(toPrivateSuggestions(hits, { cap: 2 })).toHaveLength(2);
+  });
+
+  it("returns [] for empty / undefined / non-array input without throwing", () => {
+    expect(toPrivateSuggestions([])).toEqual([]);
+    expect(toPrivateSuggestions(null)).toEqual([]);
+    expect(toPrivateSuggestions(undefined)).toEqual([]);
+    expect(
+      toPrivateSuggestions(
+        "junk" as unknown as Parameters<typeof toPrivateSuggestions>[0],
+      ),
+    ).toEqual([]);
   });
 });
