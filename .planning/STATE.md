@@ -116,6 +116,7 @@ None yet.
 | 260710-i69 | Apply deep-review fixes (Critical purge data-loss → Low nits; 27 findings) | 2026-07-10 | bfbc33e | [260710-i69-apply-deep-review-fixes-purge-data-loss-](./quick/260710-i69-apply-deep-review-fixes-purge-data-loss-/) |
 | 260710-x47 | Per-company research report (IC-memo PDF) in Reports section: pdf-kit extraction, render model + tests, PDF builder/upload, picker UI | 2026-07-10 | 85609d6 | [260710-x47-per-company-research-report-ic-memo-pdf](./quick/260710-x47-per-company-research-report-ic-memo-pdf/) |
 | 260717-2lq | Integrate akta.pro as a trusted data connector (news + profile + financial estimates) with akta-wins dedupe preference | 2026-07-16 | bb37d75 | [260717-2lq-integrate-akta-pro-as-a-trusted-data-con](./quick/260717-2lq-integrate-akta-pro-as-a-trusted-data-con/) |
+| fast | Upgrade xAI Grok model grok-4.3 → grok-4.5 (connector, deep-dive agent, test fixture) | 2026-07-16 | 028e73c | (inline) |
 
 ## Deferred Items
 
