@@ -29,7 +29,7 @@ import type {
   XPostRow,
 } from "@/lib/types";
 
-const GROK_MODEL = "grok-4.3";
+const GROK_MODEL = "grok-4.5";
 
 /**
  * Linear-interpolation percentile (the R-7 / Excel `PERCENTILE.INC` method) over

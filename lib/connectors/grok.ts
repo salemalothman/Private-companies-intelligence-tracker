@@ -60,7 +60,7 @@ function extractJson(s: string): string | null {
 }
 
 /**
- * One-shot Grok search + structured extraction. `xai.responses('grok-4.3')`
+ * One-shot Grok search + structured extraction. `xai.responses('grok-4.5')`
  * runs xAI's native X search server-side via the `x_search` tool, then the
  * model returns JSON which we validate against `schema`.
  *
@@ -74,7 +74,7 @@ async function grokSearch<S extends z.ZodTypeAny>(
   shape: string,
 ): Promise<z.infer<S> | null> {
   const { text } = await generateText({
-    model: xai.responses("grok-4.3"),
+    model: xai.responses("grok-4.5"),
     tools: { x_search: xai.tools.xSearch() },
     prompt:
       `${instruction}\n\nAfter searching X, respond with ONLY minified JSON ` +
@@ -195,7 +195,7 @@ const REVENUE_INSTRUCTION =
   `@AaronGDillon"). Leave "revenue" null if no credible figure exists — never guess.`;
 
 /**
- * Grok-powered connector. Uses xAI's `grok-4.3` responses model with the native
+ * Grok-powered connector. Uses xAI's `grok-4.5` responses model with the native
  * X search tool to fetch and structure company data in a single step. Replaces
  * the planned raw Twitter/X API integration. Gated on `XAI_API_KEY` in the
  * registry; every method degrades to an empty result instead of throwing.

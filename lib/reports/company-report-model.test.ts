@@ -159,7 +159,7 @@ function analysis(p: Partial<CompanyAnalysisRow> = {}): CompanyAnalysisRow {
     company_id: "c",
     user_id: "u",
     generated_at: "2026-07-01T00:00:00Z",
-    model: "grok-4.3",
+    model: "grok-4.5",
     sections: FULL_SECTIONS as AnalysisSections,
     valuation: FULL_VALUATION,
     created_at: "2026-07-01T00:00:00Z",
