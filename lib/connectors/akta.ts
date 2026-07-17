@@ -547,6 +547,14 @@ async function resolveAktaCompany(query: string): Promise<AktaSearchHit | null> 
 const DEEP_SEARCH_NEWS_CALL_CAP = 2;
 
 /**
+ * Hard cap on the FREE /v1/company/search resolves the competitor relevance
+ * filter issues per fetchCompetitors run. These cost 0 credits but still hit the
+ * network, so we bound the fan-out — the top-mentioned candidates are the only
+ * ones worth verifying against product category.
+ */
+const RELEVANCE_RESOLVE_CAP = 10;
+
+/**
  * Step 3 of akta's workflow — topic-based deep search, run ONLY during deep-dive
  * generation. Resolves the company, then runs at most
  * {@link DEEP_SEARCH_NEWS_CALL_CAP} topic-scoped /v1/news calls, merges + title-
@@ -635,8 +643,11 @@ export class AktaConnector implements DataConnector {
    * Step 2 of akta's workflow — industry-resolved competitor discovery. Resolves
    * the company (free) → resolves its industry codes via /v1/industry/search
    * (free) → ONE /v1/news call scoped to those industries → entity-resolved
-   * competitor mentions ranked by frequency. Absent key / no company / no
-   * industry codes / no articles → []. HARD cost guard: exactly one /v1/news call.
+   * competitor mentions ranked by frequency → a precision pass that keeps only
+   * plausibly-comparable peers. Absent key / no company / no industry codes / no
+   * articles → []. HARD cost guards: exactly one billable /v1/news call, and the
+   * FREE /v1/company/search resolves that feed the relevance filter are capped at
+   * {@link RELEVANCE_RESOLVE_CAP} candidates (0 credits, best-effort, never throws).
    */
   async fetchCompetitors(
     query: string,
@@ -645,14 +656,14 @@ export class AktaConnector implements DataConnector {
     const company = await this.resolveCompany(query);
     if (!company) return [];
     const resolvedName = company.name ?? query;
-    const industryQuery = (
+    const targetCategory = (
       company.product_category ??
       hint ??
       resolvedName
     ).trim();
-    if (!industryQuery) return [];
+    if (!targetCategory) return [];
     const industryData = await aktaGet("/v1/industry/search", {
-      query: industryQuery,
+      query: targetCategory,
     });
     const hits = Array.isArray(industryData)
       ? industryData
@@ -661,6 +672,7 @@ export class AktaConnector implements DataConnector {
       (Array.isArray(hits) ? hits : []) as AktaIndustryHit[],
     );
     if (!codes) return [];
+    // The ONE billable call: industry-scoped news. Everything below is free.
     const newsData = await aktaGet("/v1/news", {
       industry: codes,
       limit: "25",
@@ -669,7 +681,36 @@ export class AktaConnector implements DataConnector {
     const articles = Array.isArray(newsData)
       ? newsData
       : section(newsData, "articles");
-    return extractIndustryMentions(articles, resolvedName);
+
+    // Gate to >= 2 mentions and cap the candidate set BEFORE any resolve, so the
+    // free /v1/company/search fan-out can never exceed RELEVANCE_RESOLVE_CAP.
+    const candidates = rankIndustryMentions(articles, resolvedName)
+      .filter((c) => c.count >= 2)
+      .slice(0, RELEVANCE_RESOLVE_CAP);
+    if (candidates.length === 0) return [];
+
+    // Free (0-credit) firmographic resolves, best-effort + isolated per candidate:
+    // any miss/failure maps to null and is dropped — never adds a /v1/news call.
+    const resolved = (
+      await Promise.all(
+        candidates.map(async (c): Promise<ResolvedMention | null> => {
+          try {
+            const hit = await resolveAktaCompany(c.name);
+            if (!hit) return null;
+            return {
+              name: c.name,
+              count: c.count,
+              product_category: hit.product_category,
+              company_status: hit.company_status,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((r): r is ResolvedMention => r != null);
+
+    return filterRelevantMentions(resolved, targetCategory);
   }
 
   async fetchValuationMetric(
