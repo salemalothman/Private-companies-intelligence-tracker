@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 Phase: 05 (Valuation Targets Tab) — EXECUTING
 Plan: 3 of 3
 Status: Code complete (tasks 1-3) — awaiting Task 4 human-verify checkpoint (regen + live browser)
-Last activity: 2026-07-17 - Private-only company typeahead shipped (390 tests green)
+Last activity: 2026-07-17 - Deep-review fix batch complete + re-review clean (404 tests green)
 
 Progress: [█████████░] 94%
 
@@ -123,6 +123,7 @@ None yet.
 | 260717-9co | Valuation spike guard (pdf:/url: trust + 20x upward-outlier strip) + estimated-time-remaining countdown UI for Sync/Deep-dive; hardened sweep stripped Accrete $852B outlier | 2026-07-17 | 1e1f92f | [260717-9co-add-data-sanity-validation-for-implausib](./quick/260717-9co-add-data-sanity-validation-for-implausib/) |
 | fast | Privately-held guardrail: akta primary-company resolution skips public/delisted hits (competitor resolves unrestricted) | 2026-07-17 | 1e1f92f | (inline) |
 | 260717-ayw | Private-only company typeahead in Add Company: akta-backed autocomplete (logo/name/URL/category), public companies excluded | 2026-07-17 | (merge) | [260717-ayw-typeahead-company-search-dropdown-in-add](./quick/260717-ayw-typeahead-company-search-dropdown-in-add/) |
+| 260717-emy | Deep-review fix batch: all 25 findings (4H/9M/11L + 1 pre-existing) — typeahead a11y/Escape/Enter, akta memo+semaphore, safeHttpUrl XSS guard, isAktaSource, dead code, shared TimedActionButton; + 4 re-review corrections | 2026-07-17 | 57e3a52 | [260717-emy-apply-deep-review-fixes-4-high-9-medium-](./quick/260717-emy-apply-deep-review-fixes-4-high-9-medium-/) |
 
 ## Deferred Items
 
