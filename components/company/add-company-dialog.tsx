@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CompanyTypeahead } from "@/components/company/company-typeahead";
+import type { CompanyTypeaheadHandle } from "@/components/company/company-typeahead";
 import type { CompanySuggestion } from "@/lib/connectors/akta";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, hostFromWebsite } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -63,17 +64,6 @@ const EMPTY: FormState = {
   ownership_pct: "",
 };
 
-/** Bare domain from a website URL, for building a fallback favicon URL. */
-function domainFromUrl(website: string): string | null {
-  if (!website) return null;
-  try {
-    const u = new URL(website.startsWith("http") ? website : `https://${website}`);
-    return u.hostname.replace(/^www\./, "") || null;
-  } catch {
-    return null;
-  }
-}
-
 /** Live currency preview using the app's global formatter, or null if empty/NaN. */
 function currencyPreview(v: string): string | null {
   const s = v.replace(/[,$\s]/g, "");
@@ -98,6 +88,8 @@ export function AddCompanyDialog() {
   // updates auto-filled fields but never clobbers the user's own edits.
   const autoFilled = useRef<Set<keyof FormState>>(new Set());
   const lastEnriched = useRef("");
+  // Handle to the typeahead so Escape can close its dropdown before the dialog.
+  const typeaheadRef = useRef<CompanyTypeaheadHandle>(null);
 
   // Debounced enrichment: typing a company name auto-fills the rest.
   useEffect(() => {
@@ -195,7 +187,19 @@ export function AddCompanyDialog() {
           <Plus className="h-4 w-4" /> Add company
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto"
+        onEscapeKeyDown={(e) => {
+          // When the typeahead dropdown is open, the first Escape closes it —
+          // not the dialog. preventDefault stops Radix's capture-phase handler
+          // from dismissing the dialog (which would wipe the form). A second
+          // Escape (dropdown now closed) falls through and closes the dialog.
+          if (typeaheadRef.current?.isOpen()) {
+            e.preventDefault();
+            typeaheadRef.current.close();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add private company</DialogTitle>
           <DialogDescription>Record a company you own or follow.</DialogDescription>
@@ -220,7 +224,7 @@ export function AddCompanyDialog() {
                       // the setF updater runs. Fall back Clearbit -> Google
                       // favicon -> initial.
                       const failedSrc = e.currentTarget.src;
-                      const domain = domainFromUrl(f.website);
+                      const domain = hostFromWebsite(f.website);
                       const favicon = domain
                         ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
                         : "";
@@ -241,24 +245,32 @@ export function AddCompanyDialog() {
                   </span>
                 )}
               </div>
-              <div className="relative flex-1">
+              <div className="flex-1">
                 <CompanyTypeahead
+                  ref={typeaheadRef}
                   value={f.name}
                   onChange={(v) => setF((p) => ({ ...p, name: v }))}
                   onSelect={handlePickSuggestion}
                   placeholder="OpenAI"
                   autoFocus
                 />
-                {enriching && (
-                  <span className="pointer-events-none absolute -bottom-4 left-0 flex items-center gap-1 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> enriching…
-                  </span>
-                )}
               </div>
             </div>
+            {/* Helper line doubles as the enrichment indicator: while a lookup
+                is in flight it swaps to a spinner + "Enriching…" (inline, so it
+                never overlaps the fields below as the old floating badge did). */}
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-primary" />
-              Fields below auto-fill from the name — edit any of them to override.
+              {enriching ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Enriching…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  Fields below auto-fill from the name — edit any of them to
+                  override.
+                </>
+              )}
             </p>
           </div>
 

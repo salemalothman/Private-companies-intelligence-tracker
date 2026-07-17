@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import type { MappedIngest } from "@/lib/ingestion/map";
+import { safeHttpUrl } from "@/lib/utils";
 import { classifyNews } from "@/lib/news/classify";
 import { buildIngestEvents } from "@/lib/events";
 import {
@@ -147,7 +148,10 @@ export async function applyMappedIngest(
         company_id: companyId,
         title: n.title,
         source: n.source,
-        url: n.url ?? null,
+        // Central XSS guard (defense in depth — covers Grok/Exa/documents too):
+        // only a valid absolute http(s) URL is stored; a javascript:/data:/
+        // scheme-less value degrades to null rather than a live link.
+        url: safeHttpUrl(n.url) ?? null,
         date: n.date ?? null,
         summary: n.summary ?? null,
         sentiment: n.sentiment ?? null,

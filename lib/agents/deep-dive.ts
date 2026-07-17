@@ -843,20 +843,23 @@ export async function runDeepDive(
   } catch (e) {
     console.error("runDeepDive.aktaDeepSearch:", (e as Error).message);
   }
-  if (deepSearchNews.length > 0) {
-    // Persist via applyMappedIngest — dedupes by title against existing news and
-    // applies akta's native sentiment + publisher-domain source. NEVER raw-insert
-    // (respects the "no direct table mutation outside applyMappedIngest" rule).
-    try {
-      await applyMappedIngest(supabase, company.id, {
-        fundingRounds: [],
-        valuations: [],
-        news: deepSearchNews,
-      });
-    } catch (e) {
-      console.error("runDeepDive.persistDeepSearch:", (e as Error).message);
-    }
-  }
+  // Persist via applyMappedIngest — dedupes by title against existing news and
+  // applies akta's native sentiment + publisher-domain source. NEVER raw-insert
+  // (respects the "no direct table mutation outside applyMappedIngest" rule).
+  // Started WITHOUT awaiting so the DB write overlaps the (much longer) Grok
+  // call below; awaited after generation completes so the write still lands
+  // before we return. The .catch keeps the existing error isolation — a persist
+  // failure never fails the deep-dive generation.
+  const persistDeepSearch: Promise<unknown> | null =
+    deepSearchNews.length > 0
+      ? applyMappedIngest(supabase, company.id, {
+          fundingRounds: [],
+          valuations: [],
+          news: deepSearchNews,
+        }).catch((e) =>
+          console.error("runDeepDive.persistDeepSearch:", (e as Error).message),
+        )
+      : null;
 
   // Step 2 — structured Grok call for the narrative + growth-rate proposal,
   // retried once. Each attempt returns null (never throws) on a soft parse/schema
@@ -889,6 +892,10 @@ export async function runDeepDive(
       console.error("runDeepDive.grok:", (e as Error).message);
     }
   }
+
+  // Generation is done — settle the overlapped deep-search persist before any
+  // return path so the news write always lands (its own .catch isolates errors).
+  if (persistDeepSearch) await persistDeepSearch;
 
   let sections: OverviewSections = {};
   let growth: AnalysisValuation["growth"] = NULL_GROWTH;

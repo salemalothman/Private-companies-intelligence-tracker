@@ -55,6 +55,18 @@ async function requireUser() {
   return { supabase, user };
 }
 
+// Best-effort in-memory throttle + result cache for the typeahead search.
+// Per-isolate only (a Workers/serverless deployment may run many isolates, each
+// with its own maps) — this is a cheap abuse damper, not a hard rate limit.
+const SEARCH_MIN_INTERVAL_MS = 300; // per-user floor between akta calls
+const SEARCH_CACHE_TTL_MS = 30_000;
+const SEARCH_CACHE_CAP = 100;
+const searchLastAt = new Map<string, number>(); // user id -> last-call ts
+const searchCache = new Map<
+  string,
+  { at: number; suggestions: CompanySuggestion[] }
+>(); // normalized query -> cached result
+
 /**
  * Live private-only company search for the Add Company typeahead. Bridges the
  * server-only akta key to the client: returns mapped {@link CompanySuggestion}s,
@@ -62,6 +74,8 @@ async function requireUser() {
  * — the client polls per keystroke). The query is trimmed and length-capped to 80
  * before the call (tampering/DoS guard), and any akta failure degrades to an
  * empty list so an outage never surfaces an error toast on every keystroke.
+ * A per-user 300ms minimum interval plus a 30s per-query result cache damp
+ * keystroke floods before they reach akta (in-memory, per-isolate best-effort).
  */
 export async function searchCompaniesAction(
   query: string,
@@ -70,8 +84,29 @@ export async function searchCompaniesAction(
   if (!user) return { error: "Not authenticated." };
   const q = query.trim().slice(0, 80);
   if (q.length < 2) return { suggestions: [] };
+
+  // Cache hit (fresh) — serve without touching akta or the throttle clock.
+  const key = q.toLowerCase();
+  const cached = searchCache.get(key);
+  if (cached && Date.now() - cached.at < SEARCH_CACHE_TTL_MS) {
+    return { suggestions: cached.suggestions };
+  }
+
+  // Per-user minimum interval: a burst inside the window degrades to an empty
+  // list (the client's own debounce + cache make this invisible in normal use).
+  const last = searchLastAt.get(user.id) ?? 0;
+  const now = Date.now();
+  if (now - last < SEARCH_MIN_INTERVAL_MS) return { suggestions: [] };
+  searchLastAt.set(user.id, now);
+
   try {
-    return { suggestions: toPrivateSuggestions(await searchAktaCompanies(q)) };
+    const suggestions = toPrivateSuggestions(await searchAktaCompanies(q));
+    if (searchCache.size >= SEARCH_CACHE_CAP) {
+      const oldest = searchCache.keys().next().value;
+      if (oldest !== undefined) searchCache.delete(oldest);
+    }
+    searchCache.set(key, { at: now, suggestions });
+    return { suggestions };
   } catch {
     return { suggestions: [] };
   }

@@ -44,6 +44,19 @@ const AGREE = 0.15; // within 15% → corroborates
 const DIVERGE = 0.25; // beyond 25% → conflict
 const WINDOW_MS = 120 * 86_400_000; // only contemporaneous reports corroborate/conflict
 
+/**
+ * Strict akta.pro origin test — the single shared predicate for every "is this
+ * from akta?" check across canonical/discover/dedupe. Matches ONLY a source that
+ * is exactly "akta.pro", is prefixed "akta.pro" (e.g. "akta.pro:news"), or uses
+ * the "akta:" label scheme. Deliberately strict so unrelated domains that merely
+ * CONTAIN the substring (aktana.com, fakta.dk) never falsely register as akta —
+ * the bug the loose `includes("akta")` / `/akta/i` checks had.
+ */
+export function isAktaSource(source: string | null | undefined): boolean {
+  const s = (source ?? "").trim().toLowerCase();
+  return s === "akta.pro" || s.startsWith("akta.pro") || s.startsWith("akta:");
+}
+
 /** Reduce a source label to its provider ("grok:x:social" -> "grok"). */
 export function provider(source: string | null | undefined): string {
   const s = (source ?? "").trim().toLowerCase();
@@ -53,7 +66,7 @@ export function provider(source: string | null | undefined): string {
   if (s.includes("agdillon") || s.includes("ag dillon")) return "agdillon";
   // Normalize akta.pro (and any akta:* label) to a stable "akta" key BEFORE the
   // isPublisherDomain fallthrough would otherwise keep "akta.pro" as a bare domain.
-  if (s.includes("akta")) return "akta";
+  if (isAktaSource(s)) return "akta";
   if (isSecFiling(s)) return "sec-edgar";
   if (s.includes("private-market") || s.includes("aggregate")) return "aggregate";
   if (s.includes("unverified")) return "unverified";

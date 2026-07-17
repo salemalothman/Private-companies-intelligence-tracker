@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCanonicalRecord, provider } from "@/lib/canonical";
+import { buildCanonicalRecord, isAktaSource, provider } from "@/lib/canonical";
 import type { CompanyWithRelations } from "@/lib/types";
 
 const company = (valuations: { post_money: number; date: string; source: string }[]) =>
@@ -31,6 +31,32 @@ describe("provider", () => {
   it("normalizes any akta source to the stable \"akta\" provider key", () => {
     expect(provider("akta.pro")).toBe("akta");
     expect(provider("akta.pro:news")).toBe("akta");
+  });
+});
+
+describe("isAktaSource (strict akta.pro origin predicate)", () => {
+  it("matches akta.pro and its prefixed / label-scheme forms", () => {
+    expect(isAktaSource("akta.pro")).toBe(true);
+    expect(isAktaSource("akta.pro:news")).toBe(true);
+    expect(isAktaSource("  AKTA.PRO  ")).toBe(true); // trimmed + case-insensitive
+    expect(isAktaSource("akta:financial")).toBe(true);
+  });
+
+  it("does NOT match unrelated domains that merely contain 'akta'", () => {
+    expect(isAktaSource("aktana.com")).toBe(false);
+    expect(isAktaSource("fakta.dk")).toBe(false);
+    expect(isAktaSource("via aktana")).toBe(false);
+  });
+
+  it("is false for empty / null / undefined", () => {
+    expect(isAktaSource("")).toBe(false);
+    expect(isAktaSource(null)).toBe(false);
+    expect(isAktaSource(undefined)).toBe(false);
+  });
+
+  it("provider() no longer maps akta-substring domains to \"akta\"", () => {
+    expect(provider("aktana.com")).toBe("aktana.com"); // real publisher domain kept
+    expect(provider("fakta.dk")).toBe("fakta.dk");
   });
 });
 
