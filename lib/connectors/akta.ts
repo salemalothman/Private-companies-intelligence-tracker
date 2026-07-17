@@ -428,8 +428,11 @@ function tokenJaccard(a: Set<string>, b: Set<string>): number {
  * Precision filter over ranked-and-resolved industry-news mentions. Keeps only
  * plausibly-comparable peers by layering three cheap, pure gates over the free
  * firmographic resolve — adds NO billable calls:
- *   1. Min mentions: a candidate seen in fewer than `minMentions` (default 2)
- *      articles is usually incidental → dropped.
+ *   1. Min mentions: a candidate seen in fewer than `minMentions` (default 1)
+ *      articles is dropped. Live data (2026-07-17) showed real competitors
+ *      typically appear once in a 25-article window while repeat mentions were
+ *      the noise (mega-caps in tangential stories) — so frequency is kept as a
+ *      RANKING signal, and the category-similarity gate does the filtering.
  *   2. Verifiability: a candidate with no `product_category` is unresolvable →
  *      dropped.
  *   3. Liveness: a clearly-dead `company_status` → dropped (lenient otherwise).
@@ -446,7 +449,7 @@ export function filterRelevantMentions(
   opts: RelevanceOptions = {},
 ): ConnectorCompetitor[] {
   if (!Array.isArray(resolved)) return [];
-  const minMentions = opts.minMentions ?? 2;
+  const minMentions = opts.minMentions ?? 1;
   const threshold = opts.threshold ?? 0.3;
   const targetTokens = categoryTokens(targetCategory);
   return resolved
@@ -640,14 +643,15 @@ export class AktaConnector implements DataConnector {
   }
 
   /**
-   * Step 2 of akta's workflow — industry-resolved competitor discovery. Resolves
-   * the company (free) → resolves its industry codes via /v1/industry/search
-   * (free) → ONE /v1/news call scoped to those industries → entity-resolved
-   * competitor mentions ranked by frequency → a precision pass that keeps only
-   * plausibly-comparable peers. Absent key / no company / no industry codes / no
-   * articles → []. HARD cost guards: exactly one billable /v1/news call, and the
-   * FREE /v1/company/search resolves that feed the relevance filter are capped at
-   * {@link RELEVANCE_RESOLVE_CAP} candidates (0 credits, best-effort, never throws).
+   * Step 2 of akta's workflow — competitor discovery. Resolves the company
+   * (free) → resolves its industry codes via /v1/industry/search (free) → TWO
+   * billable /v1/news calls (the target's own news for co-mentions, the
+   * strongest peer signal; plus industry-scoped news for breadth) →
+   * entity-resolved mentions merged with a co-mention boost → a precision pass
+   * that keeps only plausibly-comparable peers. Absent key / no company / no
+   * articles → []. HARD cost guards: at most two billable /v1/news calls, and
+   * the FREE /v1/company/search resolves that feed the relevance filter are
+   * capped at {@link RELEVANCE_RESOLVE_CAP} candidates (best-effort, never throws).
    */
   async fetchCompetitors(
     query: string,
@@ -662,30 +666,66 @@ export class AktaConnector implements DataConnector {
       resolvedName
     ).trim();
     if (!targetCategory) return [];
-    const industryData = await aktaGet("/v1/industry/search", {
-      query: targetCategory,
-    });
-    const hits = Array.isArray(industryData)
-      ? industryData
-      : section(industryData, "industries");
-    const codes = resolveIndustryCodes(
-      (Array.isArray(hits) ? hits : []) as AktaIndustryHit[],
-    );
-    if (!codes) return [];
-    // The ONE billable call: industry-scoped news. Everything below is free.
-    const newsData = await aktaGet("/v1/news", {
-      industry: codes,
+    // Two billable news calls, HARD CAP — that is the entire discovery cost:
+    //   a) the target's OWN news: co-mentioned companies (comparison pieces,
+    //      market roundups) are a strong peer signal;
+    //   b) a semantic comparison query ("X competitors alternatives...") —
+    //      live testing (2026-07-17, Canva) showed this is where real peers
+    //      get named (Figma, Affinity, Leonardo AI). Constraining it with the
+    //      `industry` filter ANDs the filters and returned ZERO articles, and
+    //      industry-only news skewed to tangential mega-caps — so the
+    //      comparison query intentionally runs unconstrained.
+    // Both run best-effort; either failing degrades to the other's candidates.
+    const comparisonParams: Record<string, string> = {
+      query: `${resolvedName} competitors alternatives comparison`,
       limit: "25",
       group_articles: "true",
-    });
-    const articles = Array.isArray(newsData)
-      ? newsData
-      : section(newsData, "articles");
+    };
+    const [companyNewsData, industryNewsData] = await Promise.all([
+      company.uuid
+        ? aktaGet("/v1/news", {
+            company: company.uuid,
+            limit: "15",
+            group_articles: "true",
+          })
+        : Promise.resolve(null),
+      aktaGet("/v1/news", comparisonParams),
+    ]);
+    const toArticles = (d: unknown): unknown[] => {
+      if (Array.isArray(d)) return d;
+      const s = section(d, "articles");
+      return Array.isArray(s) ? s : [];
+    };
 
-    // Gate to >= 2 mentions and cap the candidate set BEFORE any resolve, so the
+    // Rank each pool independently and take the top half of the resolve budget
+    // from EACH — neither pool may crowd out the other (live testing: grouped
+    // syndicated stories can flood the company-news pool with 9x mentions of
+    // unrelated mega-caps, which would otherwise consume every resolve slot
+    // before a once-mentioned genuine peer from a comparison article gets one).
+    // The category-similarity gate in filterRelevantMentions does the actual
+    // filtering; counts only order candidates. Capped BEFORE any resolve so the
     // free /v1/company/search fan-out can never exceed RELEVANCE_RESOLVE_CAP.
-    const candidates = rankIndustryMentions(articles, resolvedName)
-      .filter((c) => c.count >= 2)
+    // Asymmetric split: the comparison-query pool is the stronger signal and
+    // its genuine peers often carry only 1 mention, so it gets the larger share
+    // of the resolve budget (7/3 of 10) — live testing showed a 5/5 split let
+    // 2-count tangential names (Anthropic, Teva) squeeze out a 1-count Figma.
+    const COMPARISON_POOL_CAP = Math.ceil(RELEVANCE_RESOLVE_CAP * 0.7);
+    const COMPANY_POOL_CAP = RELEVANCE_RESOLVE_CAP - COMPARISON_POOL_CAP;
+    const merged = new Map<string, { name: string; count: number }>();
+    const takePool = (data: unknown, cap: number): void => {
+      for (const c of rankIndustryMentions(toArticles(data), resolvedName).slice(
+        0,
+        cap,
+      )) {
+        const prev = merged.get(c.name.toLowerCase());
+        if (prev) prev.count += c.count;
+        else merged.set(c.name.toLowerCase(), { name: c.name, count: c.count });
+      }
+    };
+    takePool(industryNewsData, COMPARISON_POOL_CAP); // comparison-query pool
+    takePool(companyNewsData, COMPANY_POOL_CAP);
+    const candidates = [...merged.values()]
+      .sort((a, b) => b.count - a.count)
       .slice(0, RELEVANCE_RESOLVE_CAP);
     if (candidates.length === 0) return [];
 

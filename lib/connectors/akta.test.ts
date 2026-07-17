@@ -242,15 +242,21 @@ describe("rankIndustryMentions", () => {
 describe("filterRelevantMentions", () => {
   const basis = "akta.pro industry-news mention";
 
-  it("Test A — drops single-mention candidates, keeps count >= 2", () => {
-    const out = filterRelevantMentions(
-      [
-        { name: "Once", count: 1, product_category: "Design Software" },
-        { name: "Twice", count: 2, product_category: "Design Software" },
-      ],
-      "Graphic Design Software",
-    );
-    expect(out.map((c) => c.name)).toEqual(["Twice"]);
+  it("Test A — keeps single-mention candidates by default (frequency ranks, category filters), still supports an explicit floor", () => {
+    const input = [
+      { name: "Once", count: 1, product_category: "Design Software" },
+      { name: "Twice", count: 2, product_category: "Design Software" },
+    ];
+    // Default minMentions=1: both survive, ranked by count desc.
+    expect(
+      filterRelevantMentions(input, "Graphic Design Software").map((c) => c.name),
+    ).toEqual(["Twice", "Once"]);
+    // Explicit floor still enforced when a caller opts in.
+    expect(
+      filterRelevantMentions(input, "Graphic Design Software", {
+        minMentions: 2,
+      }).map((c) => c.name),
+    ).toEqual(["Twice"]);
   });
 
   it("Test B — drops candidates whose product_category is empty/undefined (unverifiable)", () => {
@@ -317,7 +323,8 @@ describe("filterRelevantMentions", () => {
       ],
       "Software", // only a stopword → empty target token set
     );
-    expect(out.map((c) => c.name)).toEqual(["Peer A"]);
+    // Default minMentions=1: both survive on the lenient path, count-desc.
+    expect(out.map((c) => c.name)).toEqual(["Peer A", "Peer B"]);
   });
 
   it("returns [] for empty / malformed input without throwing", () => {
