@@ -292,7 +292,13 @@ async function aktaGet(
   try {
     const qs = new URLSearchParams(params).toString();
     const res = await fetch(`${AKTA_BASE}${path}?${qs}`, {
-      headers: { "x-api-key": key },
+      headers: {
+        "x-api-key": key,
+        // akta.pro sits behind Cloudflare bot protection, which 403s (error
+        // 1010) any request without a User-Agent — the Workers runtime fetch
+        // sends none by default, so an explicit product UA is load-bearing.
+        "User-Agent": "PrivateCompaniesTracker/1.0",
+      },
     });
     if (!res.ok) return null;
     const parsed = envelopeSchema.safeParse(await res.json());
